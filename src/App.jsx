@@ -8,17 +8,17 @@ import {
   Check,
   Copy,
   Printer,
-  LayoutGrid,
   Receipt,
   History,
   Settings as SettingsIcon,
   Search,
   ChevronDown,
-  ChevronUp,
   Camera,
   X,
   Loader2,
   TrendingUp,
+  Package,
+  ArrowLeft,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -185,7 +185,7 @@ function detectAllergens(lines, ingredientsList, lang) {
 
 const TR = {
   fr: {
-    appTitle: "Marge en cuisine", saved: "Enregistré", loading: "Chargement…",
+    appTitle: "Marge en cuisine", saved: "Enregistré", loading: "Chargement…", greeting: "Bonjour Chef 👋",
     dataUnavailable: "Données locales indisponibles", resetData: "Réinitialiser mes données",
     pantry: "Garde-manger", newIngredient: "Nouvel ingrédient", addIngredient: "Ajouter un ingrédient",
     searchPlaceholder: "Rechercher un ingrédient…", pantryFilterPlaceholder: "Filtrer le garde-manger…",
@@ -217,9 +217,10 @@ const TR = {
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
+    scanTab: "Scanner", scanTabHint: "Prends en photo une facture ou un ticket fournisseur : l'IA extrait les articles automatiquement.",
   },
   es: {
-    appTitle: "Margen en cocina", saved: "Guardado", loading: "Cargando…",
+    appTitle: "Margen en cocina", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef 👋",
     dataUnavailable: "Datos locales no disponibles", resetData: "Restablecer mis datos",
     pantry: "Despensa", newIngredient: "Nuevo ingrediente", addIngredient: "Añadir ingrediente",
     searchPlaceholder: "Buscar un ingrediente…", pantryFilterPlaceholder: "Filtrar la despensa…",
@@ -251,6 +252,7 @@ const TR = {
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
+    scanTab: "Escanear", scanTabHint: "Haz una foto de una factura o ticket de proveedor: la IA extrae los artículos automáticamente.",
   },
 };
 
@@ -336,13 +338,103 @@ function NumField({ value, onChange, className, allowDecimal = true, ...rest }) 
   );
 }
 
-const TIER_COLORS = { low: "#B23A2E", mid: "#C97A1E", high: "#3F8F52" };
+// Sélecteur d'ingrédient avec recherche (remplace un <select> qui deviendrait interminable).
+// Tape au moins 2 lettres pour filtrer, clique une suggestion pour choisir.
+function IngredientPicker({ ingredients, value, displayName, onChange, className, autoOpen, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapRef = useRef(null);
+  const current = ingredients.find((i) => i.id === value);
+
+  useEffect(() => {
+    if (autoOpen) setOpen(true);
+  }, [autoOpen]);
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
+  const filtered =
+    query.trim().length >= 2
+      ? ingredients.filter((i) => displayName(i).toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8)
+      : ingredients.slice(0, 8);
+
+  return (
+    <div className={`relative ${className || ""}`} ref={wrapRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full text-left truncate outline-none"
+      >
+        {current ? displayName(current) : <span className="opacity-40">{placeholder || "…"}</span>}
+      </button>
+      {open && (
+        <div className="absolute z-30 top-full left-0 mt-1 w-56 max-w-[80vw] rounded-xl overflow-hidden shadow-xl border border-white/10" style={{ background: "#1F1F25" }}>
+          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-white/10">
+            <Search size={12} className="text-white/40 shrink-0" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Tape 2 lettres…"
+              className="w-full bg-transparent text-white text-xs outline-none min-w-0"
+              onBlur={() => setTimeout(() => setOpen(false), 150)}
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.map((i) => (
+              <button
+                key={i.id}
+                onMouseDown={(e) => { e.preventDefault(); onChange(i.id); setOpen(false); }}
+                className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-white/10 ${i.id === value ? "text-[#10B981]" : "text-white/80"}`}
+              >
+                {displayName(i)}
+              </button>
+            ))}
+            {filtered.length === 0 && <div className="px-2.5 py-2 text-xs text-white/30">Aucun résultat</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 function marginTier(m, minMargin) {
   if (m === null || m === undefined) return null;
-  if (m < CRITICAL_MARGIN) return "low";
+  const rounded = Math.round(m);
+  if (rounded < CRITICAL_MARGIN) return "low";
   const target = Math.max(minMargin ?? 75, CRITICAL_MARGIN);
-  if (m < target) return "mid";
+  if (rounded < target) return "mid";
   return "high";
+}
+
+// Message qualitatif personnalisé, toujours cohérent avec la couleur affichée :
+// il compare la marge réelle à la marge minimale souhaitée (réglage global), pas à autre chose.
+function marginMessage(roundedMargin, effectiveTarget, tier, lang) {
+  if (roundedMargin === null) return null;
+  const gapAbove = roundedMargin - effectiveTarget; // positif si au-dessus de l'objectif
+  const gapBelow = effectiveTarget - roundedMargin; // positif si en dessous
+  if (tier === "high") {
+    return gapAbove >= 10
+      ? (lang === "es" ? "¡Margen excelente!" : "Marge excellente !")
+      : (lang === "es" ? "Buen margen, por encima de tu objetivo." : "Belle marge, tu es au-dessus de ton objectif.");
+  }
+  if (tier === "mid") {
+    return gapBelow <= 3
+      ? (lang === "es"
+          ? "Justo por debajo de tu margen deseado, pero sigue siendo un buen plato."
+          : "Juste en dessous de ta marge souhaitée, mais la marge reste bonne sur ce plat.")
+      : (lang === "es"
+          ? "Por debajo de tu margen deseado — a vigilar en este plato."
+          : "En dessous de ta marge souhaitée — à surveiller sur ce plat.");
+  }
+  // tier "low"
+  return roundedMargin < 50
+    ? (lang === "es"
+        ? "Margen muy insuficiente: este plato no es rentable tal cual."
+        : "Marge largement insuffisante : ce plat n'est pas assez rentable en l'état.")
+    : (lang === "es" ? "Margen insuficiente, a corregir rápidamente." : "Marge insuffisante, à corriger rapidement.");
 }
 
 export default function App() {
@@ -350,7 +442,8 @@ export default function App() {
   const [recipes, setRecipes] = useState(SEED_RECIPES);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [activeId, setActiveId] = useState("r1");
-  const [view, setView] = useState("ticket");
+  const [activeTab, setActiveTab] = useState("recipes"); // 'recipes' | 'scanner' | 'pantry'
+  const [recipeSubView, setRecipeSubView] = useState("list"); // 'list' | 'detail'
   const [lang, setLang] = useState("fr");
   const [showSettings, setShowSettings] = useState(false);
   const [ready, setReady] = useState(false);
@@ -359,9 +452,10 @@ export default function App() {
 
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
-  const [pantryOpen, setPantryOpen] = useState(false);
   const [pantryQuery, setPantryQuery] = useState("");
   const [pantryCategory, setPantryCategory] = useState("all");
+  const [expandedIngId, setExpandedIngId] = useState(null);
+  const [autoOpenIdx, setAutoOpenIdx] = useState(null);
 
   const [scanOpen, setScanOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -446,9 +540,11 @@ export default function App() {
   const suggestedTTC = suggestedHT !== null ? suggestedHT * (1 + vatRate / 100) : null;
   // Règle : on ne propose un prix conseillé que si la marge actuelle n'atteint pas encore l'objectif.
   // Si l'objectif est déjà atteint ou dépassé, on ne suggère jamais un prix plus bas.
-  const isBelowTarget = margin !== null && margin < targetMargin;
-  const isAtOrAboveTarget = margin !== null && margin >= targetMargin;
-  const nextMarginStep = margin !== null ? Math.min(99, Math.ceil((margin + 5) / 5) * 5) : null;
+  // On compare la valeur ARRONDIE (celle affichée à l'écran) pour éviter qu'un 74.8% affiché "75%" reste bloqué.
+  const marginRounded = margin !== null ? Math.round(margin) : null;
+  const isBelowTarget = marginRounded !== null && marginRounded < targetMargin;
+  const isAtOrAboveTarget = marginRounded !== null && marginRounded >= targetMargin;
+  const nextMarginStep = marginRounded !== null ? Math.min(99, Math.ceil((marginRounded + 5) / 5) * 5) : null;
 
   const updateRecipe = (patch) => setRecipes((rs) => rs.map((r) => (r.id === active.id ? { ...r, ...patch } : r)));
   const applyLinesChange = (newLines) => {
@@ -459,8 +555,9 @@ export default function App() {
   const updateLineQty = (idx, qty) => updateRecipe({ lines: active.lines.map((l, i) => (i === idx ? { ...l, qty } : l)) });
   const removeLine = (idx) => applyLinesChange(active.lines.filter((_, i) => i !== idx));
   const addLine = () => {
-    if (!ingredients.length) return;
-    applyLinesChange([...active.lines, { ingredientId: ingredients[0].id, qty: 0.1 }]);
+    const newIdx = active.lines.length;
+    applyLinesChange([...active.lines, { ingredientId: null, qty: 1 }]);
+    setAutoOpenIdx(newIdx);
   };
   const changeLineIngredient = (idx, ingredientId) =>
     applyLinesChange(active.lines.map((l, i) => (i === idx ? { ...l, ingredientId } : l)));
@@ -476,14 +573,16 @@ export default function App() {
     };
     setRecipes((rs) => [...rs, nr]);
     setActiveId(nr.id);
-    setView("ticket");
+    setActiveTab("recipes");
+    setRecipeSubView("detail");
   };
 
   const duplicateRecipe = (r) => {
     const copy = { ...r, id: uid(), name: r.name + " (copie)", createdAt: today(), lines: r.lines.map((l) => ({ ...l })) };
     setRecipes((rs) => [...rs, copy]);
     setActiveId(copy.id);
-    setView("ticket");
+    setActiveTab("recipes");
+    setRecipeSubView("detail");
   };
 
   const deleteRecipe = (id) => {
@@ -757,8 +856,21 @@ export default function App() {
     return catOk && nameOk;
   });
 
+  // Tableau du garde-manger : regroupé par catégorie, puis ordre alphabétique dans chaque groupe.
+  const pantryGrouped = CATEGORIES.map((c) => ({
+    cat: c,
+    items: pantryFiltered
+      .filter((i) => (i.category || "autres") === c.id)
+      .sort((a, b) => ingredientDisplayName(a).localeCompare(ingredientDisplayName(b), lang)),
+  })).filter((g) => g.items.length > 0);
+
+  // Le seuil vert ne peut jamais descendre sous 70% (règle fixe du rouge) — on l'utilise
+  // pour le texte d'aide afin qu'il reste cohérent avec les couleurs réellement affichées.
+  const effectiveGreenTarget = Math.max(settings.minMargin || 0, CRITICAL_MARGIN);
+  const hasOrangeZone = effectiveGreenTarget > CRITICAL_MARGIN;
+
   return (
-    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: "#23272A", maxWidth: "100vw" }}>
+    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: "#18181B", maxWidth: "100vw" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
         * { box-sizing: border-box; }
@@ -768,7 +880,7 @@ export default function App() {
         .ticket { background: #F2ECDD; color: #2B2620; position: relative; box-shadow: 0 12px 30px rgba(0,0,0,0.35); max-width: 100%; }
         .ticket::before, .ticket::after {
           content: ""; position: absolute; left: 0; right: 0; height: 14px;
-          background-image: radial-gradient(circle at 10px 7px, #23272A 6px, transparent 7px);
+          background-image: radial-gradient(circle at 10px 7px, #18181B 6px, transparent 7px);
           background-size: 20px 14px; background-repeat: repeat-x;
         }
         .ticket::before { top: -7px; }
@@ -782,9 +894,9 @@ export default function App() {
         @media (max-width: 1024px) { .grid-main { grid-template-columns: 1fr !important; } }
       `}</style>
 
-      <header className="border-b border-black/20 px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-2 print:hidden" style={{ background: "#2F3437" }}>
+      <header className="border-b border-white/10 px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-2 print:hidden" style={{ background: "#1F1F25" }}>
         <div className="flex items-center gap-2">
-          <ChefHat size={22} color="#C9A227" />
+          <ChefHat size={22} color="#10B981" />
           <h1 className="font-display text-white text-base sm:text-lg tracking-wide uppercase">{t("appTitle")}</h1>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 font-body text-xs text-white/50 flex-wrap">
@@ -795,20 +907,19 @@ export default function App() {
               <Check size={14} color="#7CB342" /> {t("saved")}
             </span>
           )}
-          <button onClick={() => setShowSettings(true)} className="text-white/60 hover:text-[#C9A227]" title={t("settings")}>
+          <button onClick={() => setShowSettings(true)} className="text-white/60 hover:text-[#10B981]" title={t("settings")}>
             <SettingsIcon size={16} />
           </button>
           <div className="flex items-center gap-1">
             <button onClick={() => setLang("fr")} className={`text-lg leading-none ${lang === "fr" ? "" : "opacity-40 grayscale"}`} title="Français">🇫🇷</button>
             <button onClick={() => setLang("es")} className={`text-lg leading-none ${lang === "es" ? "" : "opacity-40 grayscale"}`} title="Español">🇪🇸</button>
           </div>
-          <button onClick={clearAll} className="underline hover:text-white/80">{t("resetData")}</button>
         </div>
       </header>
 
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setShowSettings(false)}>
-          <div className="rounded-md p-5 w-full max-w-xs font-body" style={{ background: "#2F3437" }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10" style={{ background: "#1F1F25" }} onClick={(e) => e.stopPropagation()}>
             <h3 className="font-display text-white uppercase tracking-wide text-sm mb-4">{t("settings")}</h3>
             <label className="text-xs text-white/60 block mb-1">{t("defaultVat")}</label>
             <select
@@ -834,13 +945,20 @@ export default function App() {
               <span className="text-white/60 text-sm">%</span>
             </div>
             <p className="text-[10px] text-white/30 mb-4">
-              {lang === "es"
-                ? `Verde ≥ ${settings.minMargin}% · Naranja entre ${CRITICAL_MARGIN}–${settings.minMargin}% · Rojo < ${CRITICAL_MARGIN}%`
-                : `Vert ≥ ${settings.minMargin}% · Orange entre ${CRITICAL_MARGIN}–${settings.minMargin}% · Rouge < ${CRITICAL_MARGIN}%`}
+              {hasOrangeZone
+                ? (lang === "es"
+                    ? `Verde ≥ ${effectiveGreenTarget}% · Naranja entre ${CRITICAL_MARGIN}–${effectiveGreenTarget}% · Rojo < ${CRITICAL_MARGIN}%`
+                    : `Vert ≥ ${effectiveGreenTarget}% · Orange entre ${CRITICAL_MARGIN}–${effectiveGreenTarget}% · Rouge < ${CRITICAL_MARGIN}%`)
+                : (lang === "es"
+                    ? `Verde ≥ ${CRITICAL_MARGIN}% · Rojo < ${CRITICAL_MARGIN}% (sin zona naranja con este umbral)`
+                    : `Vert ≥ ${CRITICAL_MARGIN}% · Rouge < ${CRITICAL_MARGIN}% (pas de zone orange avec ce seuil)`)}
             </p>
 
-            <button onClick={() => setShowSettings(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#C9A227] hover:text-[#C9A227]">
+            <button onClick={() => setShowSettings(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#10B981] hover:text-[#10B981]">
               {t("close")}
+            </button>
+            <button onClick={clearAll} className="w-full text-center mt-3 text-[11px] text-white/30 hover:text-[#B23A2E] underline">
+              {t("resetData")}
             </button>
           </div>
         </div>
@@ -849,8 +967,8 @@ export default function App() {
       {scanOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeScan}>
           <div
-            className="rounded-md p-5 w-full max-w-xl max-h-[85vh] overflow-y-auto font-body"
-            style={{ background: "#2F3437" }}
+            className="rounded-2xl p-5 w-full max-w-xl max-h-[85vh] overflow-y-auto font-body border border-white/10"
+            style={{ background: "#1F1F25" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -862,7 +980,7 @@ export default function App() {
 
             {scanning && (
               <div className="flex flex-col items-center justify-center py-10 text-white/60 text-sm gap-3">
-                <Loader2 size={26} className="animate-spin" style={{ color: "#C9A227" }} />
+                <Loader2 size={26} className="animate-spin" style={{ color: "#10B981" }} />
                 {t("scanning")}
               </div>
             )}
@@ -872,7 +990,7 @@ export default function App() {
                 <div className="text-[#B23A2E] text-sm mb-3">{t("scanError")} : {scanErr}</div>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-xs uppercase tracking-wide px-3 py-1.5 rounded border border-white/20 text-white/70 hover:border-[#C9A227] hover:text-[#C9A227]"
+                  className="text-xs uppercase tracking-wide px-3 py-1.5 rounded border border-white/20 text-white/70 hover:border-[#10B981] hover:text-[#10B981]"
                 >
                   {t("scanRetry")}
                 </button>
@@ -894,15 +1012,15 @@ export default function App() {
                     {scanResult.items.map((item, idx) => (
                       <div
                         key={idx}
-                        className={`rounded-md p-2.5 ${item.imported ? "opacity-40" : ""}`}
-                        style={{ background: "#23272A" }}
+                        className={`rounded-xl p-2.5 border border-white/10 ${item.imported ? "opacity-40" : ""}`}
+                        style={{ background: "#18181B" }}
                       >
                         <div className="flex items-center gap-1.5">
                           <input
                             value={item.name || ""}
                             disabled={item.imported}
                             onChange={(e) => updateScanItem(idx, { name: e.target.value })}
-                            className="flex-1 min-w-0 bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#C9A227]"
+                            className="flex-1 min-w-0 bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#10B981]"
                           />
                           <NumField
                             value={item.quantity || 0}
@@ -958,7 +1076,7 @@ export default function App() {
                           ) : (
                             <button
                               onClick={() => importScanItem(idx)}
-                              className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border border-white/20 text-white/70 hover:border-[#C9A227] hover:text-[#C9A227]"
+                              className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border border-white/20 text-white/70 hover:border-[#10B981] hover:text-[#10B981]"
                             >
                               {t("scanImport")}
                             </button>
@@ -973,7 +1091,7 @@ export default function App() {
                   <button
                     onClick={importAllScanItems}
                     className="mt-4 w-full text-xs font-display uppercase tracking-wide py-2 rounded"
-                    style={{ background: "#C9A227", color: "#000" }}
+                    style={{ background: "#10B981", color: "#fff" }}
                   >
                     {t("scanImportAll")}
                   </button>
@@ -984,228 +1102,31 @@ export default function App() {
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-5 py-8 grid grid-main grid-cols-1 lg:grid-cols-[280px_1fr] gap-8 w-full">
-        {/* Pantry */}
-        <aside className="font-body print:hidden min-w-0">
-          <button onClick={() => setPantryOpen((o) => !o)} className="w-full flex items-center justify-between mb-3 group">
-            <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">{t("pantry")}</h2>
-            {pantryOpen ? <ChevronUp size={16} className="text-white/40 group-hover:text-[#C9A227]" /> : <ChevronDown size={16} className="text-white/40 group-hover:text-[#C9A227]" />}
-          </button>
+      <main className="max-w-2xl mx-auto px-4 py-5 w-full pb-28">
+        {/* ---------------- ONGLET RECETTES ---------------- */}
+        {activeTab === "recipes" && recipeSubView === "list" && (
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <ChefHat size={18} color="#10B981" />
+              <span className="font-display text-white/50 text-[11px] uppercase tracking-widest">{t("appTitle")}</span>
+            </div>
+            <h1 className="font-display text-white text-xl mb-5">{t("greeting")}</h1>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={handleScanFile}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-md mb-4 text-black"
-            style={{ background: "#C9A227" }}
-          >
-            <Camera size={15} /> {t("scanInvoice")}
-          </button>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">{t("recipes")}</h2>
+              <button
+                onClick={addRecipe}
+                className="flex items-center gap-1 text-xs font-display uppercase tracking-wide px-3 py-1.5 rounded-full active:scale-95 transition-transform"
+                style={{ background: "#10B981", color: "#fff" }}
+              >
+                <Plus size={14} /> {t("newRecipe")}
+              </button>
+            </div>
 
-          {pantryOpen && (
-            <>
-              <div className="flex items-center gap-1.5 rounded-md px-2 py-1.5 mb-2" style={{ background: "#2F3437" }}>
-                <Search size={13} className="text-white/40 shrink-0" />
-                <input
-                  value={pantryQuery}
-                  onChange={(e) => setPantryQuery(e.target.value)}
-                  placeholder={t("pantryFilterPlaceholder")}
-                  className="w-full bg-transparent text-white text-sm outline-none min-w-0"
-                />
-              </div>
-              <div className="flex flex-wrap gap-1 mb-3">
-                <button
-                  onClick={() => setPantryCategory("all")}
-                  className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === "all" ? "bg-[#C9A227] text-black border-[#C9A227]" : "text-white/50 border-white/15 hover:border-white/40"}`}
-                >
-                  {t("allCategories")}
-                </button>
-                {CATEGORIES.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setPantryCategory(c.id)}
-                    className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === c.id ? "bg-[#C9A227] text-black border-[#C9A227]" : "text-white/50 border-white/15 hover:border-white/40"}`}
-                  >
-                    {c[lang]}
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-3">
-                {pantryFiltered.map((ing) => (
-                  <div key={ing.id} className="rounded-md p-2.5 min-w-0" style={{ background: "#2F3437" }}>
-                    <div className="flex items-center gap-1">
-                      <input
-                        value={ingredientDisplayName(ing)}
-                        onChange={(e) => updateIngredientName(ing.id, e.target.value)}
-                        className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#C9A227] pb-0.5 min-w-0"
-                      />
-                      <select
-                        value={ing.unit}
-                        onChange={(e) => updateIngredientField(ing.id, "unit", e.target.value)}
-                        className="bg-transparent text-white/60 text-xs outline-none shrink-0"
-                        style={{ colorScheme: "dark" }}
-                      >
-                        <option value="kg">kg</option>
-                        <option value="L">L</option>
-                        <option value="pièce">u.</option>
-                      </select>
-                      <button onClick={() => deleteIngredient(ing.id)} className="text-white/30 hover:text-red-400 shrink-0">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-
-                    <div className="mt-2 space-y-1">
-                      {ing.suppliers.map((s) => (
-                        <div key={s.id} className="flex items-center gap-1.5 text-xs text-white/60">
-                          <input type="radio" checked={ing.selectedSupplierId === s.id} onChange={() => selectSupplier(ing.id, s.id)} title={t("supplier")} className="shrink-0" />
-                          <input
-                            value={s.name}
-                            onChange={(e) => updateSupplier(ing.id, s.id, "name", e.target.value)}
-                            className="flex-1 bg-transparent outline-none border-b border-white/10 focus:border-[#C9A227] min-w-0"
-                          />
-                          <NumField value={s.price} onChange={(v) => updateSupplier(ing.id, s.id, "price", v)} className="w-12 shrink-0 bg-transparent font-mono outline-none border-b border-white/10 focus:border-[#C9A227] text-right" />
-                          <span className="shrink-0">€</span>
-                          {ing.suppliers.length > 1 && (
-                            <button onClick={() => removeSupplier(ing.id, s.id)} className="text-white/25 hover:text-red-400 shrink-0"><Trash2 size={11} /></button>
-                          )}
-                        </div>
-                      ))}
-                      <button onClick={() => addSupplier(ing.id)} className="text-[10px] uppercase tracking-wide text-white/40 hover:text-[#C9A227] flex items-center gap-1">
-                        <Plus size={10} /> {t("supplier")}
-                      </button>
-                    </div>
-
-                    {ing.history && ing.history.length > 0 && (
-                      <div className="mt-2 pt-2 border-t border-white/10 text-[10px] text-white/40 font-mono flex items-start gap-1">
-                        <History size={11} className="mt-0.5 shrink-0" />
-                        <span className="break-words">{ing.history.slice(-3).map((h) => `${h.date}: ${h.price.toFixed(2)}€`).join("  ·  ")}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {pantryFiltered.length === 0 && (
-                  <div className="text-xs text-white/30 px-1 py-2">{t("noFilterMatch")}</div>
-                )}
-              </div>
-
-              {adding ? (
-                <div className="mt-3 relative">
-                  <div className="flex items-center gap-1.5 rounded-md px-2 py-1.5" style={{ background: "#2F3437" }}>
-                    <Search size={13} className="text-white/40 shrink-0" />
-                    <input
-                      autoFocus value={query} onChange={(e) => setQuery(e.target.value)}
-                      placeholder={t("searchPlaceholder")} className="w-full bg-transparent text-white text-sm outline-none min-w-0"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && query.trim()) addCustomIngredient(query.trim());
-                        if (e.key === "Escape") { setAdding(false); setQuery(""); }
-                      }}
-                      onBlur={() => setTimeout(() => setAdding(false), 150)}
-                    />
-                  </div>
-                  <div className="mt-1 rounded-md overflow-hidden absolute z-20 w-full" style={{ background: "#2F3437" }}>
-                    {suggestions.map((c) => (
-                      <button key={c.id} onMouseDown={(e) => { e.preventDefault(); addIngredientFromCatalog(c); }} className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 flex items-center justify-between">
-                        <span>{c[lang]}</span>
-                        <span className="text-[10px] text-white/30">{normUnit(c.unit)}</span>
-                      </button>
-                    ))}
-                    {query.trim() && (
-                      <button onMouseDown={(e) => { e.preventDefault(); addCustomIngredient(query.trim()); }} className="w-full text-left px-3 py-2 text-xs text-[#C9A227] hover:bg-white/10 border-t border-white/10">
-                        {t("createCustom")(query.trim())}
-                      </button>
-                    )}
-                    {!suggestions.length && !query.trim() && <div className="px-3 py-2 text-xs text-white/30">{t("noMatch")}</div>}
-                  </div>
-                </div>
-              ) : (
-                <button onClick={() => setAdding(true)} className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2 rounded-md border border-dashed border-white/25 text-white/60 hover:text-[#C9A227] hover:border-[#C9A227] transition">
-                  <Plus size={14} /> {t("addIngredient")}
-                </button>
-              )}
-            </>
-          )}
-
-          <h2 className="font-display text-white/90 uppercase text-sm tracking-widest mt-8 mb-3">{t("recipes")}</h2>
-          <div className="space-y-1">
-            {recipes.map((r) => {
-              const m = recipeMargin(r);
-              const rt = marginTier(m, settings.minMargin);
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => { setActiveId(r.id); setView("ticket"); }}
-                  className={`w-full text-left px-3 py-2 rounded-md text-sm font-body flex items-center justify-between group ${r.id === activeId && view === "ticket" ? "bg-[#C9A227] text-black font-semibold" : "text-white/70 hover:bg-white/5"}`}
-                >
-                  <span className="truncate min-w-0">{r.name}</span>
-                  <span className="flex items-center gap-1 shrink-0">
-                    {m !== null && <span className="text-[10px] font-mono" style={{ color: TIER_COLORS[rt] }}>{m.toFixed(0)}%</span>}
-                    <Trash2 size={13} onClick={(e) => { e.stopPropagation(); deleteRecipe(r.id); }} className={`opacity-0 group-hover:opacity-60 hover:!opacity-100 ${r.id === activeId ? "text-black" : "text-white"}`} />
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          <button onClick={addRecipe} className="mt-2 w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2 rounded-md border border-dashed border-white/25 text-white/60 hover:text-[#C9A227] hover:border-[#C9A227] transition">
-            <Plus size={14} /> {t("newRecipe")}
-          </button>
-        </aside>
-
-        {/* Main panel */}
-        <section className="min-w-0">
-          <div className="flex items-center gap-2 mb-5 print:hidden">
-            <button onClick={() => setView("ticket")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-display uppercase tracking-wide ${view === "ticket" ? "bg-[#C9A227] text-black" : "text-white/60 hover:bg-white/5"}`}>
-              <Receipt size={14} /> {t("ticket")}
-            </button>
-            <button onClick={() => setView("overview")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-display uppercase tracking-wide ${view === "overview" ? "bg-[#C9A227] text-black" : "text-white/60 hover:bg-white/5"}`}>
-              <LayoutGrid size={14} /> {t("overview")}
-            </button>
-          </div>
-
-          {view === "overview" ? (
-            <div className="font-body">
-              {/* Desktop table */}
-              <div className="rounded-md overflow-hidden hidden sm:block" style={{ background: "#2F3437" }}>
-                <table className="w-full text-sm text-white/80">
-                  <thead>
-                    <tr className="text-left text-white/40 text-xs uppercase tracking-wide">
-                      <th className="px-4 py-3">{t("recipeCol")}</th>
-                      <th className="px-4 py-3 text-right">{t("costPortionCol")}</th>
-                      <th className="px-4 py-3 text-right">{t("sellPriceCol")}</th>
-                      <th className="px-4 py-3 text-right">{t("marginCol")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recipes.map((r) => {
-                      const cpp = recipeCostPerPortion(r);
-                      const m = recipeMargin(r);
-                      const rt = marginTier(m, settings.minMargin);
-                      return (
-                        <tr key={r.id} className="border-t border-white/5 hover:bg-white/5 cursor-pointer" onClick={() => { setActiveId(r.id); setView("ticket"); }}>
-                          <td className="px-4 py-3 font-medium">{r.name}</td>
-                          <td className="px-4 py-3 text-right font-mono">{cpp.toFixed(2)}€</td>
-                          <td className="px-4 py-3 text-right font-mono">{(r.sellPrice || 0).toFixed(2)}€</td>
-                          <td className="px-4 py-3 text-right font-mono">
-                            {m === null ? "—" : (
-                              <span className="inline-block px-1.5 py-0.5 rounded font-semibold" style={{ color: TIER_COLORS[rt], backgroundColor: `${TIER_COLORS[rt]}22` }}>{m.toFixed(0)}%</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {recipes.length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-white/40">{t("noRecipes")}</td></tr>}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile cards */}
-              <div className="sm:hidden space-y-2">
+            {recipes.length === 0 ? (
+              <div className="text-white/40 text-sm text-center py-16 font-body">{t("noRecipeYet")}</div>
+            ) : (
+              <div className="space-y-2">
                 {recipes.map((r) => {
                   const cpp = recipeCostPerPortion(r);
                   const m = recipeMargin(r);
@@ -1213,177 +1134,398 @@ export default function App() {
                   return (
                     <button
                       key={r.id}
-                      onClick={() => { setActiveId(r.id); setView("ticket"); }}
-                      className="w-full text-left rounded-md p-3"
-                      style={{ background: "#2F3437" }}
+                      onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); }}
+                      className="w-full text-left rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 font-body transition hover:brightness-110 active:scale-95 border border-white/10"
+                      style={{ background: "#1F1F25" }}
                     >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-white font-medium text-sm truncate min-w-0">{r.name}</span>
-                        {m !== null && (
-                          <span className="text-xs font-mono font-semibold shrink-0 ml-2" style={{ color: TIER_COLORS[rt] }}>{m.toFixed(0)}%</span>
-                        )}
+                      <div className="min-w-0">
+                        <div className="text-white font-medium text-sm truncate">{r.name}</div>
+                        <div className="text-white/40 text-[11px] font-mono mt-1">
+                          {cpp.toFixed(2)}€ &rarr; {(r.sellPrice || 0).toFixed(2)}€
+                        </div>
                       </div>
-                      <div className="flex justify-between text-[11px] text-white/50 font-mono">
-                        <span>{t("costPortionCol")}: {cpp.toFixed(2)}€</span>
-                        <span>{t("sellPriceCol")}: {(r.sellPrice || 0).toFixed(2)}€</span>
-                      </div>
+                      {m !== null ? (
+                        <span
+                          className="shrink-0 text-xs font-mono font-semibold px-2.5 py-1 rounded-full"
+                          style={{ color: TIER_COLORS[rt], background: `${TIER_COLORS[rt]}22` }}
+                        >
+                          {Math.round(m)}%
+                        </span>
+                      ) : (
+                        <span className="shrink-0 text-white/20 text-xs">—</span>
+                      )}
                     </button>
                   );
                 })}
-                {recipes.length === 0 && <div className="text-center text-white/40 text-sm py-6">{t("noRecipes")}</div>}
               </div>
+            )}
+          </div>
+        )}
 
-              <p className="text-xs text-white/40 mt-3">{t("overviewHint")}</p>
-            </div>
-          ) : !active ? (
-            <div className="font-body text-white/50 text-sm">{t("noRecipeYet")}</div>
-          ) : (
-            <div>
-              <div className="flex justify-end gap-2 mb-3 print:hidden">
-                <button onClick={() => duplicateRecipe(active)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#C9A227] font-display uppercase tracking-wide">
+        {activeTab === "recipes" && recipeSubView === "detail" && !active && (
+          <div className="text-white/40 text-sm text-center py-16 font-body">{t("noRecipeYet")}</div>
+        )}
+
+        {activeTab === "recipes" && recipeSubView === "detail" && active && (
+          <div>
+            <div className="flex items-center justify-between mb-4 print:hidden">
+              <button
+                onClick={() => setRecipeSubView("list")}
+                className="flex items-center gap-1.5 text-white/60 hover:text-white text-xs font-display uppercase tracking-wide"
+              >
+                <ArrowLeft size={14} /> {t("recipes")}
+              </button>
+              <div className="flex gap-3">
+                <button onClick={() => duplicateRecipe(active)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#10B981] font-display uppercase tracking-wide">
                   <Copy size={13} /> {t("duplicate")}
                 </button>
-                <button onClick={handlePrint} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#C9A227] font-display uppercase tracking-wide">
+                <button onClick={handlePrint} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#10B981] font-display uppercase tracking-wide">
                   <Printer size={13} /> {t("print")}
                 </button>
               </div>
+            </div>
 
-              <div className="ticket rounded-sm px-5 sm:px-6 py-8 max-w-md mx-auto font-mono text-sm">
-                <input
-                  value={active.name}
-                  onChange={(e) => updateRecipe({ name: e.target.value })}
-                  className="w-full bg-transparent font-display text-lg sm:text-xl uppercase tracking-wide mb-1 outline-none text-center border-b border-dashed border-black/20 pb-2"
-                />
-                <div className="flex justify-center items-center gap-2 text-xs text-black/50 mb-1">
-                  <span>{t("portions")} :</span>
-                  <NumField allowDecimal={false} value={active.portions} onChange={(v) => updateRecipe({ portions: v || 1 })} className="w-12 bg-transparent text-center outline-none border-b border-black/20" />
+            <div className="ticket rounded-sm px-5 sm:px-6 py-8 max-w-md mx-auto font-mono text-sm">
+              <input
+                value={active.name}
+                onChange={(e) => updateRecipe({ name: e.target.value })}
+                className="w-full bg-transparent font-display text-lg sm:text-xl uppercase tracking-wide mb-1 outline-none text-center border-b border-dashed border-black/20 pb-2"
+              />
+              <div className="flex justify-center items-center gap-2 text-xs text-black/50 mb-1">
+                <span>{t("portions")} :</span>
+                <NumField allowDecimal={false} value={active.portions} onChange={(v) => updateRecipe({ portions: v || 1 })} className="w-12 bg-transparent text-center outline-none border-b border-black/20" />
+              </div>
+              <div className="text-center text-[10px] text-black/40 mb-4">{t("createdOn")} {active.createdAt || today()}</div>
+
+              <div className="border-t border-b border-dashed border-black/30 py-3 space-y-2">
+                {active.lines.map((line, idx) => {
+                  const ing = ingredientById(line.ingredientId);
+                  return (
+                    <div key={idx} className="flex items-center gap-2 text-xs">
+                      <IngredientPicker
+                        ingredients={ingredients}
+                        value={line.ingredientId}
+                        displayName={ingredientDisplayName}
+                        onChange={(id) => changeLineIngredient(idx, id)}
+                        className="flex-1 min-w-0 text-black/80"
+                        autoOpen={autoOpenIdx === idx}
+                        placeholder={lang === "es" ? "Elegir un ingrediente…" : "Choisir un ingrédient…"}
+                      />
+                      <NumField value={line.qty} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
+                      <span className="text-black/40 w-6 shrink-0">{ing?.unit}</span>
+                      <span className="w-14 shrink-0 text-right">{lineCost(line).toFixed(2)}€</span>
+                      <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0"><Trash2 size={12} /></button>
+                    </div>
+                  );
+                })}
+                <button onClick={addLine} className="text-xs text-black/40 hover:text-black flex items-center gap-1 pt-1 print:hidden">
+                  <Plus size={12} /> {t("line")}
+                </button>
+              </div>
+
+              <div className="pt-3 space-y-1 text-sm">
+                <div className="flex justify-between"><span>{t("total")}</span><span className="font-semibold">{totalCost.toFixed(2)}€</span></div>
+                <div className="flex justify-between"><span>{t("costPerPortion")}</span><span className="font-semibold">{costPerPortion.toFixed(2)}€</span></div>
+                <div className="flex justify-between items-center pt-1">
+                  <span>{t("sellPriceTTC")}</span>
+                  <div className="flex items-center gap-1">
+                    <NumField value={active.sellPrice} onChange={(v) => updateRecipe({ sellPrice: v })} className="w-16 bg-transparent text-right outline-none border-b border-black/20 font-semibold" />
+                    <span>€</span>
+                  </div>
                 </div>
-                <div className="text-center text-[10px] text-black/40 mb-4">{t("createdOn")} {active.createdAt || today()}</div>
-
-                <div className="border-t border-b border-dashed border-black/30 py-3 space-y-2">
-                  {active.lines.map((line, idx) => {
-                    const ing = ingredientById(line.ingredientId);
-                    return (
-                      <div key={idx} className="flex items-center gap-2 text-xs">
-                        <select value={line.ingredientId} onChange={(e) => changeLineIngredient(idx, e.target.value)} className="flex-1 min-w-0 bg-transparent outline-none truncate">
-                          {ingredients.map((i) => <option key={i.id} value={i.id}>{ingredientDisplayName(i)}</option>)}
-                        </select>
-                        <NumField value={line.qty} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
-                        <span className="text-black/40 w-6 shrink-0">{ing?.unit}</span>
-                        <span className="w-14 shrink-0 text-right">{lineCost(line).toFixed(2)}€</span>
-                        <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0"><Trash2 size={12} /></button>
-                      </div>
-                    );
-                  })}
-                  <button onClick={addLine} className="text-xs text-black/40 hover:text-black flex items-center gap-1 pt-1 print:hidden">
-                    <Plus size={12} /> {t("line")}
-                  </button>
+                <div className="flex justify-between text-black/50 text-xs">
+                  <span>{t("sellPriceHT")} ({t("vat")} {vatRate}%)</span>
+                  <span>{sellHT.toFixed(2)}€</span>
                 </div>
+              </div>
 
-                <div className="pt-3 space-y-1 text-sm">
-                  <div className="flex justify-between"><span>{t("total")}</span><span className="font-semibold">{totalCost.toFixed(2)}€</span></div>
-                  <div className="flex justify-between"><span>{t("costPerPortion")}</span><span className="font-semibold">{costPerPortion.toFixed(2)}€</span></div>
-                  <div className="flex justify-between items-center pt-1">
-                    <span>{t("sellPriceTTC")}</span>
-                    <div className="flex items-center gap-1">
-                      <NumField value={active.sellPrice} onChange={(v) => updateRecipe({ sellPrice: v })} className="w-16 bg-transparent text-right outline-none border-b border-black/20 font-semibold" />
-                      <span>€</span>
+              <div className="border-t border-dashed border-black/30 mt-3 pt-3 text-xs space-y-2 print:hidden">
+                <div className="flex justify-between items-center text-black/60">
+                  <span>{t("targetMargin")}</span>
+                  <div className="flex items-center gap-1">
+                    <NumField allowDecimal={false} value={targetMargin} onChange={(v) => updateRecipe({ targetMargin: v })} className="w-12 bg-transparent text-right outline-none border-b border-black/20" />
+                    <span>%</span>
+                  </div>
+                </div>
+                {isBelowTarget && suggestedTTC !== null && (
+                  <div className="flex justify-between items-center">
+                    <span>{t("suggestedPrice")}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{suggestedTTC.toFixed(2)}€</span>
+                      <button
+                        onClick={() => updateRecipe({ sellPrice: Math.round(suggestedTTC * 2) / 2 })}
+                        className="text-[10px] uppercase tracking-wide px-3 py-1 rounded-full font-semibold"
+                        style={{ background: "#10B981", color: "#fff" }}
+                      >
+                        {t("use")}
+                      </button>
                     </div>
                   </div>
-                  <div className="flex justify-between text-black/50 text-xs">
-                    <span>{t("sellPriceHT")} ({t("vat")} {vatRate}%)</span>
-                    <span>{sellHT.toFixed(2)}€</span>
+                )}
+                {isAtOrAboveTarget && nextMarginStep !== null && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-black/50">{lang === "es" ? "Objetivo de esta receta alcanzado" : "Objectif de cette recette atteint"}</span>
+                    <button
+                      onClick={() => updateRecipe({ targetMargin: nextMarginStep })}
+                      className="text-[10px] uppercase tracking-wide px-3 py-1 rounded-full font-semibold text-white"
+                      style={{ background: TIER_COLORS.high }}
+                    >
+                      {t("simulateHigherMargin")(nextMarginStep)}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {margin !== null && (
+                <div className="flex flex-col items-center mt-6 mb-1 gap-2">
+                  <div className="stamp px-4 py-1.5 text-sm" style={{ color: TIER_COLORS[tier] }}>{t("marginLabel")} {Math.round(margin)}%</div>
+                  <div
+                    className="flex items-center gap-1.5 text-[11px] font-body text-center px-3 py-1.5 rounded-full font-medium max-w-[280px]"
+                    style={{ color: TIER_COLORS[tier], background: `${TIER_COLORS[tier]}18` }}
+                  >
+                    {tier === "high" ? <Check size={12} className="shrink-0" /> : <AlertTriangle size={12} className="shrink-0" />}
+                    {marginMessage(Math.round(margin), effectiveGreenTarget, tier, lang)}
                   </div>
                 </div>
+              )}
 
-                <div className="border-t border-dashed border-black/30 mt-3 pt-3 text-xs space-y-1.5 print:hidden">
-                  <div className="flex justify-between items-center text-black/60">
-                    <span>{t("targetMargin")}</span>
-                    <div className="flex items-center gap-1">
-                      <NumField allowDecimal={false} value={targetMargin} onChange={(v) => updateRecipe({ targetMargin: v })} className="w-12 bg-transparent text-right outline-none border-b border-black/20" />
-                      <span>%</span>
-                    </div>
-                  </div>
-                  {isBelowTarget && suggestedTTC !== null && (
-                    <div className="flex justify-between items-center">
-                      <span>{t("suggestedPrice")}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{suggestedTTC.toFixed(2)}€</span>
-                        <button onClick={() => updateRecipe({ sellPrice: Math.round(suggestedTTC * 2) / 2 })} className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border border-black/30 hover:bg-black hover:text-[#F2ECDD] transition">
-                          {t("use")}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {isAtOrAboveTarget && (
-                    <div className="rounded p-2 mt-1" style={{ background: `${TIER_COLORS.high}18` }}>
-                      <div className="flex items-center gap-1.5 font-semibold" style={{ color: TIER_COLORS.high }}>
-                        <Check size={12} /> {t("marginExcellentTitle")}
-                      </div>
-                      <div className="text-black/50 mt-0.5">{t("marginExcellentDetail")}</div>
-                      {nextMarginStep !== null && (
-                        <button
-                          onClick={() => updateRecipe({ targetMargin: nextMarginStep })}
-                          className="mt-1.5 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border border-black/30 hover:bg-black hover:text-[#F2ECDD] transition"
-                        >
-                          {t("simulateHigherMargin")(nextMarginStep)}
-                        </button>
+              <div className="border-t border-dashed border-black/30 mt-4 pt-3 space-y-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-black/40 mb-1">{t("notes")}</div>
+                  <textarea value={active.notes || ""} onChange={(e) => updateRecipe({ notes: e.target.value })} placeholder={t("notesPlaceholder")} rows={3} className="w-full bg-black/5 rounded p-2 text-xs outline-none resize-none focus:bg-black/10" />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-[10px] uppercase tracking-wide text-black/40 flex items-center gap-1.5">
+                      {t("allergens")}
+                      {active.allergensAuto !== false && active.allergens && (
+                        <span className="normal-case tracking-normal text-[9px] px-1 py-0.5 rounded bg-black/10 text-black/40">{t("allergensAutoBadge")}</span>
                       )}
                     </div>
-                  )}
-                </div>
-
-                {margin !== null && (
-                  <div className="flex flex-col items-center mt-6 mb-1 gap-1.5">
-                    <div className="stamp px-4 py-1.5 text-sm" style={{ color: TIER_COLORS[tier] }}>{t("marginLabel")} {margin.toFixed(0)}%</div>
-                    {tier === "high" && (
-                      <div
-                        className="flex items-center gap-1 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full font-semibold"
-                        style={{ color: TIER_COLORS.high, background: `${TIER_COLORS.high}18` }}
-                      >
-                        <Check size={11} /> {t("excellentMarginBadge")}
-                      </div>
+                    {active.allergensAuto === false && (
+                      <button onClick={resetAllergensAuto} className="text-[9px] uppercase tracking-wide text-black/40 hover:text-black underline print:hidden">
+                        {t("allergensReset")}
+                      </button>
                     )}
                   </div>
-                )}
-                {marginLow && (
-                  <div className="flex items-center justify-center gap-1.5 text-xs text-[#B23A2E] font-body mt-2 print:hidden">
-                    <AlertTriangle size={13} /> {t("lowMarginWarning")}
-                  </div>
-                )}
-
-                <div className="border-t border-dashed border-black/30 mt-4 pt-3 space-y-3">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wide text-black/40 mb-1">{t("notes")}</div>
-                    <textarea value={active.notes || ""} onChange={(e) => updateRecipe({ notes: e.target.value })} placeholder={t("notesPlaceholder")} rows={3} className="w-full bg-black/5 rounded p-2 text-xs outline-none resize-none focus:bg-black/10" />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="text-[10px] uppercase tracking-wide text-black/40 flex items-center gap-1.5">
-                        {t("allergens")}
-                        {active.allergensAuto !== false && active.allergens && (
-                          <span className="normal-case tracking-normal text-[9px] px-1 py-0.5 rounded bg-black/10 text-black/40">{t("allergensAutoBadge")}</span>
-                        )}
-                      </div>
-                      {active.allergensAuto === false && (
-                        <button onClick={resetAllergensAuto} className="text-[9px] uppercase tracking-wide text-black/40 hover:text-black underline print:hidden">
-                          {t("allergensReset")}
-                        </button>
-                      )}
-                    </div>
-                    <input
-                      value={active.allergens || ""}
-                      onChange={(e) => updateRecipe({ allergens: e.target.value, allergensAuto: false })}
-                      placeholder={t("allergensPlaceholder")}
-                      className="w-full bg-black/5 rounded p-2 text-xs outline-none focus:bg-black/10"
-                    />
-                  </div>
+                  <input
+                    value={active.allergens || ""}
+                    onChange={(e) => updateRecipe({ allergens: e.target.value, allergensAuto: false })}
+                    placeholder={t("allergensPlaceholder")}
+                    className="w-full bg-black/5 rounded p-2 text-xs outline-none focus:bg-black/10"
+                  />
                 </div>
               </div>
             </div>
-          )}
-        </section>
+
+            <button
+              onClick={() => deleteRecipe(active.id)}
+              className="mt-4 w-full text-center text-[11px] text-white/25 hover:text-[#B23A2E] print:hidden"
+            >
+              <Trash2 size={11} className="inline mr-1 -mt-0.5" /> {t("duplicate") === "Dupliquer" ? "Supprimer cette recette" : "Eliminar esta receta"}
+            </button>
+          </div>
+        )}
+
+        {/* ---------------- ONGLET SCANNER ---------------- */}
+        {activeTab === "scanner" && (
+          <div className="max-w-md mx-auto pt-6">
+            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanFile} />
+            <div className="rounded-2xl p-8 flex flex-col items-center gap-3 text-center font-body border border-white/10" style={{ background: "#1F1F25" }}>
+              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "#10B98122" }}>
+                <Camera size={28} color="#10B981" />
+              </div>
+              <h2 className="font-display text-white uppercase tracking-wide text-sm mt-1">{t("scanInvoice")}</h2>
+              <p className="text-white/40 text-xs leading-relaxed">{t("scanTabHint")}</p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-3 w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                style={{ background: "#10B981", color: "#fff" }}
+              >
+                <Camera size={15} /> {t("scanInvoice")}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ---------------- ONGLET GARDE-MANGER ---------------- */}
+        {activeTab === "pantry" && (
+          <div>
+            <h2 className="font-display text-white/90 uppercase text-sm tracking-widest mb-3">{t("pantry")}</h2>
+
+            <div className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 mb-2 border border-white/10" style={{ background: "#1F1F25" }}>
+              <Search size={13} className="text-white/40 shrink-0" />
+              <input
+                value={pantryQuery}
+                onChange={(e) => setPantryQuery(e.target.value)}
+                placeholder={t("pantryFilterPlaceholder")}
+                className="w-full bg-transparent text-white text-sm outline-none min-w-0"
+              />
+            </div>
+            <div className="flex flex-wrap gap-1 mb-4">
+              <button
+                onClick={() => setPantryCategory("all")}
+                className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === "all" ? "bg-[#10B981] text-white border-[#10B981]" : "text-white/50 border-white/15 hover:border-white/40"}`}
+              >
+                {t("allCategories")}
+              </button>
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setPantryCategory(c.id)}
+                  className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === c.id ? "bg-[#10B981] text-white border-[#10B981]" : "text-white/50 border-white/15 hover:border-white/40"}`}
+                >
+                  {c[lang]}
+                </button>
+              ))}
+            </div>
+
+            <div className="rounded-xl overflow-hidden font-body border border-white/10" style={{ background: "#1F1F25" }}>
+              {pantryGrouped.length === 0 && (
+                <div className="px-3 py-6 text-center text-white/30 text-sm">{t("noFilterMatch")}</div>
+              )}
+              {pantryGrouped.map(({ cat, items }) => (
+                <div key={cat.id}>
+                  <div className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/40" style={{ background: "#18181B" }}>
+                    {cat[lang]}
+                  </div>
+                  {items.map((ing) => {
+                    const sup = activeSupplier(ing);
+                    const isOpen = expandedIngId === ing.id;
+                    return (
+                      <div key={ing.id} className="border-t border-white/5">
+                        <button
+                          onClick={() => setExpandedIngId(isOpen ? null : ing.id)}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
+                        >
+                          <span className="flex-1 min-w-0 text-white text-sm truncate">{ingredientDisplayName(ing)}</span>
+                          <span className="text-white/40 text-[11px] shrink-0">{ing.unit}</span>
+                          <span className="text-white/80 text-xs font-mono shrink-0 w-16 text-right">{(sup?.price || 0).toFixed(2)}€</span>
+                          <ChevronDown size={14} className={`text-white/30 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                        </button>
+
+                        {isOpen && (
+                          <div className="px-3 pb-3" style={{ background: "#18181B" }}>
+                            <input
+                              value={ingredientDisplayName(ing)}
+                              onChange={(e) => updateIngredientName(ing.id, e.target.value)}
+                              className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#10B981] pb-1 pt-2 mb-2"
+                            />
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[10px] uppercase tracking-wide text-white/40">Unité</span>
+                              <select
+                                value={ing.unit}
+                                onChange={(e) => updateIngredientField(ing.id, "unit", e.target.value)}
+                                className="bg-black/20 text-white/70 text-xs outline-none rounded px-1.5 py-1"
+                                style={{ colorScheme: "dark" }}
+                              >
+                                <option value="kg">kg</option>
+                                <option value="L">L</option>
+                                <option value="pièce">pièce</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-1 mb-2">
+                              {ing.suppliers.map((s) => (
+                                <div key={s.id} className="flex items-center gap-1.5 text-xs text-white/60">
+                                  <input type="radio" checked={ing.selectedSupplierId === s.id} onChange={() => selectSupplier(ing.id, s.id)} className="shrink-0" />
+                                  <input
+                                    value={s.name}
+                                    onChange={(e) => updateSupplier(ing.id, s.id, "name", e.target.value)}
+                                    className="flex-1 bg-transparent outline-none border-b border-white/10 focus:border-[#10B981] min-w-0"
+                                  />
+                                  <NumField value={s.price} onChange={(v) => updateSupplier(ing.id, s.id, "price", v)} className="w-14 shrink-0 bg-transparent font-mono outline-none border-b border-white/10 focus:border-[#10B981] text-right" />
+                                  <span className="shrink-0">€</span>
+                                  {ing.suppliers.length > 1 && (
+                                    <button onClick={() => removeSupplier(ing.id, s.id)} className="text-white/25 hover:text-red-400 shrink-0"><Trash2 size={11} /></button>
+                                  )}
+                                </div>
+                              ))}
+                              <button onClick={() => addSupplier(ing.id)} className="text-[10px] uppercase tracking-wide text-white/40 hover:text-[#10B981] flex items-center gap-1">
+                                <Plus size={10} /> {t("supplier")}
+                              </button>
+                            </div>
+
+                            {ing.history && ing.history.length > 0 && (
+                              <div className="pt-2 border-t border-white/10 text-[10px] text-white/40 font-mono flex items-start gap-1 mb-2">
+                                <History size={11} className="mt-0.5 shrink-0" />
+                                <span className="break-words">{ing.history.slice(-3).map((h) => `${h.date}: ${h.price.toFixed(2)}€`).join("  ·  ")}</span>
+                              </div>
+                            )}
+
+                            <button onClick={() => deleteIngredient(ing.id)} className="text-[10px] uppercase tracking-wide text-white/30 hover:text-[#B23A2E] flex items-center gap-1">
+                              <Trash2 size={11} /> {t("duplicate") === "Dupliquer" ? "Supprimer l'ingrédient" : "Eliminar ingrediente"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+
+            {adding ? (
+              <div className="mt-3 relative">
+                <div className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 border border-white/10" style={{ background: "#1F1F25" }}>
+                  <Search size={13} className="text-white/40 shrink-0" />
+                  <input
+                    autoFocus value={query} onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t("searchPlaceholder")} className="w-full bg-transparent text-white text-sm outline-none min-w-0"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && query.trim()) addCustomIngredient(query.trim());
+                      if (e.key === "Escape") setAdding(false);
+                    }}
+                    onBlur={() => setTimeout(() => setAdding(false), 150)}
+                  />
+                </div>
+                <div className="mt-1 rounded-xl overflow-hidden absolute z-20 w-full border border-white/10" style={{ background: "#1F1F25" }}>
+                  {suggestions.map((c) => (
+                    <button key={c.id} onMouseDown={(e) => { e.preventDefault(); addIngredientFromCatalog(c); }} className="w-full text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 flex items-center justify-between">
+                      <span>{c[lang]}</span>
+                      <span className="text-[10px] text-white/30">{normUnit(c.unit)}</span>
+                    </button>
+                  ))}
+                  {query.trim() && (
+                    <button onMouseDown={(e) => { e.preventDefault(); addCustomIngredient(query.trim()); }} className="w-full text-left px-3 py-2 text-xs text-[#10B981] hover:bg-white/10 border-t border-white/10">
+                      {t("createCustom")(query.trim())}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setAdding(true)} className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-xl border border-dashed border-white/25 text-white/60 hover:text-[#10B981] hover:border-[#10B981] active:scale-95 transition">
+                <Plus size={14} /> {t("addIngredient")}
+              </button>
+            )}
+          </div>
+        )}
       </main>
+
+      {/* ---------------- NAVIGATION PAR ONGLETS (bas d'écran) ---------------- */}
+      <nav
+        className="fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-white/10 backdrop-blur-lg print:hidden"
+        style={{ background: "rgba(31,31,37,0.75)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        {[
+          { id: "recipes", label: t("recipes"), icon: Receipt },
+          { id: "scanner", label: t("scanTab"), icon: Camera },
+          { id: "pantry", label: t("pantry"), icon: Package },
+        ].map((tabDef) => {
+          const TabIcon = tabDef.icon;
+          const isActive = activeTab === tabDef.id;
+          return (
+            <button
+              key={tabDef.id}
+              onClick={() => { setActiveTab(tabDef.id); if (tabDef.id === "recipes") setRecipeSubView("list"); }}
+              className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:scale-90 transition-transform"
+            >
+              <TabIcon size={20} color={isActive ? "#10B981" : "rgba(255,255,255,0.4)"} />
+              <span className={`text-[10px] font-display uppercase tracking-wide ${isActive ? "text-[#10B981]" : "text-white/40"}`}>{tabDef.label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
