@@ -621,7 +621,10 @@ export default function App() {
         body: JSON.stringify({ image: base64, mediaType }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Échec de l'analyse");
+      if (!res.ok) {
+        const msg = data.detail ? `${data.error} (${data.detail})` : data.error || "Échec de l'analyse";
+        throw new Error(msg);
+      }
       const items = (data.items || []).map((it) => {
         const matchedId = guessIngredientId(it.name);
         const matchedIng = matchedId ? ingredientById(matchedId) : null;
