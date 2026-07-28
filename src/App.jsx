@@ -569,6 +569,17 @@ export default function App() {
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
 
+  // Détecte un poids mentionné dans le nom de l'article (ex: "Mozzarella 125g", "Beurre 0.5KG")
+  // — plus fiable que de compter sur un champ séparé retourné par l'IA.
+  const extractWeightGrams = (name) => {
+    if (!name) return null;
+    const kgMatch = name.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
+    if (kgMatch) return Math.round(parseFloat(kgMatch[1].replace(",", ".")) * 1000);
+    const gMatch = name.match(/(\d+(?:[.,]\d+)?)\s*g(?:r|rs|rammes?)?\b/i);
+    if (gMatch) return Math.round(parseFloat(gMatch[1].replace(",", ".")));
+    return null;
+  };
+
   const guessIngredientId = (name) => {
     const n = normalizeStr(name);
     if (!n) return null;
@@ -637,7 +648,7 @@ export default function App() {
           imported: false,
           currentPrice,
           priceUp: currentPrice !== null && it.unitPriceHT > currentPrice,
-          weightPerUnitG: it.packageWeightG || null,
+          weightPerUnitG: extractWeightGrams(it.name) || it.packageWeightG || null,
         };
       });
       setScanResult({ supplier: data.supplier || null, date: data.date || null, items });

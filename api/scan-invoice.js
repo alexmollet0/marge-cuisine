@@ -37,9 +37,11 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
 
 Règles :
 - Simplifie systématiquement les abréviations fournisseurs en noms clairs et courts.
-- Si une valeur est illisible ou absente, mets null pour cette valeur (jamais de texte inventé).
+- Si une ligne entière est trop floue/illisible pour être fiable, IGNORE-la simplement (ne l'inclus pas dans "items") plutôt que de bloquer toute la réponse.
+- Pour un champ isolé illisible sur une ligne par ailleurs lisible, mets null pour ce champ uniquement (jamais de texte inventé).
 - Les prix sont toujours HT (hors taxes) si la facture les distingue, sinon utilise le prix affiché.
-- N'invente aucune ligne qui n'est pas visible sur le document.`;
+- N'invente aucune ligne qui n'est pas visible sur le document.
+- Réponds TOUJOURS avec un JSON valide, même si l'image est floue, partiellement illisible ou de mauvaise qualité. Ne refuse jamais de répondre et n'ajoute aucun commentaire, explication ou avertissement en dehors du JSON.`;
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
