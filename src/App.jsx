@@ -216,6 +216,7 @@ const TR = {
     scanImport: "Importer", scanImported: "Importé ✓", scanImportAll: "Tout importer",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
+    scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
   },
   es: {
     appTitle: "Margen en cocina", saved: "Guardado", loading: "Cargando…",
@@ -249,6 +250,7 @@ const TR = {
     scanImport: "Importar", scanImported: "Importado ✓", scanImportAll: "Importar todo",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
+    scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
   },
 };
 
@@ -635,6 +637,7 @@ export default function App() {
           imported: false,
           currentPrice,
           priceUp: currentPrice !== null && it.unitPriceHT > currentPrice,
+          weightPerUnitG: it.packageWeightG || null,
         };
       });
       setScanResult({ supplier: data.supplier || null, date: data.date || null, items });
@@ -654,17 +657,23 @@ export default function App() {
     if (!item || item.imported) return;
     const supplierName = scanResult.supplier || t("scanInvoice");
 
+    // Si on connaît le poids d'une pièce, on convertit en prix au kilo :
+    // beaucoup plus pratique ensuite dans les recettes (0.15kg plutôt que "1 pièce").
+    const hasWeight = item.unit === "pièce" && item.weightPerUnitG && item.weightPerUnitG > 0;
+    const finalUnit = hasWeight ? "kg" : item.unit || "kg";
+    const finalPrice = hasWeight ? (item.unitPriceHT || 0) / (item.weightPerUnitG / 1000) : item.unitPriceHT || 0;
+
     if (item.assignTo === "new") {
       const sId = uid();
       const ni = {
         id: uid(),
         name: item.name,
-        unit: item.unit || "kg",
+        unit: finalUnit,
         catalogId: null,
         category: "autres",
         selectedSupplierId: sId,
-        suppliers: [{ id: sId, name: supplierName, price: item.unitPriceHT || 0 }],
-        history: [{ date: today(), price: item.unitPriceHT || 0, supplierName }],
+        suppliers: [{ id: sId, name: supplierName, price: finalPrice }],
+        history: [{ date: today(), price: finalPrice, supplierName }],
       };
       setIngredients((ings) => [...ings, ni]);
     } else {
@@ -675,12 +684,12 @@ export default function App() {
           let suppliers = ing.suppliers;
           const existing = suppliers.find((s) => normalizeStr(s.name) === normalizeStr(supplierName));
           if (existing) {
-            suppliers = suppliers.map((s) => (s.id === existing.id ? { ...s, price: item.unitPriceHT || 0 } : s));
+            suppliers = suppliers.map((s) => (s.id === existing.id ? { ...s, price: finalPrice } : s));
           } else {
-            suppliers = [...suppliers, { id: uid(), name: supplierName, price: item.unitPriceHT || 0 }];
+            suppliers = [...suppliers, { id: uid(), name: supplierName, price: finalPrice }];
           }
-          const history = [...(ing.history || []), { date: today(), price: item.unitPriceHT || 0, supplierName }].slice(-15);
-          return { ...ing, suppliers, history, selectedSupplierId: existing ? ing.selectedSupplierId : ing.selectedSupplierId };
+          const history = [...(ing.history || []), { date: today(), price: finalPrice, supplierName }].slice(-15);
+          return { ...ing, unit: finalUnit, suppliers, history, selectedSupplierId: existing ? ing.selectedSupplierId : ing.selectedSupplierId };
         })
       );
     }
@@ -899,6 +908,24 @@ export default function App() {
                             <span>€</span>
                           </div>
                         </div>
+
+                        {item.unit === "pièce" && !item.imported && (
+                          <div className="flex items-center gap-2 mt-1.5 text-xs rounded px-2 py-1.5" style={{ background: "#1c1f21" }}>
+                            <span className="text-white/50 shrink-0">{t("scanWeightLabel")}</span>
+                            <NumField
+                              allowDecimal={false}
+                              value={item.weightPerUnitG || 0}
+                              onChange={(v) => updateScanItem(idx, { weightPerUnitG: v })}
+                              className="w-14 bg-transparent text-right outline-none border-b border-white/10 font-mono"
+                            />
+                            <span className="text-white/40">g</span>
+                            {item.weightPerUnitG > 0 && (
+                              <span className="text-[#7CB342] ml-auto text-[10px] font-mono">
+                                → {((item.unitPriceHT || 0) / (item.weightPerUnitG / 1000)).toFixed(2)}€/kg
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         {item.priceUp && !item.imported && (
                           <div className="flex items-center gap-1 mt-1.5 text-[10px]" style={{ color: TIER_COLORS.mid }}>

@@ -29,7 +29,8 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
       "quantity": nombre,
       "unit": "kg" ou "L" ou "pièce",
       "unitPriceHT": nombre,
-      "totalPriceHT": nombre
+      "totalPriceHT": nombre,
+      "packageWeightG": nombre en grammes si l'unité est "pièce" ET qu'un poids est mentionné sur l'emballage/la ligne (ex: "150G", "0.5KG" → 500), sinon null
     }
   ]
 }
