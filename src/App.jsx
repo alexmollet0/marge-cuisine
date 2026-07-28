@@ -348,6 +348,11 @@ const TR = {
     scanReviewSection: "À vérifier avant d'importer", scanSafeSection: "Prêtes à importer",
     scanSummaryNew: (name, price, unit) => `Tu vas créer "${name}" à ${price}€/${unit}.`,
     scanSummaryUpdate: (name, price, unit) => `Tu vas mettre à jour "${name}" à ${price}€/${unit}.`,
+    scanItemsToReview: (n) => `${n} produit${n > 1 ? "s" : ""} à vérifier`,
+    scanVerifyOneByOne: "Vérifier un par un", scanValidate: "Valider", scanModify: "Modifier",
+    scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
+    scanAllReviewed: "Tout est vérifié ! 🎉", scanContinue: "Continuer",
+    scanUpcoming: "Suivants",
     scanImport: "Importer", scanImported: "Importé ✓", scanImportAll: "Importer les lignes sûres",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
@@ -396,6 +401,11 @@ const TR = {
     scanReviewSection: "A verificar antes de importar", scanSafeSection: "Listas para importar",
     scanSummaryNew: (name, price, unit) => `Vas a crear "${name}" a ${price}€/${unit}.`,
     scanSummaryUpdate: (name, price, unit) => `Vas a actualizar "${name}" a ${price}€/${unit}.`,
+    scanItemsToReview: (n) => `${n} producto${n > 1 ? "s" : ""} a verificar`,
+    scanVerifyOneByOne: "Verificar uno por uno", scanValidate: "Validar", scanModify: "Modificar",
+    scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
+    scanAllReviewed: "¡Todo verificado! 🎉", scanContinue: "Continuar",
+    scanUpcoming: "Siguientes",
     scanImport: "Importar", scanImported: "Importado ✓", scanImportAll: "Importar las líneas seguras",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
@@ -1183,6 +1193,9 @@ export default function App() {
   const [scanning, setScanning] = useState(false);
   const [scanErr, setScanErr] = useState(null);
   const [scanResult, setScanResult] = useState(null); // { supplier, date, items: [...] }
+  const [reviewStackOpen, setReviewStackOpen] = useState(false);
+  const [stackTotal, setStackTotal] = useState(0);
+  const [expandedReviewIdx, setExpandedReviewIdx] = useState(null);
   const fileInputRef = useRef(null);
 
 
@@ -1448,6 +1461,8 @@ export default function App() {
     "vert", "verte", "sec", "seche", "fermier", "fermiere", "plein", "air", "cuisine",
     "gros", "grosse", "petit", "petite", "nature", "classique", "campagne", "fin", "fine",
     "noir", "noire", "cru", "crue", "cuit", "cuite",
+    // mots de liaison, ne comptent jamais comme "mot significatif partagé"
+    "de", "du", "la", "le", "les", "des", "un", "une", "et", "au", "aux", "avec", "sans", "pour",
   ]);
   const meaningfulTokens = (tokens) => {
     const filtered = tokens.filter((tk) => !GENERIC_TOKENS.has(tk));
@@ -1466,7 +1481,11 @@ export default function App() {
       const iSet = new Set(iTokens);
       const shared = iTokens.filter((tk) => tokenSet.has(tk)).length;
       if (shared === 0) continue; // exige au moins un mot significatif commun, pas juste un adjectif
-      const score = shared / Math.min(tokenSet.size, iSet.size);
+      // Score = mots partagés ÷ TOTAL de mots distincts des deux côtés (et non le plus petit),
+      // pour qu'un nom très court (ex: "Romarin") ne gagne pas à tort une confiance à 100%
+      // simplement parce qu'il ne contient qu'un seul mot qui matche un produit composé.
+      const unionSize = new Set([...tokenSet, ...iSet]).size;
+      const score = shared / unionSize;
       if (score > bestScore) {
         bestScore = score;
         best = ing;
@@ -1550,6 +1569,8 @@ export default function App() {
     setScanning(true);
     setScanErr(null);
     setScanResult(null);
+    setReviewStackOpen(false);
+    setExpandedReviewIdx(null);
     try {
       const { base64, mediaType } = await compressImageFile(file);
       const res = await fetch("/api/scan-invoice", {
@@ -1670,6 +1691,8 @@ export default function App() {
     setScanOpen(false);
     setScanResult(null);
     setScanErr(null);
+    setReviewStackOpen(false);
+    setExpandedReviewIdx(null);
   };
 
   const tier = marginTier(margin, settings.minMargin);
@@ -1863,15 +1886,137 @@ export default function App() {
                         t={t}
                       />
                     );
+
+                    // ---- Mode pile : un produit à vérifier à la fois ----
+                    if (reviewStackOpen) {
+                      if (review.length === 0) {
+                        return (
+                          <div className="text-center py-10">
+                            <div className="text-white text-base mb-4">{t("scanAllReviewed")}</div>
+                            <button
+                              onClick={() => setReviewStackOpen(false)}
+                              className="text-xs uppercase tracking-wide px-4 py-2 rounded-full font-semibold"
+                              style={{ background: "#10B981", color: "#fff" }}
+                            >
+                              {t("scanContinue")}
+                            </button>
+                          </div>
+                        );
+                      }
+                      const current = review[0];
+                      const upcoming = review.slice(1, 3);
+                      const isExpanded = expandedReviewIdx === current.idx;
+                      const matchedIng = current.item.assignTo !== "new" ? ingredientById(current.item.assignTo) : null;
+                      return (
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs text-white/50 font-mono">
+                              {t("scanStackProgress")(stackTotal - review.length + 1, stackTotal)}
+                            </span>
+                            <button onClick={() => setReviewStackOpen(false)} className="text-[11px] text-white/40 underline">
+                              {t("close")}
+                            </button>
+                          </div>
+
+                          <div className="relative" style={{ minHeight: isExpanded ? "auto" : "220px" }}>
+                            {!isExpanded &&
+                              upcoming.map(({ item: uItem }, i) => (
+                                <div
+                                  key={i}
+                                  className="absolute inset-x-0 rounded-xl border border-white/10 px-4 py-3 pointer-events-none"
+                                  style={{
+                                    background: "#1F1F25",
+                                    top: `${(i + 1) * 10}px`,
+                                    transform: `scale(${1 - (i + 1) * 0.04})`,
+                                    opacity: 0.55 - i * 0.2,
+                                    zIndex: 10 - i,
+                                  }}
+                                >
+                                  <div className="text-white/60 text-sm truncate">{uItem.name}</div>
+                                </div>
+                              ))}
+
+                            <div className="relative" style={{ zIndex: 20 }}>
+                              {isExpanded ? (
+                                <ScanItemCard
+                                  item={current.item}
+                                  onUpdate={(patch) => updateScanItem(current.idx, patch)}
+                                  onImport={() => importScanItem(current.idx)}
+                                  ingredients={ingredients}
+                                  ingredientDisplayName={ingredientDisplayName}
+                                  lang={lang}
+                                  t={t}
+                                />
+                              ) : (
+                                <div
+                                  className="rounded-xl border p-4"
+                                  style={{ background: "#18181B", borderColor: current.item.bigChange ? TIER_COLORS.low : `${TIER_COLORS.mid}80` }}
+                                >
+                                  <span
+                                    className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
+                                    style={{
+                                      color: current.item.assignTo === "new" ? "#10B981" : TIER_COLORS.mid,
+                                      background: current.item.assignTo === "new" ? "#10B98122" : `${TIER_COLORS.mid}22`,
+                                    }}
+                                  >
+                                    {current.item.assignTo === "new" ? t("scanNewIngredient") : t("scanLinkedGuess")}
+                                  </span>
+                                  <div className="text-white text-lg font-semibold mt-2">{current.item.name}</div>
+                                  <div className="text-white/50 text-sm mt-1">
+                                    {current.item.assignTo !== "new" && matchedIng ? `→ ${ingredientDisplayName(matchedIng)} · ` : ""}
+                                    {(current.item.unitPriceHT || 0).toFixed(2)}€/{current.item.unit}
+                                  </div>
+                                  {current.item.priceInconsistent && (
+                                    <div className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1.5 mt-2" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+                                      <AlertTriangle size={11} className="shrink-0" /> {t("scanPriceInconsistent")}
+                                    </div>
+                                  )}
+                                  <div className="flex gap-2 mt-4">
+                                    <button
+                                      onClick={() => setExpandedReviewIdx(current.idx)}
+                                      className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70"
+                                    >
+                                      {t("scanModify")}
+                                    </button>
+                                    <button
+                                      onClick={() => importScanItem(current.idx)}
+                                      className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold"
+                                      style={{ background: "#10B981", color: "#fff" }}
+                                    >
+                                      {t("scanValidate")}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // ---- Mode normal : bouton d'entrée dans la pile + liste des lignes sûres ----
                     return (
                       <div className="space-y-4">
                         {review.length > 0 && (
-                          <div>
-                            <div className="text-[11px] uppercase tracking-widest mb-2 flex items-center gap-1.5 font-semibold" style={{ color: TIER_COLORS.mid }}>
-                              <AlertTriangle size={12} /> {t("scanReviewSection")} ({review.length})
+                          <button
+                            onClick={() => {
+                              setReviewStackOpen(true);
+                              setStackTotal(review.length);
+                              setExpandedReviewIdx(null);
+                            }}
+                            className="w-full rounded-xl p-4 text-left flex items-center justify-between gap-2"
+                            style={{ background: `${TIER_COLORS.mid}18`, border: `1px solid ${TIER_COLORS.mid}50` }}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <AlertTriangle size={16} color={TIER_COLORS.mid} className="shrink-0" />
+                              <span className="text-sm font-semibold truncate" style={{ color: TIER_COLORS.mid }}>
+                                {t("scanItemsToReview")(review.length)}
+                              </span>
                             </div>
-                            <div className="space-y-2">{review.map(renderCard)}</div>
-                          </div>
+                            <span className="text-[10px] uppercase tracking-wide px-3 py-1.5 rounded-full font-semibold shrink-0" style={{ background: TIER_COLORS.mid, color: "#000" }}>
+                              {t("scanVerifyOneByOne")}
+                            </span>
+                          </button>
                         )}
                         {safe.length > 0 && (
                           <div>
@@ -1887,7 +2032,7 @@ export default function App() {
                   })()
                 )}
 
-                {scanResult.items.length > 0 && (
+                {scanResult.items.length > 0 && !reviewStackOpen && (
                   <button
                     onClick={importAllScanItems}
                     className="mt-4 w-full text-xs font-display uppercase tracking-wide py-2 rounded"
