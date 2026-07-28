@@ -340,7 +340,12 @@ const TR = {
     scanPriceCorrected: "prix recalculé (total ÷ qté)",
     scanPriceCorrectedHint: "Le prix unitaire lu semblait incohérent avec le total, on l'a recalculé automatiquement.",
     scanPriceSame: "Prix inchangé", scanPriceDecrease: "Prix en baisse",
-    scanImport: "Importer", scanImported: "Importé ✓", scanImportAll: "Tout importer",
+    scanBulkPackaging: "Conditionnement groupé — vérifie",
+    scanPriceInconsistent: "Incohérent avec le total, vérifie",
+    scanUseSuggested: "Utiliser",
+    scanConfirmBigChange: "Confirmer ce changement important",
+    scanManyUpWarning: "Plusieurs prix semblent en forte hausse par rapport à tes prix connus — vérifie que le document est bien net avant d'importer.",
+    scanImport: "Importer", scanImported: "Importé ✓", scanImportAll: "Importer les lignes sûres",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
@@ -380,7 +385,12 @@ const TR = {
     scanPriceCorrected: "precio recalculado (total ÷ cant.)",
     scanPriceCorrectedHint: "El precio unitario leído parecía inconsistente con el total, se recalculó automáticamente.",
     scanPriceSame: "Precio sin cambios", scanPriceDecrease: "Precio a la baja",
-    scanImport: "Importar", scanImported: "Importado ✓", scanImportAll: "Importar todo",
+    scanBulkPackaging: "Embalaje agrupado — verifica",
+    scanPriceInconsistent: "Inconsistente con el total, verifica",
+    scanUseSuggested: "Usar",
+    scanConfirmBigChange: "Confirmar este cambio importante",
+    scanManyUpWarning: "Varios precios parecen estar muy al alza respecto a tus precios conocidos — verifica que el documento esté bien nítido antes de importar.",
+    scanImport: "Importar", scanImported: "Importado ✓", scanImportAll: "Importar las líneas seguras",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
@@ -390,426 +400,426 @@ const TR = {
 
 const SEED_INGREDIENTS = [
   { id: "i1", name: "Bœuf (paleron / gîte)", unit: "kg", catalogId: "boeuf", category: "viandes",
-    selectedSupplierId: "s1", suppliers: [{ id: "s1", name: "Métro", price: 14.5 }],
+    selectedSupplierId: "s1", suppliers: [{ id: "s1", name: "Métro", price: 14.5, priceSource: "estimate" }],
     history: [{ date: "2026-05-02", price: 13.9, supplierName: "Métro" }] },
   { id: "i2", name: "Carottes", unit: "kg", catalogId: "carottes", category: "legumes",
-    selectedSupplierId: "s2", suppliers: [{ id: "s2", name: "Grossiste local", price: 1.2 }], history: [] },
+    selectedSupplierId: "s2", suppliers: [{ id: "s2", name: "Grossiste local", price: 1.2, priceSource: "estimate" }], history: [] },
   { id: "i3", name: "Oignons", unit: "kg", catalogId: "oignons", category: "legumes",
-    selectedSupplierId: "s3", suppliers: [{ id: "s3", name: "Grossiste local", price: 1.1 }], history: [] },
+    selectedSupplierId: "s3", suppliers: [{ id: "s3", name: "Grossiste local", price: 1.1, priceSource: "estimate" }], history: [] },
   { id: "i4", name: "Vin rouge de cuisine", unit: "L", catalogId: "vin_rouge", category: "boissons",
-    selectedSupplierId: "s4", suppliers: [{ id: "s4", name: "Cavavin Pro", price: 4.5 }], history: [] },
+    selectedSupplierId: "s4", suppliers: [{ id: "s4", name: "Cavavin Pro", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i5", name: "Lardons", unit: "kg", catalogId: null, category: "viandes",
-    selectedSupplierId: "s5", suppliers: [{ id: "s5", name: "Métro", price: 9.8 }], history: [] },
+    selectedSupplierId: "s5", suppliers: [{ id: "s5", name: "Métro", price: 9.8, priceSource: "estimate" }], history: [] },
   { id: "i6", name: "Champignons de Paris", unit: "kg", catalogId: "champignons", category: "legumes",
-    selectedSupplierId: "s6", suppliers: [{ id: "s6", name: "Grossiste local", price: 5.2 }], history: [] },
+    selectedSupplierId: "s6", suppliers: [{ id: "s6", name: "Grossiste local", price: 5.2, priceSource: "estimate" }], history: [] },
   { id: "i7", name: "Beurre doux", unit: "kg", catalogId: "beurre", category: "cremerie",
     selectedSupplierId: "s7",
-    suppliers: [{ id: "s7", name: "Métro", price: 7.5 }, { id: "s7b", name: "Transgourmet", price: 7.1 }],
+    suppliers: [{ id: "s7", name: "Métro", price: 7.5, priceSource: "estimate" }, { id: "s7b", name: "Transgourmet", price: 7.1, priceSource: "estimate" }],
     history: [] },
   { id: "i8", name: "Poulet entier", unit: "kg", catalogId: "poulet", category: "viandes",
-    selectedSupplierId: "s8", suppliers: [{ id: "s8", name: "Métro", price: 4.9 }], history: [] },
+    selectedSupplierId: "s8", suppliers: [{ id: "s8", name: "Métro", price: 4.9, priceSource: "estimate" }], history: [] },
   { id: "i9", name: "Échine de porc", unit: "kg", catalogId: "porc", category: "viandes",
-    selectedSupplierId: "s9", suppliers: [{ id: "s9", name: "Métro", price: 8.5 }], history: [] },
+    selectedSupplierId: "s9", suppliers: [{ id: "s9", name: "Métro", price: 8.5, priceSource: "estimate" }], history: [] },
   { id: "i10", name: "Gigot d'agneau", unit: "kg", catalogId: "agneau", category: "viandes",
-    selectedSupplierId: "s10", suppliers: [{ id: "s10", name: "Métro", price: 16.9 }], history: [] },
+    selectedSupplierId: "s10", suppliers: [{ id: "s10", name: "Métro", price: 16.9, priceSource: "estimate" }], history: [] },
   { id: "i11", name: "Escalope de dinde", unit: "kg", catalogId: "dinde", category: "viandes",
-    selectedSupplierId: "s11", suppliers: [{ id: "s11", name: "Métro", price: 9.8 }], history: [] },
+    selectedSupplierId: "s11", suppliers: [{ id: "s11", name: "Métro", price: 9.8, priceSource: "estimate" }], history: [] },
   { id: "i12", name: "Magret de canard", unit: "kg", catalogId: "canard", category: "viandes",
-    selectedSupplierId: "s12", suppliers: [{ id: "s12", name: "Métro", price: 18.5 }], history: [] },
+    selectedSupplierId: "s12", suppliers: [{ id: "s12", name: "Métro", price: 18.5, priceSource: "estimate" }], history: [] },
   { id: "i13", name: "Chorizo", unit: "kg", catalogId: "chorizo", category: "viandes",
-    selectedSupplierId: "s13", suppliers: [{ id: "s13", name: "Métro", price: 11.9 }], history: [] },
+    selectedSupplierId: "s13", suppliers: [{ id: "s13", name: "Métro", price: 11.9, priceSource: "estimate" }], history: [] },
   { id: "i14", name: "Jambon cru", unit: "kg", catalogId: "jambon_cru", category: "viandes",
-    selectedSupplierId: "s14", suppliers: [{ id: "s14", name: "Métro", price: 22.0 }], history: [] },
+    selectedSupplierId: "s14", suppliers: [{ id: "s14", name: "Métro", price: 22.0, priceSource: "estimate" }], history: [] },
   { id: "i15", name: "Jambon blanc", unit: "kg", catalogId: "jambon_blanc", category: "viandes",
-    selectedSupplierId: "s15", suppliers: [{ id: "s15", name: "Métro", price: 9.5 }], history: [] },
+    selectedSupplierId: "s15", suppliers: [{ id: "s15", name: "Métro", price: 9.5, priceSource: "estimate" }], history: [] },
   { id: "i16", name: "Pavé de saumon", unit: "kg", catalogId: "saumon", category: "poissons",
-    selectedSupplierId: "s16", suppliers: [{ id: "s16", name: "Métro", price: 19.9 }], history: [] },
+    selectedSupplierId: "s16", suppliers: [{ id: "s16", name: "Métro", price: 19.9, priceSource: "estimate" }], history: [] },
   { id: "i17", name: "Dos de cabillaud", unit: "kg", catalogId: "cabillaud", category: "poissons",
-    selectedSupplierId: "s17", suppliers: [{ id: "s17", name: "Métro", price: 24.0 }], history: [] },
+    selectedSupplierId: "s17", suppliers: [{ id: "s17", name: "Métro", price: 24.0, priceSource: "estimate" }], history: [] },
   { id: "i18", name: "Crevettes", unit: "kg", catalogId: "crevettes", category: "poissons",
-    selectedSupplierId: "s18", suppliers: [{ id: "s18", name: "Métro", price: 18.5 }], history: [] },
+    selectedSupplierId: "s18", suppliers: [{ id: "s18", name: "Métro", price: 18.5, priceSource: "estimate" }], history: [] },
   { id: "i19", name: "Thon rouge", unit: "kg", catalogId: "thon", category: "poissons",
-    selectedSupplierId: "s19", suppliers: [{ id: "s19", name: "Métro", price: 28.0 }], history: [] },
+    selectedSupplierId: "s19", suppliers: [{ id: "s19", name: "Métro", price: 28.0, priceSource: "estimate" }], history: [] },
   { id: "i20", name: "Filet de bar", unit: "kg", catalogId: "bar", category: "poissons",
-    selectedSupplierId: "s20", suppliers: [{ id: "s20", name: "Métro", price: 26.0 }], history: [] },
+    selectedSupplierId: "s20", suppliers: [{ id: "s20", name: "Métro", price: 26.0, priceSource: "estimate" }], history: [] },
   { id: "i21", name: "Dorade", unit: "kg", catalogId: "dorade", category: "poissons",
-    selectedSupplierId: "s21", suppliers: [{ id: "s21", name: "Métro", price: 15.9 }], history: [] },
+    selectedSupplierId: "s21", suppliers: [{ id: "s21", name: "Métro", price: 15.9, priceSource: "estimate" }], history: [] },
   { id: "i22", name: "Moules", unit: "kg", catalogId: "moules", category: "poissons",
-    selectedSupplierId: "s22", suppliers: [{ id: "s22", name: "Métro", price: 4.5 }], history: [] },
+    selectedSupplierId: "s22", suppliers: [{ id: "s22", name: "Métro", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i23", name: "Poulpe", unit: "kg", catalogId: "poulpe", category: "poissons",
-    selectedSupplierId: "s23", suppliers: [{ id: "s23", name: "Métro", price: 14.9 }], history: [] },
+    selectedSupplierId: "s23", suppliers: [{ id: "s23", name: "Métro", price: 14.9, priceSource: "estimate" }], history: [] },
   { id: "i24", name: "Anchois", unit: "kg", catalogId: "anchois", category: "poissons",
-    selectedSupplierId: "s24", suppliers: [{ id: "s24", name: "Métro", price: 12.0 }], history: [] },
+    selectedSupplierId: "s24", suppliers: [{ id: "s24", name: "Métro", price: 12.0, priceSource: "estimate" }], history: [] },
   { id: "i25", name: "Ail", unit: "kg", catalogId: "ail", category: "legumes",
-    selectedSupplierId: "s25", suppliers: [{ id: "s25", name: "Grossiste local", price: 4.5 }], history: [] },
+    selectedSupplierId: "s25", suppliers: [{ id: "s25", name: "Grossiste local", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i26", name: "Pommes de terre", unit: "kg", catalogId: "pommes_de_terre", category: "legumes",
-    selectedSupplierId: "s26", suppliers: [{ id: "s26", name: "Grossiste local", price: 1.0 }], history: [] },
+    selectedSupplierId: "s26", suppliers: [{ id: "s26", name: "Grossiste local", price: 1.0, priceSource: "estimate" }], history: [] },
   { id: "i27", name: "Tomates", unit: "kg", catalogId: "tomates", category: "legumes",
-    selectedSupplierId: "s27", suppliers: [{ id: "s27", name: "Grossiste local", price: 2.2 }], history: [] },
+    selectedSupplierId: "s27", suppliers: [{ id: "s27", name: "Grossiste local", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i28", name: "Courgettes", unit: "kg", catalogId: "courgettes", category: "legumes",
-    selectedSupplierId: "s28", suppliers: [{ id: "s28", name: "Grossiste local", price: 1.9 }], history: [] },
+    selectedSupplierId: "s28", suppliers: [{ id: "s28", name: "Grossiste local", price: 1.9, priceSource: "estimate" }], history: [] },
   { id: "i29", name: "Aubergines", unit: "kg", catalogId: "aubergines", category: "legumes",
-    selectedSupplierId: "s29", suppliers: [{ id: "s29", name: "Grossiste local", price: 2.1 }], history: [] },
+    selectedSupplierId: "s29", suppliers: [{ id: "s29", name: "Grossiste local", price: 2.1, priceSource: "estimate" }], history: [] },
   { id: "i30", name: "Poivrons rouges", unit: "kg", catalogId: "poivrons", category: "legumes",
-    selectedSupplierId: "s30", suppliers: [{ id: "s30", name: "Grossiste local", price: 3.2 }], history: [] },
+    selectedSupplierId: "s30", suppliers: [{ id: "s30", name: "Grossiste local", price: 3.2, priceSource: "estimate" }], history: [] },
   { id: "i31", name: "Salade / Laitue", unit: "pièce", catalogId: "salade", category: "legumes",
-    selectedSupplierId: "s31", suppliers: [{ id: "s31", name: "Grossiste local", price: 0.9 }], history: [] },
+    selectedSupplierId: "s31", suppliers: [{ id: "s31", name: "Grossiste local", price: 0.9, priceSource: "estimate" }], history: [] },
   { id: "i32", name: "Poireaux", unit: "kg", catalogId: "poireaux", category: "legumes",
-    selectedSupplierId: "s32", suppliers: [{ id: "s32", name: "Grossiste local", price: 1.8 }], history: [] },
+    selectedSupplierId: "s32", suppliers: [{ id: "s32", name: "Grossiste local", price: 1.8, priceSource: "estimate" }], history: [] },
   { id: "i33", name: "Épinards", unit: "kg", catalogId: "epinards", category: "legumes",
-    selectedSupplierId: "s33", suppliers: [{ id: "s33", name: "Grossiste local", price: 3.5 }], history: [] },
+    selectedSupplierId: "s33", suppliers: [{ id: "s33", name: "Grossiste local", price: 3.5, priceSource: "estimate" }], history: [] },
   { id: "i34", name: "Petits pois", unit: "kg", catalogId: "petits_pois", category: "legumes",
-    selectedSupplierId: "s34", suppliers: [{ id: "s34", name: "Grossiste local", price: 3.0 }], history: [] },
+    selectedSupplierId: "s34", suppliers: [{ id: "s34", name: "Grossiste local", price: 3.0, priceSource: "estimate" }], history: [] },
   { id: "i35", name: "Concombre", unit: "pièce", catalogId: "concombre", category: "legumes",
-    selectedSupplierId: "s35", suppliers: [{ id: "s35", name: "Grossiste local", price: 0.7 }], history: [] },
+    selectedSupplierId: "s35", suppliers: [{ id: "s35", name: "Grossiste local", price: 0.7, priceSource: "estimate" }], history: [] },
   { id: "i36", name: "Citron", unit: "pièce", catalogId: "citron", category: "fruits",
-    selectedSupplierId: "s36", suppliers: [{ id: "s36", name: "Grossiste local", price: 0.35 }], history: [] },
+    selectedSupplierId: "s36", suppliers: [{ id: "s36", name: "Grossiste local", price: 0.35, priceSource: "estimate" }], history: [] },
   { id: "i37", name: "Crème liquide 30%", unit: "L", catalogId: "creme", category: "cremerie",
-    selectedSupplierId: "s37", suppliers: [{ id: "s37", name: "Métro", price: 4.5 }], history: [] },
+    selectedSupplierId: "s37", suppliers: [{ id: "s37", name: "Métro", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i38", name: "Crème fraîche", unit: "L", catalogId: "creme_fraiche", category: "cremerie",
-    selectedSupplierId: "s38", suppliers: [{ id: "s38", name: "Métro", price: 4.2 }], history: [] },
+    selectedSupplierId: "s38", suppliers: [{ id: "s38", name: "Métro", price: 4.2, priceSource: "estimate" }], history: [] },
   { id: "i39", name: "Lait entier", unit: "L", catalogId: "lait", category: "cremerie",
-    selectedSupplierId: "s39", suppliers: [{ id: "s39", name: "Métro", price: 1.1 }], history: [] },
+    selectedSupplierId: "s39", suppliers: [{ id: "s39", name: "Métro", price: 1.1, priceSource: "estimate" }], history: [] },
   { id: "i40", name: "Fromage râpé", unit: "kg", catalogId: "fromage_rape", category: "cremerie",
-    selectedSupplierId: "s40", suppliers: [{ id: "s40", name: "Métro", price: 8.9 }], history: [] },
+    selectedSupplierId: "s40", suppliers: [{ id: "s40", name: "Métro", price: 8.9, priceSource: "estimate" }], history: [] },
   { id: "i41", name: "Mozzarella", unit: "kg", catalogId: "mozzarella", category: "cremerie",
-    selectedSupplierId: "s41", suppliers: [{ id: "s41", name: "Métro", price: 7.5 }], history: [] },
+    selectedSupplierId: "s41", suppliers: [{ id: "s41", name: "Métro", price: 7.5, priceSource: "estimate" }], history: [] },
   { id: "i42", name: "Yaourt nature", unit: "pièce", catalogId: "yaourt", category: "cremerie",
-    selectedSupplierId: "s42", suppliers: [{ id: "s42", name: "Métro", price: 0.35 }], history: [] },
+    selectedSupplierId: "s42", suppliers: [{ id: "s42", name: "Métro", price: 0.35, priceSource: "estimate" }], history: [] },
   { id: "i43", name: "Mascarpone", unit: "kg", catalogId: "mascarpone", category: "cremerie",
-    selectedSupplierId: "s43", suppliers: [{ id: "s43", name: "Métro", price: 9.5 }], history: [] },
+    selectedSupplierId: "s43", suppliers: [{ id: "s43", name: "Métro", price: 9.5, priceSource: "estimate" }], history: [] },
   { id: "i44", name: "Fromage de chèvre", unit: "kg", catalogId: "chevre", category: "cremerie",
-    selectedSupplierId: "s44", suppliers: [{ id: "s44", name: "Métro", price: 14.0 }], history: [] },
+    selectedSupplierId: "s44", suppliers: [{ id: "s44", name: "Métro", price: 14.0, priceSource: "estimate" }], history: [] },
   { id: "i45", name: "Parmesan", unit: "kg", catalogId: "parmesan", category: "cremerie",
-    selectedSupplierId: "s45", suppliers: [{ id: "s45", name: "Métro", price: 22.0 }], history: [] },
+    selectedSupplierId: "s45", suppliers: [{ id: "s45", name: "Métro", price: 22.0, priceSource: "estimate" }], history: [] },
   { id: "i46", name: "Œufs", unit: "pièce", catalogId: "oeufs", category: "cremerie",
-    selectedSupplierId: "s46", suppliers: [{ id: "s46", name: "Métro", price: 0.28 }], history: [] },
+    selectedSupplierId: "s46", suppliers: [{ id: "s46", name: "Métro", price: 0.28, priceSource: "estimate" }], history: [] },
   { id: "i47", name: "Farine T55", unit: "kg", catalogId: "farine", category: "epicerie",
-    selectedSupplierId: "s47", suppliers: [{ id: "s47", name: "Métro", price: 0.9 }], history: [] },
+    selectedSupplierId: "s47", suppliers: [{ id: "s47", name: "Métro", price: 0.9, priceSource: "estimate" }], history: [] },
   { id: "i48", name: "Sucre en poudre", unit: "kg", catalogId: "sucre", category: "epicerie",
-    selectedSupplierId: "s48", suppliers: [{ id: "s48", name: "Métro", price: 1.1 }], history: [] },
+    selectedSupplierId: "s48", suppliers: [{ id: "s48", name: "Métro", price: 1.1, priceSource: "estimate" }], history: [] },
   { id: "i49", name: "Sel fin", unit: "kg", catalogId: "sel", category: "epicerie",
-    selectedSupplierId: "s49", suppliers: [{ id: "s49", name: "Métro", price: 0.8 }], history: [] },
+    selectedSupplierId: "s49", suppliers: [{ id: "s49", name: "Métro", price: 0.8, priceSource: "estimate" }], history: [] },
   { id: "i50", name: "Poivre noir", unit: "kg", catalogId: "poivre", category: "epicerie",
-    selectedSupplierId: "s50", suppliers: [{ id: "s50", name: "Métro", price: 18.0 }], history: [] },
+    selectedSupplierId: "s50", suppliers: [{ id: "s50", name: "Métro", price: 18.0, priceSource: "estimate" }], history: [] },
   { id: "i51", name: "Riz Basmati", unit: "kg", catalogId: "riz", category: "epicerie",
-    selectedSupplierId: "s51", suppliers: [{ id: "s51", name: "Métro", price: 2.2 }], history: [] },
+    selectedSupplierId: "s51", suppliers: [{ id: "s51", name: "Métro", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i52", name: "Pâtes Penne", unit: "kg", catalogId: "pates", category: "epicerie",
-    selectedSupplierId: "s52", suppliers: [{ id: "s52", name: "Métro", price: 1.8 }], history: [] },
+    selectedSupplierId: "s52", suppliers: [{ id: "s52", name: "Métro", price: 1.8, priceSource: "estimate" }], history: [] },
   { id: "i53", name: "Huile d'olive", unit: "L", catalogId: "huile_olive", category: "epicerie",
-    selectedSupplierId: "s53", suppliers: [{ id: "s53", name: "Métro", price: 6.9 }], history: [] },
+    selectedSupplierId: "s53", suppliers: [{ id: "s53", name: "Métro", price: 6.9, priceSource: "estimate" }], history: [] },
   { id: "i54", name: "Huile de tournesol", unit: "L", catalogId: "huile_tournesol", category: "epicerie",
-    selectedSupplierId: "s54", suppliers: [{ id: "s54", name: "Métro", price: 2.2 }], history: [] },
+    selectedSupplierId: "s54", suppliers: [{ id: "s54", name: "Métro", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i55", name: "Huile de sésame", unit: "L", catalogId: "huile_sesame", category: "epicerie",
-    selectedSupplierId: "s55", suppliers: [{ id: "s55", name: "Métro", price: 9.5 }], history: [] },
+    selectedSupplierId: "s55", suppliers: [{ id: "s55", name: "Métro", price: 9.5, priceSource: "estimate" }], history: [] },
   { id: "i56", name: "Moutarde", unit: "kg", catalogId: "moutarde", category: "epicerie",
-    selectedSupplierId: "s56", suppliers: [{ id: "s56", name: "Métro", price: 4.2 }], history: [] },
+    selectedSupplierId: "s56", suppliers: [{ id: "s56", name: "Métro", price: 4.2, priceSource: "estimate" }], history: [] },
   { id: "i57", name: "Sauce soja", unit: "L", catalogId: "sauce_soja", category: "epicerie",
-    selectedSupplierId: "s57", suppliers: [{ id: "s57", name: "Métro", price: 3.8 }], history: [] },
+    selectedSupplierId: "s57", suppliers: [{ id: "s57", name: "Métro", price: 3.8, priceSource: "estimate" }], history: [] },
   { id: "i58", name: "Vinaigre balsamique", unit: "L", catalogId: "vinaigre_balsamique", category: "epicerie",
-    selectedSupplierId: "s58", suppliers: [{ id: "s58", name: "Métro", price: 6.5 }], history: [] },
+    selectedSupplierId: "s58", suppliers: [{ id: "s58", name: "Métro", price: 6.5, priceSource: "estimate" }], history: [] },
   { id: "i59", name: "Vinaigre de vin", unit: "L", catalogId: "vinaigre_vin", category: "epicerie",
-    selectedSupplierId: "s59", suppliers: [{ id: "s59", name: "Métro", price: 2.8 }], history: [] },
+    selectedSupplierId: "s59", suppliers: [{ id: "s59", name: "Métro", price: 2.8, priceSource: "estimate" }], history: [] },
   { id: "i60", name: "Ketchup", unit: "kg", catalogId: "ketchup", category: "epicerie",
-    selectedSupplierId: "s60", suppliers: [{ id: "s60", name: "Métro", price: 3.2 }], history: [] },
+    selectedSupplierId: "s60", suppliers: [{ id: "s60", name: "Métro", price: 3.2, priceSource: "estimate" }], history: [] },
   { id: "i61", name: "Mayonnaise", unit: "kg", catalogId: "mayonnaise", category: "epicerie",
-    selectedSupplierId: "s61", suppliers: [{ id: "s61", name: "Métro", price: 4.5 }], history: [] },
+    selectedSupplierId: "s61", suppliers: [{ id: "s61", name: "Métro", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i62", name: "Miel", unit: "kg", catalogId: "miel", category: "epicerie",
-    selectedSupplierId: "s62", suppliers: [{ id: "s62", name: "Métro", price: 9.9 }], history: [] },
+    selectedSupplierId: "s62", suppliers: [{ id: "s62", name: "Métro", price: 9.9, priceSource: "estimate" }], history: [] },
   { id: "i63", name: "Maïzena", unit: "kg", catalogId: "maizena", category: "epicerie",
-    selectedSupplierId: "s63", suppliers: [{ id: "s63", name: "Métro", price: 3.5 }], history: [] },
+    selectedSupplierId: "s63", suppliers: [{ id: "s63", name: "Métro", price: 3.5, priceSource: "estimate" }], history: [] },
   { id: "i64", name: "Quinoa", unit: "kg", catalogId: "quinoa", category: "epicerie",
-    selectedSupplierId: "s64", suppliers: [{ id: "s64", name: "Métro", price: 6.5 }], history: [] },
+    selectedSupplierId: "s64", suppliers: [{ id: "s64", name: "Métro", price: 6.5, priceSource: "estimate" }], history: [] },
   { id: "i65", name: "Semoule / Couscous", unit: "kg", catalogId: "couscous", category: "epicerie",
-    selectedSupplierId: "s65", suppliers: [{ id: "s65", name: "Métro", price: 2.2 }], history: [] },
+    selectedSupplierId: "s65", suppliers: [{ id: "s65", name: "Métro", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i66", name: "Amandes", unit: "kg", catalogId: "amandes", category: "epicerie",
-    selectedSupplierId: "s66", suppliers: [{ id: "s66", name: "Métro", price: 12.0 }], history: [] },
+    selectedSupplierId: "s66", suppliers: [{ id: "s66", name: "Métro", price: 12.0, priceSource: "estimate" }], history: [] },
   { id: "i67", name: "Noisettes", unit: "kg", catalogId: "noisettes", category: "epicerie",
-    selectedSupplierId: "s67", suppliers: [{ id: "s67", name: "Métro", price: 14.0 }], history: [] },
+    selectedSupplierId: "s67", suppliers: [{ id: "s67", name: "Métro", price: 14.0, priceSource: "estimate" }], history: [] },
   { id: "i68", name: "Chocolat noir", unit: "kg", catalogId: "chocolat_noir", category: "epicerie",
-    selectedSupplierId: "s68", suppliers: [{ id: "s68", name: "Métro", price: 9.5 }], history: [] },
+    selectedSupplierId: "s68", suppliers: [{ id: "s68", name: "Métro", price: 9.5, priceSource: "estimate" }], history: [] },
   { id: "i69", name: "Paprika", unit: "kg", catalogId: "paprika", category: "epices",
-    selectedSupplierId: "s69", suppliers: [{ id: "s69", name: "Métro", price: 22.0 }], history: [] },
+    selectedSupplierId: "s69", suppliers: [{ id: "s69", name: "Métro", price: 22.0, priceSource: "estimate" }], history: [] },
   { id: "i70", name: "Cumin", unit: "kg", catalogId: "cumin", category: "epices",
-    selectedSupplierId: "s70", suppliers: [{ id: "s70", name: "Métro", price: 20.0 }], history: [] },
+    selectedSupplierId: "s70", suppliers: [{ id: "s70", name: "Métro", price: 20.0, priceSource: "estimate" }], history: [] },
   { id: "i71", name: "Thym", unit: "kg", catalogId: "thym", category: "epices",
-    selectedSupplierId: "s71", suppliers: [{ id: "s71", name: "Métro", price: 30.0 }], history: [] },
+    selectedSupplierId: "s71", suppliers: [{ id: "s71", name: "Métro", price: 30.0, priceSource: "estimate" }], history: [] },
   { id: "i72", name: "Laurier", unit: "kg", catalogId: "laurier", category: "epices",
-    selectedSupplierId: "s72", suppliers: [{ id: "s72", name: "Métro", price: 28.0 }], history: [] },
+    selectedSupplierId: "s72", suppliers: [{ id: "s72", name: "Métro", price: 28.0, priceSource: "estimate" }], history: [] },
   { id: "i73", name: "Basilic frais", unit: "kg", catalogId: "basilic", category: "epices",
-    selectedSupplierId: "s73", suppliers: [{ id: "s73", name: "Métro", price: 18.0 }], history: [] },
+    selectedSupplierId: "s73", suppliers: [{ id: "s73", name: "Métro", price: 18.0, priceSource: "estimate" }], history: [] },
   { id: "i74", name: "Persil frais", unit: "kg", catalogId: "persil", category: "epices",
-    selectedSupplierId: "s74", suppliers: [{ id: "s74", name: "Métro", price: 14.0 }], history: [] },
+    selectedSupplierId: "s74", suppliers: [{ id: "s74", name: "Métro", price: 14.0, priceSource: "estimate" }], history: [] },
   { id: "i75", name: "Cannelle", unit: "kg", catalogId: "cannelle", category: "epices",
-    selectedSupplierId: "s75", suppliers: [{ id: "s75", name: "Métro", price: 26.0 }], history: [] },
+    selectedSupplierId: "s75", suppliers: [{ id: "s75", name: "Métro", price: 26.0, priceSource: "estimate" }], history: [] },
   { id: "i76", name: "Vin blanc de cuisine", unit: "L", catalogId: "vin_blanc", category: "boissons",
-    selectedSupplierId: "s76", suppliers: [{ id: "s76", name: "Cavavin Pro", price: 4.5 }], history: [] },
+    selectedSupplierId: "s76", suppliers: [{ id: "s76", name: "Cavavin Pro", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i77", name: "Bière", unit: "L", catalogId: "biere", category: "boissons",
-    selectedSupplierId: "s77", suppliers: [{ id: "s77", name: "Cavavin Pro", price: 2.2 }], history: [] },
+    selectedSupplierId: "s77", suppliers: [{ id: "s77", name: "Cavavin Pro", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i78", name: "Porto", unit: "L", catalogId: "porto", category: "boissons",
-    selectedSupplierId: "s78", suppliers: [{ id: "s78", name: "Cavavin Pro", price: 8.9 }], history: [] },
+    selectedSupplierId: "s78", suppliers: [{ id: "s78", name: "Cavavin Pro", price: 8.9, priceSource: "estimate" }], history: [] },
   { id: "i79", name: "Xérès / Jerez", unit: "L", catalogId: "jerez", category: "boissons",
-    selectedSupplierId: "s79", suppliers: [{ id: "s79", name: "Cavavin Pro", price: 9.5 }], history: [] },
+    selectedSupplierId: "s79", suppliers: [{ id: "s79", name: "Cavavin Pro", price: 9.5, priceSource: "estimate" }], history: [] },
   { id: "i80", name: "Rhum", unit: "L", catalogId: "rhum", category: "boissons",
-    selectedSupplierId: "s80", suppliers: [{ id: "s80", name: "Cavavin Pro", price: 14.0 }], history: [] },
+    selectedSupplierId: "s80", suppliers: [{ id: "s80", name: "Cavavin Pro", price: 14.0, priceSource: "estimate" }], history: [] },
   { id: "i81", name: "Cognac", unit: "L", catalogId: "cognac", category: "boissons",
-    selectedSupplierId: "s81", suppliers: [{ id: "s81", name: "Cavavin Pro", price: 22.0 }], history: [] },
+    selectedSupplierId: "s81", suppliers: [{ id: "s81", name: "Cavavin Pro", price: 22.0, priceSource: "estimate" }], history: [] },
   { id: "i82", name: "Steak haché 15%", unit: "kg", catalogId: "steak_hache", category: "viandes",
-    selectedSupplierId: "s82", suppliers: [{ id: "s82", name: "Métro", price: 10.5 }], history: [] },
+    selectedSupplierId: "s82", suppliers: [{ id: "s82", name: "Métro", price: 10.5, priceSource: "estimate" }], history: [] },
   { id: "i83", name: "Entrecôte", unit: "kg", catalogId: "entrecote", category: "viandes",
-    selectedSupplierId: "s83", suppliers: [{ id: "s83", name: "Métro", price: 19.9 }], history: [] },
+    selectedSupplierId: "s83", suppliers: [{ id: "s83", name: "Métro", price: 19.9, priceSource: "estimate" }], history: [] },
   { id: "i84", name: "Filet de bœuf", unit: "kg", catalogId: "filet_boeuf", category: "viandes",
-    selectedSupplierId: "s84", suppliers: [{ id: "s84", name: "Métro", price: 32.0 }], history: [] },
+    selectedSupplierId: "s84", suppliers: [{ id: "s84", name: "Métro", price: 32.0, priceSource: "estimate" }], history: [] },
   { id: "i85", name: "Rumsteck", unit: "kg", catalogId: "rumsteck", category: "viandes",
-    selectedSupplierId: "s85", suppliers: [{ id: "s85", name: "Métro", price: 15.5 }], history: [] },
+    selectedSupplierId: "s85", suppliers: [{ id: "s85", name: "Métro", price: 15.5, priceSource: "estimate" }], history: [] },
   { id: "i86", name: "Bavette", unit: "kg", catalogId: "bavette", category: "viandes",
-    selectedSupplierId: "s86", suppliers: [{ id: "s86", name: "Métro", price: 13.9 }], history: [] },
+    selectedSupplierId: "s86", suppliers: [{ id: "s86", name: "Métro", price: 13.9, priceSource: "estimate" }], history: [] },
   { id: "i87", name: "Côte de porc", unit: "kg", catalogId: "cote_porc", category: "viandes",
-    selectedSupplierId: "s87", suppliers: [{ id: "s87", name: "Métro", price: 7.9 }], history: [] },
+    selectedSupplierId: "s87", suppliers: [{ id: "s87", name: "Métro", price: 7.9, priceSource: "estimate" }], history: [] },
   { id: "i88", name: "Lardons fumés", unit: "kg", catalogId: "lardons_fumes", category: "viandes",
-    selectedSupplierId: "s88", suppliers: [{ id: "s88", name: "Métro", price: 8.9 }], history: [] },
+    selectedSupplierId: "s88", suppliers: [{ id: "s88", name: "Métro", price: 8.9, priceSource: "estimate" }], history: [] },
   { id: "i89", name: "Saucisse de Toulouse", unit: "kg", catalogId: "saucisse_toulouse", category: "viandes",
-    selectedSupplierId: "s89", suppliers: [{ id: "s89", name: "Métro", price: 7.5 }], history: [] },
+    selectedSupplierId: "s89", suppliers: [{ id: "s89", name: "Métro", price: 7.5, priceSource: "estimate" }], history: [] },
   { id: "i90", name: "Merguez", unit: "kg", catalogId: "merguez", category: "viandes",
-    selectedSupplierId: "s90", suppliers: [{ id: "s90", name: "Métro", price: 8.9 }], history: [] },
+    selectedSupplierId: "s90", suppliers: [{ id: "s90", name: "Métro", price: 8.9, priceSource: "estimate" }], history: [] },
   { id: "i91", name: "Foie gras cru", unit: "kg", catalogId: "foie_gras", category: "viandes",
-    selectedSupplierId: "s91", suppliers: [{ id: "s91", name: "Métro", price: 55.0 }], history: [] },
+    selectedSupplierId: "s91", suppliers: [{ id: "s91", name: "Métro", price: 55.0, priceSource: "estimate" }], history: [] },
   { id: "i92", name: "Lapin entier", unit: "kg", catalogId: "lapin", category: "viandes",
-    selectedSupplierId: "s92", suppliers: [{ id: "s92", name: "Métro", price: 9.5 }], history: [] },
+    selectedSupplierId: "s92", suppliers: [{ id: "s92", name: "Métro", price: 9.5, priceSource: "estimate" }], history: [] },
   { id: "i93", name: "Escalope de veau", unit: "kg", catalogId: "veau_escalope", category: "viandes",
-    selectedSupplierId: "s93", suppliers: [{ id: "s93", name: "Métro", price: 21.0 }], history: [] },
+    selectedSupplierId: "s93", suppliers: [{ id: "s93", name: "Métro", price: 21.0, priceSource: "estimate" }], history: [] },
   { id: "i94", name: "Pintade", unit: "kg", catalogId: "pintade", category: "viandes",
-    selectedSupplierId: "s94", suppliers: [{ id: "s94", name: "Métro", price: 9.9 }], history: [] },
+    selectedSupplierId: "s94", suppliers: [{ id: "s94", name: "Métro", price: 9.9, priceSource: "estimate" }], history: [] },
   { id: "i95", name: "Maquereau", unit: "kg", catalogId: "maquereau", category: "poissons",
-    selectedSupplierId: "s95", suppliers: [{ id: "s95", name: "Métro", price: 8.9 }], history: [] },
+    selectedSupplierId: "s95", suppliers: [{ id: "s95", name: "Métro", price: 8.9, priceSource: "estimate" }], history: [] },
   { id: "i96", name: "Sardine", unit: "kg", catalogId: "sardine", category: "poissons",
-    selectedSupplierId: "s96", suppliers: [{ id: "s96", name: "Métro", price: 7.5 }], history: [] },
+    selectedSupplierId: "s96", suppliers: [{ id: "s96", name: "Métro", price: 7.5, priceSource: "estimate" }], history: [] },
   { id: "i97", name: "Truite", unit: "kg", catalogId: "truite", category: "poissons",
-    selectedSupplierId: "s97", suppliers: [{ id: "s97", name: "Métro", price: 11.9 }], history: [] },
+    selectedSupplierId: "s97", suppliers: [{ id: "s97", name: "Métro", price: 11.9, priceSource: "estimate" }], history: [] },
   { id: "i98", name: "Lieu noir", unit: "kg", catalogId: "lieu_noir", category: "poissons",
-    selectedSupplierId: "s98", suppliers: [{ id: "s98", name: "Métro", price: 13.5 }], history: [] },
+    selectedSupplierId: "s98", suppliers: [{ id: "s98", name: "Métro", price: 13.5, priceSource: "estimate" }], history: [] },
   { id: "i99", name: "Sole", unit: "kg", catalogId: "sole", category: "poissons",
-    selectedSupplierId: "s99", suppliers: [{ id: "s99", name: "Métro", price: 32.0 }], history: [] },
+    selectedSupplierId: "s99", suppliers: [{ id: "s99", name: "Métro", price: 32.0, priceSource: "estimate" }], history: [] },
   { id: "i100", name: "Seiche", unit: "kg", catalogId: "seiche", category: "poissons",
-    selectedSupplierId: "s100", suppliers: [{ id: "s100", name: "Métro", price: 13.9 }], history: [] },
+    selectedSupplierId: "s100", suppliers: [{ id: "s100", name: "Métro", price: 13.9, priceSource: "estimate" }], history: [] },
   { id: "i101", name: "Calamar", unit: "kg", catalogId: "calamar", category: "poissons",
-    selectedSupplierId: "s101", suppliers: [{ id: "s101", name: "Métro", price: 15.9 }], history: [] },
+    selectedSupplierId: "s101", suppliers: [{ id: "s101", name: "Métro", price: 15.9, priceSource: "estimate" }], history: [] },
   { id: "i102", name: "Langoustine", unit: "kg", catalogId: "langoustine", category: "poissons",
-    selectedSupplierId: "s102", suppliers: [{ id: "s102", name: "Métro", price: 29.0 }], history: [] },
+    selectedSupplierId: "s102", suppliers: [{ id: "s102", name: "Métro", price: 29.0, priceSource: "estimate" }], history: [] },
   { id: "i103", name: "Huîtres", unit: "pièce", catalogId: "huitres", category: "poissons",
-    selectedSupplierId: "s103", suppliers: [{ id: "s103", name: "Métro", price: 0.9 }], history: [] },
+    selectedSupplierId: "s103", suppliers: [{ id: "s103", name: "Métro", price: 0.9, priceSource: "estimate" }], history: [] },
   { id: "i104", name: "Noix de Saint-Jacques", unit: "kg", catalogId: "saint_jacques", category: "poissons",
-    selectedSupplierId: "s104", suppliers: [{ id: "s104", name: "Métro", price: 38.0 }], history: [] },
+    selectedSupplierId: "s104", suppliers: [{ id: "s104", name: "Métro", price: 38.0, priceSource: "estimate" }], history: [] },
   { id: "i105", name: "Saumon fumé", unit: "kg", catalogId: "saumon_fume", category: "poissons",
-    selectedSupplierId: "s105", suppliers: [{ id: "s105", name: "Métro", price: 32.0 }], history: [] },
+    selectedSupplierId: "s105", suppliers: [{ id: "s105", name: "Métro", price: 32.0, priceSource: "estimate" }], history: [] },
   { id: "i106", name: "Tarama", unit: "kg", catalogId: "tarama", category: "poissons",
-    selectedSupplierId: "s106", suppliers: [{ id: "s106", name: "Métro", price: 14.0 }], history: [] },
+    selectedSupplierId: "s106", suppliers: [{ id: "s106", name: "Métro", price: 14.0, priceSource: "estimate" }], history: [] },
   { id: "i107", name: "Surimi", unit: "kg", catalogId: "surimi", category: "poissons",
-    selectedSupplierId: "s107", suppliers: [{ id: "s107", name: "Métro", price: 6.5 }], history: [] },
+    selectedSupplierId: "s107", suppliers: [{ id: "s107", name: "Métro", price: 6.5, priceSource: "estimate" }], history: [] },
   { id: "i108", name: "Radis", unit: "kg", catalogId: "radis", category: "legumes",
-    selectedSupplierId: "s108", suppliers: [{ id: "s108", name: "Grossiste local", price: 2.5 }], history: [] },
+    selectedSupplierId: "s108", suppliers: [{ id: "s108", name: "Grossiste local", price: 2.5, priceSource: "estimate" }], history: [] },
   { id: "i109", name: "Betterave", unit: "kg", catalogId: "betterave", category: "legumes",
-    selectedSupplierId: "s109", suppliers: [{ id: "s109", name: "Grossiste local", price: 1.8 }], history: [] },
+    selectedSupplierId: "s109", suppliers: [{ id: "s109", name: "Grossiste local", price: 1.8, priceSource: "estimate" }], history: [] },
   { id: "i110", name: "Navet", unit: "kg", catalogId: "navet", category: "legumes",
-    selectedSupplierId: "s110", suppliers: [{ id: "s110", name: "Grossiste local", price: 1.6 }], history: [] },
+    selectedSupplierId: "s110", suppliers: [{ id: "s110", name: "Grossiste local", price: 1.6, priceSource: "estimate" }], history: [] },
   { id: "i111", name: "Fenouil", unit: "kg", catalogId: "fenouil", category: "legumes",
-    selectedSupplierId: "s111", suppliers: [{ id: "s111", name: "Grossiste local", price: 2.9 }], history: [] },
+    selectedSupplierId: "s111", suppliers: [{ id: "s111", name: "Grossiste local", price: 2.9, priceSource: "estimate" }], history: [] },
   { id: "i112", name: "Artichaut", unit: "pièce", catalogId: "artichaut", category: "legumes",
-    selectedSupplierId: "s112", suppliers: [{ id: "s112", name: "Grossiste local", price: 1.2 }], history: [] },
+    selectedSupplierId: "s112", suppliers: [{ id: "s112", name: "Grossiste local", price: 1.2, priceSource: "estimate" }], history: [] },
   { id: "i113", name: "Asperge verte", unit: "kg", catalogId: "asperge", category: "legumes",
-    selectedSupplierId: "s113", suppliers: [{ id: "s113", name: "Grossiste local", price: 6.9 }], history: [] },
+    selectedSupplierId: "s113", suppliers: [{ id: "s113", name: "Grossiste local", price: 6.9, priceSource: "estimate" }], history: [] },
   { id: "i114", name: "Chou blanc", unit: "kg", catalogId: "chou_blanc", category: "legumes",
-    selectedSupplierId: "s114", suppliers: [{ id: "s114", name: "Grossiste local", price: 1.3 }], history: [] },
+    selectedSupplierId: "s114", suppliers: [{ id: "s114", name: "Grossiste local", price: 1.3, priceSource: "estimate" }], history: [] },
   { id: "i115", name: "Chou-fleur", unit: "pièce", catalogId: "chou_fleur", category: "legumes",
-    selectedSupplierId: "s115", suppliers: [{ id: "s115", name: "Grossiste local", price: 2.2 }], history: [] },
+    selectedSupplierId: "s115", suppliers: [{ id: "s115", name: "Grossiste local", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i116", name: "Chou de Bruxelles", unit: "kg", catalogId: "chou_bruxelles", category: "legumes",
-    selectedSupplierId: "s116", suppliers: [{ id: "s116", name: "Grossiste local", price: 3.5 }], history: [] },
+    selectedSupplierId: "s116", suppliers: [{ id: "s116", name: "Grossiste local", price: 3.5, priceSource: "estimate" }], history: [] },
   { id: "i117", name: "Endive", unit: "kg", catalogId: "endive", category: "legumes",
-    selectedSupplierId: "s117", suppliers: [{ id: "s117", name: "Grossiste local", price: 2.8 }], history: [] },
+    selectedSupplierId: "s117", suppliers: [{ id: "s117", name: "Grossiste local", price: 2.8, priceSource: "estimate" }], history: [] },
   { id: "i118", name: "Roquette", unit: "kg", catalogId: "roquette", category: "legumes",
-    selectedSupplierId: "s118", suppliers: [{ id: "s118", name: "Grossiste local", price: 8.9 }], history: [] },
+    selectedSupplierId: "s118", suppliers: [{ id: "s118", name: "Grossiste local", price: 8.9, priceSource: "estimate" }], history: [] },
   { id: "i119", name: "Mâche", unit: "kg", catalogId: "mache", category: "legumes",
-    selectedSupplierId: "s119", suppliers: [{ id: "s119", name: "Grossiste local", price: 9.5 }], history: [] },
+    selectedSupplierId: "s119", suppliers: [{ id: "s119", name: "Grossiste local", price: 9.5, priceSource: "estimate" }], history: [] },
   { id: "i120", name: "Patate douce", unit: "kg", catalogId: "patate_douce", category: "legumes",
-    selectedSupplierId: "s120", suppliers: [{ id: "s120", name: "Grossiste local", price: 2.2 }], history: [] },
+    selectedSupplierId: "s120", suppliers: [{ id: "s120", name: "Grossiste local", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i121", name: "Maïs doux", unit: "kg", catalogId: "mais_doux", category: "legumes",
-    selectedSupplierId: "s121", suppliers: [{ id: "s121", name: "Grossiste local", price: 2.5 }], history: [] },
+    selectedSupplierId: "s121", suppliers: [{ id: "s121", name: "Grossiste local", price: 2.5, priceSource: "estimate" }], history: [] },
   { id: "i122", name: "Gingembre frais", unit: "kg", catalogId: "gingembre", category: "legumes",
-    selectedSupplierId: "s122", suppliers: [{ id: "s122", name: "Grossiste local", price: 6.5 }], history: [] },
+    selectedSupplierId: "s122", suppliers: [{ id: "s122", name: "Grossiste local", price: 6.5, priceSource: "estimate" }], history: [] },
   { id: "i123", name: "Oignon rouge", unit: "kg", catalogId: "oignon_rouge", category: "legumes",
-    selectedSupplierId: "s123", suppliers: [{ id: "s123", name: "Grossiste local", price: 1.8 }], history: [] },
+    selectedSupplierId: "s123", suppliers: [{ id: "s123", name: "Grossiste local", price: 1.8, priceSource: "estimate" }], history: [] },
   { id: "i124", name: "Ciboulette fraîche", unit: "kg", catalogId: "ciboulette", category: "legumes",
-    selectedSupplierId: "s124", suppliers: [{ id: "s124", name: "Grossiste local", price: 18.0 }], history: [] },
+    selectedSupplierId: "s124", suppliers: [{ id: "s124", name: "Grossiste local", price: 18.0, priceSource: "estimate" }], history: [] },
   { id: "i125", name: "Coriandre fraîche", unit: "kg", catalogId: "coriandre", category: "legumes",
-    selectedSupplierId: "s125", suppliers: [{ id: "s125", name: "Grossiste local", price: 14.0 }], history: [] },
+    selectedSupplierId: "s125", suppliers: [{ id: "s125", name: "Grossiste local", price: 14.0, priceSource: "estimate" }], history: [] },
   { id: "i126", name: "Menthe fraîche", unit: "kg", catalogId: "menthe", category: "legumes",
-    selectedSupplierId: "s126", suppliers: [{ id: "s126", name: "Grossiste local", price: 14.0 }], history: [] },
+    selectedSupplierId: "s126", suppliers: [{ id: "s126", name: "Grossiste local", price: 14.0, priceSource: "estimate" }], history: [] },
   { id: "i127", name: "Citron vert", unit: "pièce", catalogId: "citron_vert", category: "fruits",
-    selectedSupplierId: "s127", suppliers: [{ id: "s127", name: "Grossiste local", price: 0.4 }], history: [] },
+    selectedSupplierId: "s127", suppliers: [{ id: "s127", name: "Grossiste local", price: 0.4, priceSource: "estimate" }], history: [] },
   { id: "i128", name: "Pomme", unit: "kg", catalogId: "pomme", category: "fruits",
-    selectedSupplierId: "s128", suppliers: [{ id: "s128", name: "Grossiste local", price: 1.9 }], history: [] },
+    selectedSupplierId: "s128", suppliers: [{ id: "s128", name: "Grossiste local", price: 1.9, priceSource: "estimate" }], history: [] },
   { id: "i129", name: "Orange", unit: "kg", catalogId: "orange", category: "fruits",
-    selectedSupplierId: "s129", suppliers: [{ id: "s129", name: "Grossiste local", price: 1.8 }], history: [] },
+    selectedSupplierId: "s129", suppliers: [{ id: "s129", name: "Grossiste local", price: 1.8, priceSource: "estimate" }], history: [] },
   { id: "i130", name: "Banane", unit: "kg", catalogId: "banane", category: "fruits",
-    selectedSupplierId: "s130", suppliers: [{ id: "s130", name: "Grossiste local", price: 1.7 }], history: [] },
+    selectedSupplierId: "s130", suppliers: [{ id: "s130", name: "Grossiste local", price: 1.7, priceSource: "estimate" }], history: [] },
   { id: "i131", name: "Fraise", unit: "kg", catalogId: "fraise", category: "fruits",
-    selectedSupplierId: "s131", suppliers: [{ id: "s131", name: "Grossiste local", price: 5.5 }], history: [] },
+    selectedSupplierId: "s131", suppliers: [{ id: "s131", name: "Grossiste local", price: 5.5, priceSource: "estimate" }], history: [] },
   { id: "i132", name: "Avocat", unit: "pièce", catalogId: "avocat", category: "fruits",
-    selectedSupplierId: "s132", suppliers: [{ id: "s132", name: "Grossiste local", price: 0.9 }], history: [] },
+    selectedSupplierId: "s132", suppliers: [{ id: "s132", name: "Grossiste local", price: 0.9, priceSource: "estimate" }], history: [] },
   { id: "i133", name: "Poire", unit: "kg", catalogId: "poire", category: "fruits",
-    selectedSupplierId: "s133", suppliers: [{ id: "s133", name: "Grossiste local", price: 2.2 }], history: [] },
+    selectedSupplierId: "s133", suppliers: [{ id: "s133", name: "Grossiste local", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i134", name: "Pêche", unit: "kg", catalogId: "peche", category: "fruits",
-    selectedSupplierId: "s134", suppliers: [{ id: "s134", name: "Grossiste local", price: 2.9 }], history: [] },
+    selectedSupplierId: "s134", suppliers: [{ id: "s134", name: "Grossiste local", price: 2.9, priceSource: "estimate" }], history: [] },
   { id: "i135", name: "Abricot", unit: "kg", catalogId: "abricot", category: "fruits",
-    selectedSupplierId: "s135", suppliers: [{ id: "s135", name: "Grossiste local", price: 3.5 }], history: [] },
+    selectedSupplierId: "s135", suppliers: [{ id: "s135", name: "Grossiste local", price: 3.5, priceSource: "estimate" }], history: [] },
   { id: "i136", name: "Prune", unit: "kg", catalogId: "prune", category: "fruits",
-    selectedSupplierId: "s136", suppliers: [{ id: "s136", name: "Grossiste local", price: 2.8 }], history: [] },
+    selectedSupplierId: "s136", suppliers: [{ id: "s136", name: "Grossiste local", price: 2.8, priceSource: "estimate" }], history: [] },
   { id: "i137", name: "Raisin", unit: "kg", catalogId: "raisin", category: "fruits",
-    selectedSupplierId: "s137", suppliers: [{ id: "s137", name: "Grossiste local", price: 3.9 }], history: [] },
+    selectedSupplierId: "s137", suppliers: [{ id: "s137", name: "Grossiste local", price: 3.9, priceSource: "estimate" }], history: [] },
   { id: "i138", name: "Melon", unit: "pièce", catalogId: "melon", category: "fruits",
-    selectedSupplierId: "s138", suppliers: [{ id: "s138", name: "Grossiste local", price: 2.5 }], history: [] },
+    selectedSupplierId: "s138", suppliers: [{ id: "s138", name: "Grossiste local", price: 2.5, priceSource: "estimate" }], history: [] },
   { id: "i139", name: "Pastèque", unit: "kg", catalogId: "pasteque", category: "fruits",
-    selectedSupplierId: "s139", suppliers: [{ id: "s139", name: "Grossiste local", price: 1.5 }], history: [] },
+    selectedSupplierId: "s139", suppliers: [{ id: "s139", name: "Grossiste local", price: 1.5, priceSource: "estimate" }], history: [] },
   { id: "i140", name: "Kiwi", unit: "kg", catalogId: "kiwi", category: "fruits",
-    selectedSupplierId: "s140", suppliers: [{ id: "s140", name: "Grossiste local", price: 3.5 }], history: [] },
+    selectedSupplierId: "s140", suppliers: [{ id: "s140", name: "Grossiste local", price: 3.5, priceSource: "estimate" }], history: [] },
   { id: "i141", name: "Mangue", unit: "pièce", catalogId: "mangue", category: "fruits",
-    selectedSupplierId: "s141", suppliers: [{ id: "s141", name: "Grossiste local", price: 1.8 }], history: [] },
+    selectedSupplierId: "s141", suppliers: [{ id: "s141", name: "Grossiste local", price: 1.8, priceSource: "estimate" }], history: [] },
   { id: "i142", name: "Ananas", unit: "pièce", catalogId: "ananas", category: "fruits",
-    selectedSupplierId: "s142", suppliers: [{ id: "s142", name: "Grossiste local", price: 2.9 }], history: [] },
+    selectedSupplierId: "s142", suppliers: [{ id: "s142", name: "Grossiste local", price: 2.9, priceSource: "estimate" }], history: [] },
   { id: "i143", name: "Framboise", unit: "kg", catalogId: "framboise", category: "fruits",
-    selectedSupplierId: "s143", suppliers: [{ id: "s143", name: "Grossiste local", price: 12.0 }], history: [] },
+    selectedSupplierId: "s143", suppliers: [{ id: "s143", name: "Grossiste local", price: 12.0, priceSource: "estimate" }], history: [] },
   { id: "i144", name: "Myrtille", unit: "kg", catalogId: "myrtille", category: "fruits",
-    selectedSupplierId: "s144", suppliers: [{ id: "s144", name: "Grossiste local", price: 14.0 }], history: [] },
+    selectedSupplierId: "s144", suppliers: [{ id: "s144", name: "Grossiste local", price: 14.0, priceSource: "estimate" }], history: [] },
   { id: "i145", name: "Cerise", unit: "kg", catalogId: "cerise", category: "fruits",
-    selectedSupplierId: "s145", suppliers: [{ id: "s145", name: "Grossiste local", price: 8.9 }], history: [] },
+    selectedSupplierId: "s145", suppliers: [{ id: "s145", name: "Grossiste local", price: 8.9, priceSource: "estimate" }], history: [] },
   { id: "i146", name: "Figue", unit: "kg", catalogId: "figue", category: "fruits",
-    selectedSupplierId: "s146", suppliers: [{ id: "s146", name: "Grossiste local", price: 6.5 }], history: [] },
+    selectedSupplierId: "s146", suppliers: [{ id: "s146", name: "Grossiste local", price: 6.5, priceSource: "estimate" }], history: [] },
   { id: "i147", name: "Pamplemousse", unit: "pièce", catalogId: "pamplemousse", category: "fruits",
-    selectedSupplierId: "s147", suppliers: [{ id: "s147", name: "Grossiste local", price: 1.2 }], history: [] },
+    selectedSupplierId: "s147", suppliers: [{ id: "s147", name: "Grossiste local", price: 1.2, priceSource: "estimate" }], history: [] },
   { id: "i148", name: "Noix de coco", unit: "pièce", catalogId: "noix_de_coco", category: "fruits",
-    selectedSupplierId: "s148", suppliers: [{ id: "s148", name: "Grossiste local", price: 2.2 }], history: [] },
+    selectedSupplierId: "s148", suppliers: [{ id: "s148", name: "Grossiste local", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i149", name: "Comté", unit: "kg", catalogId: "comte", category: "cremerie",
-    selectedSupplierId: "s149", suppliers: [{ id: "s149", name: "Métro", price: 19.9 }], history: [] },
+    selectedSupplierId: "s149", suppliers: [{ id: "s149", name: "Métro", price: 19.9, priceSource: "estimate" }], history: [] },
   { id: "i150", name: "Emmental", unit: "kg", catalogId: "emmental", category: "cremerie",
-    selectedSupplierId: "s150", suppliers: [{ id: "s150", name: "Métro", price: 10.5 }], history: [] },
+    selectedSupplierId: "s150", suppliers: [{ id: "s150", name: "Métro", price: 10.5, priceSource: "estimate" }], history: [] },
   { id: "i151", name: "Gruyère", unit: "kg", catalogId: "gruyere", category: "cremerie",
-    selectedSupplierId: "s151", suppliers: [{ id: "s151", name: "Métro", price: 17.9 }], history: [] },
+    selectedSupplierId: "s151", suppliers: [{ id: "s151", name: "Métro", price: 17.9, priceSource: "estimate" }], history: [] },
   { id: "i152", name: "Brie", unit: "kg", catalogId: "brie", category: "cremerie",
-    selectedSupplierId: "s152", suppliers: [{ id: "s152", name: "Métro", price: 13.5 }], history: [] },
+    selectedSupplierId: "s152", suppliers: [{ id: "s152", name: "Métro", price: 13.5, priceSource: "estimate" }], history: [] },
   { id: "i153", name: "Camembert", unit: "pièce", catalogId: "camembert", category: "cremerie",
-    selectedSupplierId: "s153", suppliers: [{ id: "s153", name: "Métro", price: 3.2 }], history: [] },
+    selectedSupplierId: "s153", suppliers: [{ id: "s153", name: "Métro", price: 3.2, priceSource: "estimate" }], history: [] },
   { id: "i154", name: "Roquefort", unit: "kg", catalogId: "roquefort", category: "cremerie",
-    selectedSupplierId: "s154", suppliers: [{ id: "s154", name: "Métro", price: 24.0 }], history: [] },
+    selectedSupplierId: "s154", suppliers: [{ id: "s154", name: "Métro", price: 24.0, priceSource: "estimate" }], history: [] },
   { id: "i155", name: "Feta", unit: "kg", catalogId: "feta", category: "cremerie",
-    selectedSupplierId: "s155", suppliers: [{ id: "s155", name: "Métro", price: 9.9 }], history: [] },
+    selectedSupplierId: "s155", suppliers: [{ id: "s155", name: "Métro", price: 9.9, priceSource: "estimate" }], history: [] },
   { id: "i156", name: "Ricotta", unit: "kg", catalogId: "ricotta", category: "cremerie",
-    selectedSupplierId: "s156", suppliers: [{ id: "s156", name: "Métro", price: 7.5 }], history: [] },
+    selectedSupplierId: "s156", suppliers: [{ id: "s156", name: "Métro", price: 7.5, priceSource: "estimate" }], history: [] },
   { id: "i157", name: "Fromage blanc", unit: "kg", catalogId: "fromage_blanc", category: "cremerie",
-    selectedSupplierId: "s157", suppliers: [{ id: "s157", name: "Métro", price: 3.2 }], history: [] },
+    selectedSupplierId: "s157", suppliers: [{ id: "s157", name: "Métro", price: 3.2, priceSource: "estimate" }], history: [] },
   { id: "i158", name: "Beurre demi-sel", unit: "kg", catalogId: "beurre_demi_sel", category: "cremerie",
-    selectedSupplierId: "s158", suppliers: [{ id: "s158", name: "Métro", price: 7.8 }], history: [] },
+    selectedSupplierId: "s158", suppliers: [{ id: "s158", name: "Métro", price: 7.8, priceSource: "estimate" }], history: [] },
   { id: "i159", name: "Margarine", unit: "kg", catalogId: "margarine", category: "cremerie",
-    selectedSupplierId: "s159", suppliers: [{ id: "s159", name: "Métro", price: 3.5 }], history: [] },
+    selectedSupplierId: "s159", suppliers: [{ id: "s159", name: "Métro", price: 3.5, priceSource: "estimate" }], history: [] },
   { id: "i160", name: "Skyr nature", unit: "kg", catalogId: "skyr", category: "cremerie",
-    selectedSupplierId: "s160", suppliers: [{ id: "s160", name: "Métro", price: 5.9 }], history: [] },
+    selectedSupplierId: "s160", suppliers: [{ id: "s160", name: "Métro", price: 5.9, priceSource: "estimate" }], history: [] },
   { id: "i161", name: "Pain de mie", unit: "kg", catalogId: "pain_mie", category: "epicerie",
-    selectedSupplierId: "s161", suppliers: [{ id: "s161", name: "Métro", price: 3.2 }], history: [] },
+    selectedSupplierId: "s161", suppliers: [{ id: "s161", name: "Métro", price: 3.2, priceSource: "estimate" }], history: [] },
   { id: "i162", name: "Farine de sarrasin", unit: "kg", catalogId: "farine_sarrasin", category: "epicerie",
-    selectedSupplierId: "s162", suppliers: [{ id: "s162", name: "Métro", price: 2.9 }], history: [] },
+    selectedSupplierId: "s162", suppliers: [{ id: "s162", name: "Métro", price: 2.9, priceSource: "estimate" }], history: [] },
   { id: "i163", name: "Levure boulangère", unit: "kg", catalogId: "levure_boulangere", category: "epicerie",
-    selectedSupplierId: "s163", suppliers: [{ id: "s163", name: "Métro", price: 12.0 }], history: [] },
+    selectedSupplierId: "s163", suppliers: [{ id: "s163", name: "Métro", price: 12.0, priceSource: "estimate" }], history: [] },
   { id: "i164", name: "Levure chimique", unit: "kg", catalogId: "levure_chimique", category: "epicerie",
-    selectedSupplierId: "s164", suppliers: [{ id: "s164", name: "Métro", price: 6.5 }], history: [] },
+    selectedSupplierId: "s164", suppliers: [{ id: "s164", name: "Métro", price: 6.5, priceSource: "estimate" }], history: [] },
   { id: "i165", name: "Bicarbonate de soude", unit: "kg", catalogId: "bicarbonate", category: "epicerie",
-    selectedSupplierId: "s165", suppliers: [{ id: "s165", name: "Métro", price: 4.5 }], history: [] },
+    selectedSupplierId: "s165", suppliers: [{ id: "s165", name: "Métro", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i166", name: "Sucre glace", unit: "kg", catalogId: "sucre_glace", category: "epicerie",
-    selectedSupplierId: "s166", suppliers: [{ id: "s166", name: "Métro", price: 1.8 }], history: [] },
+    selectedSupplierId: "s166", suppliers: [{ id: "s166", name: "Métro", price: 1.8, priceSource: "estimate" }], history: [] },
   { id: "i167", name: "Cassonade", unit: "kg", catalogId: "cassonade", category: "epicerie",
-    selectedSupplierId: "s167", suppliers: [{ id: "s167", name: "Métro", price: 2.2 }], history: [] },
+    selectedSupplierId: "s167", suppliers: [{ id: "s167", name: "Métro", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i168", name: "Confiture", unit: "kg", catalogId: "confiture", category: "epicerie",
-    selectedSupplierId: "s168", suppliers: [{ id: "s168", name: "Métro", price: 4.5 }], history: [] },
+    selectedSupplierId: "s168", suppliers: [{ id: "s168", name: "Métro", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i169", name: "Pâte à tartiner", unit: "kg", catalogId: "pate_a_tartiner", category: "epicerie",
-    selectedSupplierId: "s169", suppliers: [{ id: "s169", name: "Métro", price: 6.5 }], history: [] },
+    selectedSupplierId: "s169", suppliers: [{ id: "s169", name: "Métro", price: 6.5, priceSource: "estimate" }], history: [] },
   { id: "i170", name: "Chapelure", unit: "kg", catalogId: "chapelure", category: "epicerie",
-    selectedSupplierId: "s170", suppliers: [{ id: "s170", name: "Métro", price: 2.2 }], history: [] },
+    selectedSupplierId: "s170", suppliers: [{ id: "s170", name: "Métro", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i171", name: "Spaghetti", unit: "kg", catalogId: "spaghetti", category: "epicerie",
-    selectedSupplierId: "s171", suppliers: [{ id: "s171", name: "Métro", price: 1.8 }], history: [] },
+    selectedSupplierId: "s171", suppliers: [{ id: "s171", name: "Métro", price: 1.8, priceSource: "estimate" }], history: [] },
   { id: "i172", name: "Tagliatelles", unit: "kg", catalogId: "tagliatelles", category: "epicerie",
-    selectedSupplierId: "s172", suppliers: [{ id: "s172", name: "Métro", price: 2.2 }], history: [] },
+    selectedSupplierId: "s172", suppliers: [{ id: "s172", name: "Métro", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i173", name: "Lentilles vertes", unit: "kg", catalogId: "lentilles_vertes", category: "epicerie",
-    selectedSupplierId: "s173", suppliers: [{ id: "s173", name: "Métro", price: 3.2 }], history: [] },
+    selectedSupplierId: "s173", suppliers: [{ id: "s173", name: "Métro", price: 3.2, priceSource: "estimate" }], history: [] },
   { id: "i174", name: "Pois chiches", unit: "kg", catalogId: "pois_chiches", category: "epicerie",
-    selectedSupplierId: "s174", suppliers: [{ id: "s174", name: "Métro", price: 2.8 }], history: [] },
+    selectedSupplierId: "s174", suppliers: [{ id: "s174", name: "Métro", price: 2.8, priceSource: "estimate" }], history: [] },
   { id: "i175", name: "Haricots rouges secs", unit: "kg", catalogId: "haricots_rouges", category: "epicerie",
-    selectedSupplierId: "s175", suppliers: [{ id: "s175", name: "Métro", price: 3.2 }], history: [] },
+    selectedSupplierId: "s175", suppliers: [{ id: "s175", name: "Métro", price: 3.2, priceSource: "estimate" }], history: [] },
   { id: "i176", name: "Tofu", unit: "kg", catalogId: "tofu", category: "epicerie",
-    selectedSupplierId: "s176", suppliers: [{ id: "s176", name: "Métro", price: 6.5 }], history: [] },
+    selectedSupplierId: "s176", suppliers: [{ id: "s176", name: "Métro", price: 6.5, priceSource: "estimate" }], history: [] },
   { id: "i177", name: "Noix de cajou", unit: "kg", catalogId: "noix_cajou", category: "epicerie",
-    selectedSupplierId: "s177", suppliers: [{ id: "s177", name: "Métro", price: 14.0 }], history: [] },
+    selectedSupplierId: "s177", suppliers: [{ id: "s177", name: "Métro", price: 14.0, priceSource: "estimate" }], history: [] },
   { id: "i178", name: "Pistaches", unit: "kg", catalogId: "pistaches", category: "epicerie",
-    selectedSupplierId: "s178", suppliers: [{ id: "s178", name: "Métro", price: 22.0 }], history: [] },
+    selectedSupplierId: "s178", suppliers: [{ id: "s178", name: "Métro", price: 22.0, priceSource: "estimate" }], history: [] },
   { id: "i179", name: "Tomates pelées en boîte", unit: "kg", catalogId: "tomates_pelees", category: "epicerie",
-    selectedSupplierId: "s179", suppliers: [{ id: "s179", name: "Métro", price: 1.8 }], history: [] },
+    selectedSupplierId: "s179", suppliers: [{ id: "s179", name: "Métro", price: 1.8, priceSource: "estimate" }], history: [] },
   { id: "i180", name: "Concentré de tomate", unit: "kg", catalogId: "concentre_tomate", category: "epicerie",
-    selectedSupplierId: "s180", suppliers: [{ id: "s180", name: "Métro", price: 3.5 }], history: [] },
+    selectedSupplierId: "s180", suppliers: [{ id: "s180", name: "Métro", price: 3.5, priceSource: "estimate" }], history: [] },
   { id: "i181", name: "Câpres", unit: "kg", catalogId: "capres", category: "epicerie",
-    selectedSupplierId: "s181", suppliers: [{ id: "s181", name: "Métro", price: 9.5 }], history: [] },
+    selectedSupplierId: "s181", suppliers: [{ id: "s181", name: "Métro", price: 9.5, priceSource: "estimate" }], history: [] },
   { id: "i182", name: "Olives vertes", unit: "kg", catalogId: "olives_vertes", category: "epicerie",
-    selectedSupplierId: "s182", suppliers: [{ id: "s182", name: "Métro", price: 5.5 }], history: [] },
+    selectedSupplierId: "s182", suppliers: [{ id: "s182", name: "Métro", price: 5.5, priceSource: "estimate" }], history: [] },
   { id: "i183", name: "Olives noires", unit: "kg", catalogId: "olives_noires", category: "epicerie",
-    selectedSupplierId: "s183", suppliers: [{ id: "s183", name: "Métro", price: 6.5 }], history: [] },
+    selectedSupplierId: "s183", suppliers: [{ id: "s183", name: "Métro", price: 6.5, priceSource: "estimate" }], history: [] },
   { id: "i184", name: "Cornichons", unit: "kg", catalogId: "cornichons", category: "epicerie",
-    selectedSupplierId: "s184", suppliers: [{ id: "s184", name: "Métro", price: 4.9 }], history: [] },
+    selectedSupplierId: "s184", suppliers: [{ id: "s184", name: "Métro", price: 4.9, priceSource: "estimate" }], history: [] },
   { id: "i185", name: "Bouillon de volaille", unit: "kg", catalogId: "bouillon_volaille", category: "epicerie",
-    selectedSupplierId: "s185", suppliers: [{ id: "s185", name: "Métro", price: 9.5 }], history: [] },
+    selectedSupplierId: "s185", suppliers: [{ id: "s185", name: "Métro", price: 9.5, priceSource: "estimate" }], history: [] },
   { id: "i186", name: "Curcuma", unit: "kg", catalogId: "curcuma", category: "epices",
-    selectedSupplierId: "s186", suppliers: [{ id: "s186", name: "Métro", price: 18.0 }], history: [] },
+    selectedSupplierId: "s186", suppliers: [{ id: "s186", name: "Métro", price: 18.0, priceSource: "estimate" }], history: [] },
   { id: "i187", name: "Cardamome", unit: "kg", catalogId: "cardamome", category: "epices",
-    selectedSupplierId: "s187", suppliers: [{ id: "s187", name: "Métro", price: 65.0 }], history: [] },
+    selectedSupplierId: "s187", suppliers: [{ id: "s187", name: "Métro", price: 65.0, priceSource: "estimate" }], history: [] },
   { id: "i188", name: "Clou de girofle", unit: "kg", catalogId: "girofle", category: "epices",
-    selectedSupplierId: "s188", suppliers: [{ id: "s188", name: "Métro", price: 35.0 }], history: [] },
+    selectedSupplierId: "s188", suppliers: [{ id: "s188", name: "Métro", price: 35.0, priceSource: "estimate" }], history: [] },
   { id: "i189", name: "Herbes de Provence", unit: "kg", catalogId: "herbes_provence", category: "epices",
-    selectedSupplierId: "s189", suppliers: [{ id: "s189", name: "Métro", price: 16.0 }], history: [] },
+    selectedSupplierId: "s189", suppliers: [{ id: "s189", name: "Métro", price: 16.0, priceSource: "estimate" }], history: [] },
   { id: "i190", name: "Origan", unit: "kg", catalogId: "origan", category: "epices",
-    selectedSupplierId: "s190", suppliers: [{ id: "s190", name: "Métro", price: 18.0 }], history: [] },
+    selectedSupplierId: "s190", suppliers: [{ id: "s190", name: "Métro", price: 18.0, priceSource: "estimate" }], history: [] },
   { id: "i191", name: "Romarin", unit: "kg", catalogId: "romarin", category: "epices",
-    selectedSupplierId: "s191", suppliers: [{ id: "s191", name: "Métro", price: 16.0 }], history: [] },
+    selectedSupplierId: "s191", suppliers: [{ id: "s191", name: "Métro", price: 16.0, priceSource: "estimate" }], history: [] },
   { id: "i192", name: "Sauge", unit: "kg", catalogId: "sauge", category: "epices",
-    selectedSupplierId: "s192", suppliers: [{ id: "s192", name: "Métro", price: 20.0 }], history: [] },
+    selectedSupplierId: "s192", suppliers: [{ id: "s192", name: "Métro", price: 20.0, priceSource: "estimate" }], history: [] },
   { id: "i193", name: "Estragon", unit: "kg", catalogId: "estragon", category: "epices",
-    selectedSupplierId: "s193", suppliers: [{ id: "s193", name: "Métro", price: 24.0 }], history: [] },
+    selectedSupplierId: "s193", suppliers: [{ id: "s193", name: "Métro", price: 24.0, priceSource: "estimate" }], history: [] },
   { id: "i194", name: "Fleur de sel", unit: "kg", catalogId: "fleur_de_sel", category: "epices",
-    selectedSupplierId: "s194", suppliers: [{ id: "s194", name: "Métro", price: 12.0 }], history: [] },
+    selectedSupplierId: "s194", suppliers: [{ id: "s194", name: "Métro", price: 12.0, priceSource: "estimate" }], history: [] },
   { id: "i195", name: "Poivre blanc", unit: "kg", catalogId: "poivre_blanc", category: "epices",
-    selectedSupplierId: "s195", suppliers: [{ id: "s195", name: "Métro", price: 20.0 }], history: [] },
+    selectedSupplierId: "s195", suppliers: [{ id: "s195", name: "Métro", price: 20.0, priceSource: "estimate" }], history: [] },
   { id: "i196", name: "Gousse de vanille", unit: "pièce", catalogId: "vanille", category: "epices",
-    selectedSupplierId: "s196", suppliers: [{ id: "s196", name: "Métro", price: 3.5 }], history: [] },
+    selectedSupplierId: "s196", suppliers: [{ id: "s196", name: "Métro", price: 3.5, priceSource: "estimate" }], history: [] },
   { id: "i197", name: "Sucre vanillé", unit: "kg", catalogId: "sucre_vanille", category: "epices",
-    selectedSupplierId: "s197", suppliers: [{ id: "s197", name: "Métro", price: 8.0 }], history: [] },
+    selectedSupplierId: "s197", suppliers: [{ id: "s197", name: "Métro", price: 8.0, priceSource: "estimate" }], history: [] },
   { id: "i198", name: "Eau minérale plate", unit: "L", catalogId: "eau_plate", category: "boissons",
-    selectedSupplierId: "s198", suppliers: [{ id: "s198", name: "Cavavin Pro", price: 0.35 }], history: [] },
+    selectedSupplierId: "s198", suppliers: [{ id: "s198", name: "Cavavin Pro", price: 0.35, priceSource: "estimate" }], history: [] },
   { id: "i199", name: "Eau gazeuse", unit: "L", catalogId: "eau_gazeuse", category: "boissons",
-    selectedSupplierId: "s199", suppliers: [{ id: "s199", name: "Cavavin Pro", price: 0.55 }], history: [] },
+    selectedSupplierId: "s199", suppliers: [{ id: "s199", name: "Cavavin Pro", price: 0.55, priceSource: "estimate" }], history: [] },
   { id: "i200", name: "Jus d'orange", unit: "L", catalogId: "jus_orange", category: "boissons",
-    selectedSupplierId: "s200", suppliers: [{ id: "s200", name: "Cavavin Pro", price: 2.2 }], history: [] },
+    selectedSupplierId: "s200", suppliers: [{ id: "s200", name: "Cavavin Pro", price: 2.2, priceSource: "estimate" }], history: [] },
   { id: "i201", name: "Jus de pomme", unit: "L", catalogId: "jus_pomme", category: "boissons",
-    selectedSupplierId: "s201", suppliers: [{ id: "s201", name: "Cavavin Pro", price: 2.0 }], history: [] },
+    selectedSupplierId: "s201", suppliers: [{ id: "s201", name: "Cavavin Pro", price: 2.0, priceSource: "estimate" }], history: [] },
   { id: "i202", name: "Soda cola", unit: "L", catalogId: "soda_cola", category: "boissons",
-    selectedSupplierId: "s202", suppliers: [{ id: "s202", name: "Cavavin Pro", price: 1.1 }], history: [] },
+    selectedSupplierId: "s202", suppliers: [{ id: "s202", name: "Cavavin Pro", price: 1.1, priceSource: "estimate" }], history: [] },
   { id: "i203", name: "Café en grains", unit: "kg", catalogId: "cafe_grains", category: "boissons",
-    selectedSupplierId: "s203", suppliers: [{ id: "s203", name: "Cavavin Pro", price: 18.0 }], history: [] },
+    selectedSupplierId: "s203", suppliers: [{ id: "s203", name: "Cavavin Pro", price: 18.0, priceSource: "estimate" }], history: [] },
   { id: "i204", name: "Café moulu", unit: "kg", catalogId: "cafe_moulu", category: "boissons",
-    selectedSupplierId: "s204", suppliers: [{ id: "s204", name: "Cavavin Pro", price: 16.0 }], history: [] },
+    selectedSupplierId: "s204", suppliers: [{ id: "s204", name: "Cavavin Pro", price: 16.0, priceSource: "estimate" }], history: [] },
   { id: "i205", name: "Thé noir", unit: "kg", catalogId: "the_noir", category: "boissons",
-    selectedSupplierId: "s205", suppliers: [{ id: "s205", name: "Cavavin Pro", price: 25.0 }], history: [] },
+    selectedSupplierId: "s205", suppliers: [{ id: "s205", name: "Cavavin Pro", price: 25.0, priceSource: "estimate" }], history: [] },
   { id: "i206", name: "Vin rosé de cuisine", unit: "L", catalogId: "vin_rose", category: "boissons",
-    selectedSupplierId: "s206", suppliers: [{ id: "s206", name: "Cavavin Pro", price: 4.5 }], history: [] },
+    selectedSupplierId: "s206", suppliers: [{ id: "s206", name: "Cavavin Pro", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i207", name: "Champagne", unit: "L", catalogId: "champagne", category: "boissons",
-    selectedSupplierId: "s207", suppliers: [{ id: "s207", name: "Cavavin Pro", price: 28.0 }], history: [] },
+    selectedSupplierId: "s207", suppliers: [{ id: "s207", name: "Cavavin Pro", price: 28.0, priceSource: "estimate" }], history: [] },
   { id: "i208", name: "Whisky", unit: "L", catalogId: "whisky", category: "boissons",
-    selectedSupplierId: "s208", suppliers: [{ id: "s208", name: "Cavavin Pro", price: 22.0 }], history: [] },
+    selectedSupplierId: "s208", suppliers: [{ id: "s208", name: "Cavavin Pro", price: 22.0, priceSource: "estimate" }], history: [] },
   { id: "i209", name: "Vodka", unit: "L", catalogId: "vodka", category: "boissons",
-    selectedSupplierId: "s209", suppliers: [{ id: "s209", name: "Cavavin Pro", price: 16.0 }], history: [] },
+    selectedSupplierId: "s209", suppliers: [{ id: "s209", name: "Cavavin Pro", price: 16.0, priceSource: "estimate" }], history: [] },
 ];
 
 const SEED_RECIPES = [
@@ -1138,7 +1148,7 @@ export default function App() {
     const sId = uid();
     const ni = {
       id: uid(), name: c[lang], unit: normUnit(c.unit), catalogId: c.id, category: c.cat,
-      selectedSupplierId: sId, suppliers: [{ id: sId, name: t("supplier"), price: 1 }], history: [],
+      selectedSupplierId: sId, suppliers: [{ id: sId, name: t("supplier"), price: 1, priceSource: "estimate" }], history: [],
     };
     setIngredients((ings) => [...ings, ni]);
     setAdding(false);
@@ -1149,7 +1159,7 @@ export default function App() {
     const sId = uid();
     const ni = {
       id: uid(), name: name || t("newIngredient"), unit: "kg", catalogId: null, category: "autres",
-      selectedSupplierId: sId, suppliers: [{ id: sId, name: t("supplier"), price: 1 }], history: [],
+      selectedSupplierId: sId, suppliers: [{ id: sId, name: t("supplier"), price: 1, priceSource: "estimate" }], history: [],
     };
     setIngredients((ings) => [...ings, ni]);
     setAdding(false);
@@ -1170,7 +1180,10 @@ export default function App() {
       let historyPatch = i.history || [];
       const suppliers = i.suppliers.map((s) => {
         if (s.id !== supId) return s;
-        if (field === "price" && value !== s.price) historyPatch = [...historyPatch, { date: today(), price: value, supplierName: s.name }].slice(-15);
+        if (field === "price" && value !== s.price) {
+          historyPatch = [...historyPatch, { date: today(), price: value, supplierName: s.name }].slice(-15);
+          return { ...s, price: value, priceSource: "manual" };
+        }
         return { ...s, [field]: value };
       });
       return { ...i, suppliers, history: historyPatch };
@@ -1300,6 +1313,10 @@ export default function App() {
       reader.readAsDataURL(file);
     });
 
+  // Mots indiquant un conditionnement groupé (caisse, carton...) où la quantité lue
+  // ne correspond pas forcément à des kg/L — on préfère alerter plutôt que deviner.
+  const BULK_PACKAGING_RE = /\b(caisse|carton|colis|lot|palette|sachet|bo[iî]te|pack|filet)\b/i;
+
   const handleScanFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = ""; // permet de re-sélectionner le même fichier plus tard
@@ -1321,44 +1338,68 @@ export default function App() {
         throw new Error(msg);
       }
       const items = (data.items || []).map((it) => {
-        // Vérifie que quantité × prix unitaire ≈ prix total ; sinon on fait confiance
-        // au total/quantité plutôt qu'à un prix unitaire mal lu (ex: total pris pour un prix au kg).
         const qty = it.quantity || 0;
         const total = it.totalPriceHT || 0;
-        let unitPriceHT = it.unitPriceHT || 0;
-        let priceCorrected = false;
+        const unitPriceHT = it.unitPriceHT || 0;
+
+        // On ne remplace JAMAIS silencieusement le prix lu par l'IA : on se contente
+        // de calculer une suggestion et de signaler l'écart si besoin, à l'utilisateur de trancher.
+        let priceInconsistent = false;
+        let suggestedUnitPrice = null;
         if (qty > 0 && total > 0) {
           const expected = total / qty;
           const diff = Math.abs((unitPriceHT || expected) - expected) / Math.max(expected, 0.01);
           if (unitPriceHT <= 0 || diff > 0.15) {
-            unitPriceHT = expected;
-            priceCorrected = true;
+            priceInconsistent = true;
+            suggestedUnitPrice = expected;
           }
         }
 
-        const normalized = normalizeUnitAndPrice({ ...it, unitPriceHT });
+        const ambiguousPackaging = BULK_PACKAGING_RE.test(it.rawLabel || "");
+        // On évite la conversion automatique kg/L quand un conditionnement groupé est détecté :
+        // le poids d'une "caisse" n'est pas fiable à deviner.
+        const normalized = ambiguousPackaging
+          ? { unit: it.unit || "kg", unitPriceHT }
+          : normalizeUnitAndPrice({ ...it, unitPriceHT });
         const merged = { ...it, unit: normalized.unit, unitPriceHT: normalized.unitPriceHT };
 
         const match = guessIngredientId(merged.name);
         const matchedId = match ? match.id : null;
         const matchedIng = matchedId ? ingredientById(matchedId) : null;
-        const currentPrice = matchedIng ? activeSupplier(matchedIng)?.price ?? null : null;
+        const activeSup = matchedIng ? activeSupplier(matchedIng) : null;
+        const currentPrice = activeSup?.price ?? null;
+        const currentPriceIsReal = activeSup?.priceSource && activeSup.priceSource !== "estimate";
+
+        // Grosse variation à confirmer explicitement — uniquement si on la compare à un
+        // VRAI prix déjà observé (jamais contre une simple estimation de départ non vérifiée).
+        const bigChange =
+          currentPrice !== null && currentPriceIsReal && merged.unitPriceHT > 0
+            ? Math.abs(merged.unitPriceHT - currentPrice) / currentPrice > 0.4
+            : false;
 
         return {
           ...merged,
           assignTo: matchedId || "new",
           matchConfident: match ? match.confident : false,
-          // Pour une correspondance approximative (pas exacte), on propose par défaut
-          // de renommer l'ingrédient existant avec le nom plus précis détecté sur la facture.
           renameOnImport: !!(match && !match.confident),
           imported: false,
           currentPrice,
-          priceCorrected,
-          priceUp: currentPrice !== null && unitPriceHT > currentPrice * 1.02,
-          priceDown: currentPrice !== null && unitPriceHT < currentPrice * 0.98,
+          currentPriceIsReal,
+          priceInconsistent,
+          suggestedUnitPrice,
+          ambiguousPackaging,
+          bigChange,
+          priceUp: currentPrice !== null && merged.unitPriceHT > currentPrice * 1.02,
+          priceDown: currentPrice !== null && merged.unitPriceHT < currentPrice * 0.98,
         };
       });
-      setScanResult({ supplier: data.supplier || null, date: data.date || null, items });
+
+      // Alerte globale si une grosse majorité des prix scannés semble en forte hausse
+      // par rapport aux vrais prix déjà connus — signe probable d'un souci de lecture du document.
+      const comparable = items.filter((i) => i.currentPrice !== null && i.currentPriceIsReal);
+      const manyUp = comparable.length >= 3 && comparable.filter((i) => i.priceUp).length / comparable.length > 0.6;
+
+      setScanResult({ supplier: data.supplier || null, date: data.date || null, items, manyUp });
     } catch (err) {
       setScanErr(err.message || "Erreur inconnue");
     } finally {
@@ -1386,7 +1427,7 @@ export default function App() {
         catalogId: null,
         category: "autres",
         selectedSupplierId: sId,
-        suppliers: [{ id: sId, name: supplierName, price: finalPrice }],
+        suppliers: [{ id: sId, name: supplierName, price: finalPrice, priceSource: "scan" }],
         history: [{ date: today(), price: finalPrice, supplierName }],
       };
       setIngredients((ings) => [...ings, ni]);
@@ -1398,9 +1439,9 @@ export default function App() {
           let suppliers = ing.suppliers;
           const existing = suppliers.find((s) => normalizeStr(s.name) === normalizeStr(supplierName));
           if (existing) {
-            suppliers = suppliers.map((s) => (s.id === existing.id ? { ...s, price: finalPrice } : s));
+            suppliers = suppliers.map((s) => (s.id === existing.id ? { ...s, price: finalPrice, priceSource: "scan" } : s));
           } else {
-            suppliers = [...suppliers, { id: uid(), name: supplierName, price: finalPrice }];
+            suppliers = [...suppliers, { id: uid(), name: supplierName, price: finalPrice, priceSource: "scan" }];
           }
           const history = [...(ing.history || []), { date: today(), price: finalPrice, supplierName }].slice(-15);
           const renamed = item.renameOnImport && item.name ? { name: item.name, catalogId: null } : {};
@@ -1411,8 +1452,16 @@ export default function App() {
     updateScanItem(idx, { imported: true });
   };
 
+  // "Importer tout" ne traite QUE les lignes sans aucun signal d'alerte — tout le reste
+  // (prix incohérent, conditionnement ambigu, grosse variation, correspondance incertaine)
+  // doit être validé ligne par ligne, en connaissance de cause.
+  const isSafeScanItem = (item) =>
+    !item.priceInconsistent && !item.ambiguousPackaging && !item.bigChange && (item.assignTo === "new" || item.matchConfident);
+
   const importAllScanItems = () => {
-    scanResult.items.forEach((_, idx) => importScanItem(idx));
+    scanResult.items.forEach((item, idx) => {
+      if (isSafeScanItem(item)) importScanItem(idx);
+    });
   };
 
   const closeScan = () => {
@@ -1584,6 +1633,13 @@ export default function App() {
                 </div>
                 <p className="text-[11px] text-white/40 mb-3">{t("scanHint")}</p>
 
+                {scanResult.manyUp && (
+                  <div className="flex items-start gap-2 rounded-lg p-2.5 mb-3 text-xs" style={{ background: `${TIER_COLORS.low}18`, color: TIER_COLORS.low }}>
+                    <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                    {t("scanManyUpWarning")}
+                  </div>
+                )}
+
                 {scanResult.items.length === 0 ? (
                   <div className="text-white/40 text-sm py-4 text-center">{t("scanNoItems")}</div>
                 ) : (
@@ -1632,12 +1688,27 @@ export default function App() {
                               {item.matchConfident ? t("scanLinkedSure") : t("scanLinkedGuess")}
                             </span>
                           )}
-                          {item.priceCorrected && !item.imported && (
-                            <span className="text-[9px] text-white/40" title={t("scanPriceCorrectedHint")}>
-                              ⚠ {t("scanPriceCorrected")}
+                          {item.ambiguousPackaging && !item.imported && (
+                            <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold" style={{ color: TIER_COLORS.mid, background: `${TIER_COLORS.mid}22` }}>
+                              📦 {t("scanBulkPackaging")}
                             </span>
                           )}
                         </div>
+
+                        {item.priceInconsistent && !item.imported && (
+                          <div className="flex items-center justify-between gap-2 mt-1.5 text-[10px] rounded px-2 py-1.5" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+                            <span>⚠ {t("scanPriceInconsistent")}{item.suggestedUnitPrice !== null ? ` (≈ ${item.suggestedUnitPrice.toFixed(2)}€)` : ""}</span>
+                            {item.suggestedUnitPrice !== null && (
+                              <button
+                                onClick={() => updateScanItem(idx, { unitPriceHT: item.suggestedUnitPrice, priceInconsistent: false, suggestedUnitPrice: null })}
+                                className="shrink-0 text-[9px] uppercase tracking-wide px-2 py-0.5 rounded-full font-semibold"
+                                style={{ background: TIER_COLORS.mid, color: "#000" }}
+                              >
+                                {t("scanUseSuggested")}
+                              </button>
+                            )}
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-2 mt-1.5 text-xs text-white/60">
                           <select
@@ -1674,9 +1745,9 @@ export default function App() {
                           </label>
                         )}
 
-                        {!item.imported && item.currentPrice !== null && (
-                          <div className="flex items-center gap-1 mt-1.5 text-[10px]" style={{ color: item.priceUp ? TIER_COLORS.mid : item.priceDown ? "#10B981" : "rgba(255,255,255,0.4)" }}>
-                            {item.priceUp && <TrendingUp size={11} />}
+                        {!item.imported && item.currentPrice !== null && item.currentPriceIsReal && (
+                          <div className="flex items-center gap-1 mt-1.5 text-[10px]" style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : item.priceDown ? "#10B981" : "rgba(255,255,255,0.4)" }}>
+                            {(item.priceUp || item.bigChange) && <TrendingUp size={11} />}
                             {item.priceUp
                               ? `${t("scanPriceIncrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
                               : item.priceDown
@@ -1688,6 +1759,14 @@ export default function App() {
                         <div className="flex justify-end mt-1.5">
                           {item.imported ? (
                             <span className="text-[10px] text-[#10B981] font-semibold">{t("scanImported")}</span>
+                          ) : item.bigChange ? (
+                            <button
+                              onClick={() => importScanItem(idx)}
+                              className="text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full font-semibold flex items-center gap-1"
+                              style={{ background: TIER_COLORS.low, color: "#fff" }}
+                            >
+                              <AlertTriangle size={11} /> {t("scanConfirmBigChange")}
+                            </button>
                           ) : (
                             <button
                               onClick={() => importScanItem(idx)}

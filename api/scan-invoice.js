@@ -49,7 +49,8 @@ RÈGLES DE CONVERSION D'UNITÉ (très important, à appliquer systématiquement)
 2. Si le libellé mentionne un VOLUME (cl, ml, L...) : unit = "L" et unitPriceHT = prix payé ÷ volume en litres.
    Exemple : "Huile d'olive 75cl à 9,00 €" → name: "Huile d'olive", unit: "L", unitPriceHT: 12.00 (calcul : 9.00 / 0.75).
 3. Si AUCUN poids ni volume n'est mentionné (produit vraiment vendu à l'unité, ex: œuf, citron, avocat, burrata) : unit = "pièce", unitPriceHT = prix d'une pièce, sans conversion.
-4. Si le prix est déjà affiché au kilo ou au litre sur le document, garde-le tel quel dans l'unité correspondante.
+4. Si le prix est déjà affiché au kilo ou au litre sur le document (ex: "1,35 €/kg" imprimé), UTILISE TOUJOURS cette valeur imprimée telle quelle comme unitPriceHT — ne la recalcule JAMAIS à partir d'un total ou d'une quantité de colis/caisses, qui sont beaucoup moins fiables.
+5. Si le produit est vendu par CONDITIONNEMENT GROUPÉ (caisse, carton, colis, lot, palette) sans poids ni prix au kilo visible : garde unit = "pièce" avec la quantité de colis/caisses et leur prix, SANS essayer de deviner un prix au kilo — tu n'as pas l'information nécessaire pour le calculer correctement.
 Fais toujours le calcul toi-même avec précision (2 décimales) — ne laisse jamais un produit pesé/mesuré en "pièce" si un poids ou volume est visible.
 
 Autres règles :
