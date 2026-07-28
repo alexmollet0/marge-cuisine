@@ -25,17 +25,26 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
   "date": "AAAA-MM-JJ ou null",
   "items": [
     {
+      "rawLabel": "le texte EXACT et complet de la ligne tel qu'imprimé sur le document, SANS AUCUNE simplification (garde les codes, abréviations, mentions de poids/volume comme '250G', '0.5KG', '75CL', '1.5L')",
       "name": "nom SIMPLIFIÉ et NORMALISÉ de l'ingrédient en français, ex: 'Crème liquide 35%' au lieu de 'CR. LFF. 35% BQ 1L'",
       "quantity": nombre,
       "unit": "kg" ou "L" ou "pièce",
-      "unitPriceHT": nombre,
-      "totalPriceHT": nombre,
-      "packageWeightG": nombre en grammes si l'unité est "pièce" ET qu'un poids est mentionné sur l'emballage/la ligne (ex: "150G", "0.5KG" → 500), sinon null
+      "unitPriceHT": nombre — DÉJÀ CONVERTI dans l'unité ci-dessus (voir règles de conversion ci-dessous),
+      "totalPriceHT": nombre
     }
   ]
 }
 
-Règles :
+RÈGLES DE CONVERSION D'UNITÉ (très important, à appliquer systématiquement) :
+1. Si le libellé mentionne un POIDS (g, gr, kg...) : unit = "kg" et unitPriceHT = prix payé ÷ poids en kg.
+   Exemple : "Chicorée 250g à 3,09 €" → name: "Chicorée", unit: "kg", unitPriceHT: 12.36 (calcul : 3.09 / 0.25).
+2. Si le libellé mentionne un VOLUME (cl, ml, L...) : unit = "L" et unitPriceHT = prix payé ÷ volume en litres.
+   Exemple : "Huile d'olive 75cl à 9,00 €" → name: "Huile d'olive", unit: "L", unitPriceHT: 12.00 (calcul : 9.00 / 0.75).
+3. Si AUCUN poids ni volume n'est mentionné (produit vraiment vendu à l'unité, ex: œuf, citron, avocat, burrata) : unit = "pièce", unitPriceHT = prix d'une pièce, sans conversion.
+4. Si le prix est déjà affiché au kilo ou au litre sur le document, garde-le tel quel dans l'unité correspondante.
+Fais toujours le calcul toi-même avec précision (2 décimales) — ne laisse jamais un produit pesé/mesuré en "pièce" si un poids ou volume est visible.
+
+Autres règles :
 - Simplifie systématiquement les abréviations fournisseurs en noms clairs et courts.
 - Si une ligne entière est trop floue/illisible pour être fiable, IGNORE-la simplement (ne l'inclus pas dans "items") plutôt que de bloquer toute la réponse.
 - Pour un champ isolé illisible sur une ligne par ailleurs lisible, mets null pour ce champ uniquement (jamais de texte inventé).

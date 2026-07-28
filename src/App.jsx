@@ -569,8 +569,8 @@ export default function App() {
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
 
-  // Détecte un poids mentionné dans le nom de l'article (ex: "Mozzarella 125g", "Beurre 0.5KG")
-  // — plus fiable que de compter sur un champ séparé retourné par l'IA.
+  // Détecte un poids/volume mentionné dans un texte (ex: "Mozzarella 125g", "Huile 75CL")
+  // — sert de filet de sécurité si l'IA a oublié de convertir elle-même l'unité.
   const extractWeightGrams = (name) => {
     if (!name) return null;
     const kgMatch = name.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
@@ -578,6 +578,35 @@ export default function App() {
     const gMatch = name.match(/(\d+(?:[.,]\d+)?)\s*g(?:r|rs|rammes?)?\b/i);
     if (gMatch) return Math.round(parseFloat(gMatch[1].replace(",", ".")));
     return null;
+  };
+  const extractVolumeMl = (name) => {
+    if (!name) return null;
+    const lMatch = name.match(/(\d+(?:[.,]\d+)?)\s*l\b/i);
+    if (lMatch) return Math.round(parseFloat(lMatch[1].replace(",", ".")) * 1000);
+    const clMatch = name.match(/(\d+(?:[.,]\d+)?)\s*cl\b/i);
+    if (clMatch) return Math.round(parseFloat(clMatch[1].replace(",", ".")) * 10);
+    const mlMatch = name.match(/(\d+(?:[.,]\d+)?)\s*ml\b/i);
+    if (mlMatch) return Math.round(parseFloat(mlMatch[1].replace(",", ".")));
+    return null;
+  };
+
+  // Si l'IA a laissé un produit en "pièce" alors qu'un poids/volume est visible dans le texte
+  // brut du ticket, on corrige silencieusement — l'utilisateur ne voit jamais cette étape.
+  const normalizeUnitAndPrice = (it) => {
+    let unit = it.unit || "kg";
+    let price = it.unitPriceHT || 0;
+    if (unit === "pièce") {
+      const source = it.rawLabel || it.name || "";
+      const g = extractWeightGrams(source);
+      if (g && g > 0) {
+        return { unit: "kg", unitPriceHT: price / (g / 1000) };
+      }
+      const ml = extractVolumeMl(source);
+      if (ml && ml > 0) {
+        return { unit: "L", unitPriceHT: price / (ml / 1000) };
+      }
+    }
+    return { unit, unitPriceHT: price };
   };
 
   const guessIngredientId = (name) => {
@@ -639,16 +668,17 @@ export default function App() {
         throw new Error(msg);
       }
       const items = (data.items || []).map((it) => {
-        const matchedId = guessIngredientId(it.name);
+        const normalized = normalizeUnitAndPrice(it);
+        const merged = { ...it, unit: normalized.unit, unitPriceHT: normalized.unitPriceHT };
+        const matchedId = guessIngredientId(merged.name);
         const matchedIng = matchedId ? ingredientById(matchedId) : null;
         const currentPrice = matchedIng ? activeSupplier(matchedIng)?.price ?? null : null;
         return {
-          ...it,
+          ...merged,
           assignTo: matchedId || "new",
           imported: false,
           currentPrice,
-          priceUp: currentPrice !== null && it.unitPriceHT > currentPrice,
-          weightPerUnitG: extractWeightGrams(it.name) || it.packageWeightG || null,
+          priceUp: currentPrice !== null && merged.unitPriceHT > currentPrice,
         };
       });
       setScanResult({ supplier: data.supplier || null, date: data.date || null, items });
@@ -667,12 +697,8 @@ export default function App() {
     const item = scanResult.items[idx];
     if (!item || item.imported) return;
     const supplierName = scanResult.supplier || t("scanInvoice");
-
-    // Si on connaît le poids d'une pièce, on convertit en prix au kilo :
-    // beaucoup plus pratique ensuite dans les recettes (0.15kg plutôt que "1 pièce").
-    const hasWeight = item.unit === "pièce" && item.weightPerUnitG && item.weightPerUnitG > 0;
-    const finalUnit = hasWeight ? "kg" : item.unit || "kg";
-    const finalPrice = hasWeight ? (item.unitPriceHT || 0) / (item.weightPerUnitG / 1000) : item.unitPriceHT || 0;
+    const finalUnit = item.unit || "kg";
+    const finalPrice = item.unitPriceHT || 0;
 
     if (item.assignTo === "new") {
       const sId = uid();
@@ -919,24 +945,6 @@ export default function App() {
                             <span>€</span>
                           </div>
                         </div>
-
-                        {item.unit === "pièce" && !item.imported && (
-                          <div className="flex items-center gap-2 mt-1.5 text-xs rounded px-2 py-1.5" style={{ background: "#1c1f21" }}>
-                            <span className="text-white/50 shrink-0">{t("scanWeightLabel")}</span>
-                            <NumField
-                              allowDecimal={false}
-                              value={item.weightPerUnitG || 0}
-                              onChange={(v) => updateScanItem(idx, { weightPerUnitG: v })}
-                              className="w-14 bg-transparent text-right outline-none border-b border-white/10 font-mono"
-                            />
-                            <span className="text-white/40">g</span>
-                            {item.weightPerUnitG > 0 && (
-                              <span className="text-[#7CB342] ml-auto text-[10px] font-mono">
-                                → {((item.unitPriceHT || 0) / (item.weightPerUnitG / 1000)).toFixed(2)}€/kg
-                              </span>
-                            )}
-                          </div>
-                        )}
 
                         {item.priceUp && !item.imported && (
                           <div className="flex items-center gap-1 mt-1.5 text-[10px]" style={{ color: TIER_COLORS.mid }}>
