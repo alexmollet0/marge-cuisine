@@ -345,6 +345,9 @@ const TR = {
     scanExpectedTotal: "attendu", scanPrintedTotal: "imprimé :",
     scanConfirmBigChange: "Confirmer ce changement important",
     scanManyUpWarning: "Plusieurs prix semblent en forte hausse par rapport à tes prix connus — vérifie que le document est bien net avant d'importer.",
+    scanReviewSection: "À vérifier avant d'importer", scanSafeSection: "Prêtes à importer",
+    scanSummaryNew: (name, price, unit) => `Tu vas créer "${name}" à ${price}€/${unit}.`,
+    scanSummaryUpdate: (name, price, unit) => `Tu vas mettre à jour "${name}" à ${price}€/${unit}.`,
     scanImport: "Importer", scanImported: "Importé ✓", scanImportAll: "Importer les lignes sûres",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
@@ -390,6 +393,9 @@ const TR = {
     scanExpectedTotal: "esperado", scanPrintedTotal: "impreso:",
     scanConfirmBigChange: "Confirmar este cambio importante",
     scanManyUpWarning: "Varios precios parecen estar muy al alza respecto a tus precios conocidos — verifica que el documento esté bien nítido antes de importar.",
+    scanReviewSection: "A verificar antes de importar", scanSafeSection: "Listas para importar",
+    scanSummaryNew: (name, price, unit) => `Vas a crear "${name}" a ${price}€/${unit}.`,
+    scanSummaryUpdate: (name, price, unit) => `Vas a actualizar "${name}" a ${price}€/${unit}.`,
     scanImport: "Importar", scanImported: "Importado ✓", scanImportAll: "Importar las líneas seguras",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
@@ -946,6 +952,176 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
 }
 
 const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
+
+// Carte d'un article scanné : correspondance affichée en grand (plutôt qu'un petit menu discret),
+// bascule de renommage en vrai bouton, et une phrase en clair juste avant d'importer.
+function ScanItemCard({ item, onUpdate, onImport, ingredients, ingredientDisplayName, lang, t }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const matchedIng = item.assignTo !== "new" ? ingredients.find((i) => i.id === item.assignTo) : null;
+  const needsRename = item.assignTo !== "new" && item.name && matchedIng && ingredientDisplayName(matchedIng) !== item.name;
+  const matchColor = item.assignTo === "new" || item.matchConfident ? "#10B981" : TIER_COLORS.mid;
+
+  const targetName = item.assignTo === "new" ? item.name : needsRename && item.renameOnImport ? item.name : matchedIng ? ingredientDisplayName(matchedIng) : "";
+  const summary =
+    item.assignTo === "new"
+      ? t("scanSummaryNew")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit)
+      : t("scanSummaryUpdate")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit);
+
+  return (
+    <div
+      className={`rounded-xl p-3 border ${item.imported ? "opacity-40" : ""}`}
+      style={{ background: "#18181B", borderColor: item.bigChange ? TIER_COLORS.low : item.priceInconsistent || (!item.matchConfident && item.assignTo !== "new") ? `${TIER_COLORS.mid}80` : "rgba(255,255,255,0.1)" }}
+    >
+      <div className="flex items-center gap-1.5">
+        <input
+          value={item.name || ""}
+          disabled={item.imported}
+          onChange={(e) => onUpdate({ name: e.target.value })}
+          className="flex-1 min-w-0 bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#10B981]"
+        />
+        <NumField
+          value={item.quantity || 0}
+          onChange={(v) => onUpdate({ quantity: v })}
+          className="w-14 shrink-0 bg-transparent text-white/80 text-xs text-right outline-none border-b border-white/10"
+        />
+        <select
+          value={item.unit || "kg"}
+          disabled={item.imported}
+          onChange={(e) => onUpdate({ unit: e.target.value })}
+          className="bg-transparent text-white/60 text-xs outline-none shrink-0"
+          style={{ colorScheme: "dark" }}
+        >
+          <option value="kg">kg</option>
+          <option value="L">L</option>
+          <option value="pièce">pièce</option>
+        </select>
+      </div>
+
+      {(item.packageCount || item.packageContent) && !item.imported && (
+        <div className="text-[10px] text-white/35 mt-1 font-mono">
+          {item.packageCount || 1} × {item.packageContent || 1}
+          {item.packageContentUnit === "pièce" ? "" : item.packageContentUnit} @ {(item.printedUnitPriceHT || 0).toFixed(2)}€/
+          {item.printedPriceUnit === "colis" ? (lang === "es" ? "paquete" : "colis") : item.printedPriceUnit}
+        </div>
+      )}
+
+      {item.priceInconsistent && !item.imported && (
+        <div className="flex items-center gap-1.5 mt-1.5 text-[10px] rounded px-2 py-1.5" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+          <AlertTriangle size={11} className="shrink-0" />
+          <span>
+            {t("scanPriceInconsistent")}
+            {item.expectedTotal !== null ? ` (${t("scanExpectedTotal")} ≈ ${item.expectedTotal.toFixed(2)}€, ${t("scanPrintedTotal")} ${(item.totalPriceHT || 0).toFixed(2)}€)` : ""}
+          </span>
+        </div>
+      )}
+
+      {/* Carte de correspondance : grande, en couleur, difficile à louper */}
+      <button
+        type="button"
+        onClick={() => setPickerOpen((o) => !o)}
+        disabled={item.imported}
+        className="w-full mt-2 rounded-lg p-2.5 text-left flex items-center justify-between gap-2"
+        style={{ background: `${matchColor}15`, border: `1px solid ${matchColor}50` }}
+      >
+        <div className="min-w-0">
+          <div className="text-[9px] uppercase tracking-wide font-semibold" style={{ color: matchColor }}>
+            {item.assignTo === "new" ? t("scanNewIngredient") : item.matchConfident ? t("scanLinkedSure") : t("scanLinkedGuess")}
+          </div>
+          <div className="text-sm text-white font-medium truncate">
+            {item.assignTo === "new" ? item.name : matchedIng ? ingredientDisplayName(matchedIng) : "—"}
+          </div>
+        </div>
+        {!item.imported && <ChevronDown size={16} className="text-white/40 shrink-0" />}
+      </button>
+
+      {pickerOpen && !item.imported && (
+        <select
+          autoFocus
+          value={item.assignTo}
+          onChange={(e) => {
+            onUpdate({ assignTo: e.target.value, matchConfident: true, renameOnImport: false });
+            setPickerOpen(false);
+          }}
+          onBlur={() => setPickerOpen(false)}
+          className="w-full mt-1.5 bg-black/30 text-white text-sm rounded-lg p-2.5 outline-none"
+          style={{ colorScheme: "dark" }}
+        >
+          <option value="new">{t("scanNewIngredient")}</option>
+          {ingredients.map((i) => (
+            <option key={i.id} value={i.id}>{ingredientDisplayName(i)}</option>
+          ))}
+        </select>
+      )}
+
+      <div className="flex items-center gap-1.5 mt-2 text-xs text-white/60 justify-end">
+        <span className="text-white/40">HT/u :</span>
+        <NumField
+          value={item.unitPriceHT || 0}
+          onChange={(v) => onUpdate({ unitPriceHT: v })}
+          className="w-16 bg-transparent text-right outline-none border-b border-white/10 font-mono text-sm"
+        />
+        <span>€</span>
+      </div>
+
+      {needsRename && !item.imported && (
+        <button
+          type="button"
+          onClick={() => onUpdate({ renameOnImport: !item.renameOnImport })}
+          className="w-full mt-2 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs text-left"
+          style={{ background: item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.06)", color: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.55)" }}
+        >
+          <span
+            className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
+            style={{ background: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.15)" }}
+          >
+            {item.renameOnImport && <Check size={12} color="#000" />}
+          </span>
+          {t("scanRenameHint")(item.name)}
+        </button>
+      )}
+
+      {!item.imported && item.currentPrice !== null && item.currentPriceIsReal && (
+        <div
+          className="flex items-center gap-1 mt-1.5 text-[10px]"
+          style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : item.priceDown ? "#10B981" : "rgba(255,255,255,0.4)" }}
+        >
+          {(item.priceUp || item.bigChange) && <TrendingUp size={11} />}
+          {item.priceUp
+            ? `${t("scanPriceIncrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
+            : item.priceDown
+            ? `${t("scanPriceDecrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
+            : t("scanPriceSame")}
+        </div>
+      )}
+
+      {!item.imported && (
+        <div className="mt-2.5 text-[11px] text-white/45 italic border-t border-white/5 pt-2">{summary}</div>
+      )}
+
+      <div className="flex justify-end mt-2">
+        {item.imported ? (
+          <span className="text-[10px] text-[#10B981] font-semibold">{t("scanImported")}</span>
+        ) : item.bigChange ? (
+          <button
+            onClick={onImport}
+            className="text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded-full font-semibold flex items-center gap-1"
+            style={{ background: TIER_COLORS.low, color: "#fff" }}
+          >
+            <AlertTriangle size={11} /> {t("scanConfirmBigChange")}
+          </button>
+        ) : (
+          <button
+            onClick={onImport}
+            className="text-[10px] uppercase tracking-wide px-3 py-1.5 rounded-full font-semibold"
+            style={{ background: "#10B981", color: "#fff" }}
+          >
+            {t("scanImport")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 function marginTier(m, minMargin) {
   if (m === null || m === undefined) return null;
   const rounded = Math.round(m);
@@ -1265,17 +1441,31 @@ export default function App() {
       .filter(Boolean)
       .map((w) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w));
 
+  // Mots trop génériques pour prouver une correspondance à eux seuls (ex: "fraîche" apparaît
+  // aussi bien dans "Herbes fraîches" que "Crème fraîche" — deux produits sans rapport).
+  const GENERIC_TOKENS = new Set([
+    "frais", "fraiche", "entier", "entiere", "doux", "jaune", "rouge", "blanc", "blanche",
+    "vert", "verte", "sec", "seche", "fermier", "fermiere", "plein", "air", "cuisine",
+    "gros", "grosse", "petit", "petite", "nature", "classique", "campagne", "fin", "fine",
+    "noir", "noire", "cru", "crue", "cuit", "cuite",
+  ]);
+  const meaningfulTokens = (tokens) => {
+    const filtered = tokens.filter((tk) => !GENERIC_TOKENS.has(tk));
+    return filtered.length ? filtered : tokens;
+  };
+
   const guessIngredientId = (name) => {
-    const tokens = tokenize(name);
+    const tokens = meaningfulTokens(tokenize(name));
     if (!tokens.length) return null;
     const tokenSet = new Set(tokens);
     let best = null;
     let bestScore = 0;
     for (const ing of ingredients) {
-      const iTokens = tokenize(ingredientDisplayName(ing));
+      const iTokens = meaningfulTokens(tokenize(ingredientDisplayName(ing)));
       if (!iTokens.length) continue;
       const iSet = new Set(iTokens);
       const shared = iTokens.filter((tk) => tokenSet.has(tk)).length;
+      if (shared === 0) continue; // exige au moins un mot significatif commun, pas juste un adjectif
       const score = shared / Math.min(tokenSet.size, iSet.size);
       if (score > bestScore) {
         bestScore = score;
@@ -1655,138 +1845,46 @@ export default function App() {
                 {scanResult.items.length === 0 ? (
                   <div className="text-white/40 text-sm py-4 text-center">{t("scanNoItems")}</div>
                 ) : (
-                  <div className="space-y-2">
-                    {scanResult.items.map((item, idx) => (
-                      <div
+                  (() => {
+                    const withIdx = scanResult.items.map((item, idx) => ({ item, idx }));
+                    const pending = withIdx.filter(({ item }) => !item.imported);
+                    const done = withIdx.filter(({ item }) => item.imported);
+                    const review = pending.filter(({ item }) => !isSafeScanItem(item));
+                    const safe = pending.filter(({ item }) => isSafeScanItem(item));
+                    const renderCard = ({ item, idx }) => (
+                      <ScanItemCard
                         key={idx}
-                        className={`rounded-xl p-2.5 border border-white/10 ${item.imported ? "opacity-40" : ""}`}
-                        style={{ background: "#18181B" }}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            value={item.name || ""}
-                            disabled={item.imported}
-                            onChange={(e) => updateScanItem(idx, { name: e.target.value })}
-                            className="flex-1 min-w-0 bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#10B981]"
-                          />
-                          <NumField
-                            value={item.quantity || 0}
-                            onChange={(v) => updateScanItem(idx, { quantity: v })}
-                            className="w-14 shrink-0 bg-transparent text-white/80 text-xs text-right outline-none border-b border-white/10"
-                          />
-                          <select
-                            value={item.unit || "kg"}
-                            disabled={item.imported}
-                            onChange={(e) => updateScanItem(idx, { unit: e.target.value })}
-                            className="bg-transparent text-white/60 text-xs outline-none shrink-0"
-                            style={{ colorScheme: "dark" }}
-                          >
-                            <option value="kg">kg</option>
-                            <option value="L">L</option>
-                            <option value="pièce">pièce</option>
-                          </select>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                          {item.assignTo === "new" ? (
-                            <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold" style={{ color: "#10B981", background: "#10B98122" }}>
-                              {t("scanNewIngredient")}
-                            </span>
-                          ) : (
-                            <span
-                              className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
-                              style={{ color: item.matchConfident ? "#10B981" : TIER_COLORS.mid, background: item.matchConfident ? "#10B98122" : `${TIER_COLORS.mid}22` }}
-                            >
-                              {item.matchConfident ? t("scanLinkedSure") : t("scanLinkedGuess")}
-                            </span>
-                          )}
-                        </div>
-
-                        {(item.packageCount || item.packageContent) && !item.imported && (
-                          <div className="text-[10px] text-white/35 mt-1 font-mono">
-                            {item.packageCount || 1} × {item.packageContent || 1}{item.packageContentUnit === "pièce" ? "" : item.packageContentUnit} @ {(item.printedUnitPriceHT || 0).toFixed(2)}€/{item.printedPriceUnit === "colis" ? (lang === "es" ? "paquete" : "colis") : item.printedPriceUnit}
+                        item={item}
+                        onUpdate={(patch) => updateScanItem(idx, patch)}
+                        onImport={() => importScanItem(idx)}
+                        ingredients={ingredients}
+                        ingredientDisplayName={ingredientDisplayName}
+                        lang={lang}
+                        t={t}
+                      />
+                    );
+                    return (
+                      <div className="space-y-4">
+                        {review.length > 0 && (
+                          <div>
+                            <div className="text-[11px] uppercase tracking-widest mb-2 flex items-center gap-1.5 font-semibold" style={{ color: TIER_COLORS.mid }}>
+                              <AlertTriangle size={12} /> {t("scanReviewSection")} ({review.length})
+                            </div>
+                            <div className="space-y-2">{review.map(renderCard)}</div>
                           </div>
                         )}
-
-                        {item.priceInconsistent && !item.imported && (
-                          <div className="flex items-center gap-1.5 mt-1.5 text-[10px] rounded px-2 py-1.5" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
-                            <AlertTriangle size={11} className="shrink-0" />
-                            <span>
-                              {t("scanPriceInconsistent")}
-                              {item.expectedTotal !== null ? ` (${t("scanExpectedTotal")} ≈ ${item.expectedTotal.toFixed(2)}€, ${t("scanPrintedTotal")} ${(item.totalPriceHT || 0).toFixed(2)}€)` : ""}
-                            </span>
+                        {safe.length > 0 && (
+                          <div>
+                            <div className="text-[11px] uppercase tracking-widest mb-2 flex items-center gap-1.5 font-semibold" style={{ color: "#10B981" }}>
+                              <Check size={12} /> {t("scanSafeSection")} ({safe.length})
+                            </div>
+                            <div className="space-y-2">{safe.map(renderCard)}</div>
                           </div>
                         )}
-
-                        <div className="flex items-center gap-2 mt-1.5 text-xs text-white/60">
-                          <select
-                            value={item.assignTo}
-                            disabled={item.imported}
-                            onChange={(e) => updateScanItem(idx, { assignTo: e.target.value, matchConfident: true, renameOnImport: false })}
-                            className="flex-1 min-w-0 bg-black/20 rounded px-1.5 py-1 outline-none"
-                            style={{ colorScheme: "dark" }}
-                          >
-                            <option value="new">{t("scanNewIngredient")}</option>
-                            {ingredients.map((i) => (
-                              <option key={i.id} value={i.id}>{ingredientDisplayName(i)}</option>
-                            ))}
-                          </select>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <span className="text-white/40">HT/u :</span>
-                            <NumField
-                              value={item.unitPriceHT || 0}
-                              onChange={(v) => updateScanItem(idx, { unitPriceHT: v })}
-                              className="w-14 bg-transparent text-right outline-none border-b border-white/10 font-mono"
-                            />
-                            <span>€</span>
-                          </div>
-                        </div>
-
-                        {item.assignTo !== "new" && !item.imported && item.name && ingredientById(item.assignTo) && ingredientDisplayName(ingredientById(item.assignTo)) !== item.name && (
-                          <label className="flex items-center gap-1.5 mt-1.5 text-[10px] text-white/50">
-                            <input
-                              type="checkbox"
-                              checked={!!item.renameOnImport}
-                              onChange={(e) => updateScanItem(idx, { renameOnImport: e.target.checked })}
-                            />
-                            {t("scanRenameHint")(item.name)}
-                          </label>
-                        )}
-
-                        {!item.imported && item.currentPrice !== null && item.currentPriceIsReal && (
-                          <div className="flex items-center gap-1 mt-1.5 text-[10px]" style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : item.priceDown ? "#10B981" : "rgba(255,255,255,0.4)" }}>
-                            {(item.priceUp || item.bigChange) && <TrendingUp size={11} />}
-                            {item.priceUp
-                              ? `${t("scanPriceIncrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
-                              : item.priceDown
-                              ? `${t("scanPriceDecrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
-                              : t("scanPriceSame")}
-                          </div>
-                        )}
-
-                        <div className="flex justify-end mt-1.5">
-                          {item.imported ? (
-                            <span className="text-[10px] text-[#10B981] font-semibold">{t("scanImported")}</span>
-                          ) : item.bigChange ? (
-                            <button
-                              onClick={() => importScanItem(idx)}
-                              className="text-[10px] uppercase tracking-wide px-2.5 py-1 rounded-full font-semibold flex items-center gap-1"
-                              style={{ background: TIER_COLORS.low, color: "#fff" }}
-                            >
-                              <AlertTriangle size={11} /> {t("scanConfirmBigChange")}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => importScanItem(idx)}
-                              className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border border-white/20 text-white/70 hover:border-[#10B981] hover:text-[#10B981]"
-                            >
-                              {t("scanImport")}
-                            </button>
-                          )}
-                        </div>
+                        {done.length > 0 && <div className="space-y-2">{done.map(renderCard)}</div>}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()
                 )}
 
                 {scanResult.items.length > 0 && (
