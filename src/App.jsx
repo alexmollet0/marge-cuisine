@@ -335,6 +335,11 @@ const TR = {
     scanError: "Erreur pendant l'analyse", scanRetry: "Réessayer",
     scanResultTitle: "Résultat du scan", scanSupplier: "Fournisseur",
     scanDate: "Date", scanAssignTo: "Associer à", scanNewIngredient: "🆕 Nouvel ingrédient",
+    scanLinkedSure: "Ingrédient existant", scanLinkedGuess: "Suggestion, vérifie",
+    scanRenameHint: (n) => `Renommer l'ingrédient existant en "${n}"`,
+    scanPriceCorrected: "prix recalculé (total ÷ qté)",
+    scanPriceCorrectedHint: "Le prix unitaire lu semblait incohérent avec le total, on l'a recalculé automatiquement.",
+    scanPriceSame: "Prix inchangé", scanPriceDecrease: "Prix en baisse",
     scanImport: "Importer", scanImported: "Importé ✓", scanImportAll: "Tout importer",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
@@ -370,6 +375,11 @@ const TR = {
     scanError: "Error durante el análisis", scanRetry: "Reintentar",
     scanResultTitle: "Resultado del escaneo", scanSupplier: "Proveedor",
     scanDate: "Fecha", scanAssignTo: "Asociar a", scanNewIngredient: "🆕 Nuevo ingrediente",
+    scanLinkedSure: "Ingrediente existente", scanLinkedGuess: "Sugerencia, verifica",
+    scanRenameHint: (n) => `Renombrar el ingrediente existente a "${n}"`,
+    scanPriceCorrected: "precio recalculado (total ÷ cant.)",
+    scanPriceCorrectedHint: "El precio unitario leído parecía inconsistente con el total, se recalculó automáticamente.",
+    scanPriceSame: "Precio sin cambios", scanPriceDecrease: "Precio a la baja",
     scanImport: "Importar", scanImported: "Importado ✓", scanImportAll: "Importar todo",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
@@ -1234,15 +1244,33 @@ export default function App() {
     return { unit, unitPriceHT: price };
   };
 
+  // Compare mot par mot (plutôt qu'un match exact ou une simple sous-chaîne) et gère
+  // le pluriel français basique ("oignons" ~ "oignon jaune"), avec un score de confiance.
+  const tokenize = (s) =>
+    normalizeStr(s)
+      .split(" ")
+      .filter(Boolean)
+      .map((w) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w));
+
   const guessIngredientId = (name) => {
-    const n = normalizeStr(name);
-    if (!n) return null;
-    const exact = ingredients.find((i) => normalizeStr(ingredientDisplayName(i)) === n);
-    if (exact) return exact.id;
-    const partial = ingredients.find(
-      (i) => n.includes(normalizeStr(ingredientDisplayName(i))) || normalizeStr(ingredientDisplayName(i)).includes(n)
-    );
-    return partial ? partial.id : null;
+    const tokens = tokenize(name);
+    if (!tokens.length) return null;
+    const tokenSet = new Set(tokens);
+    let best = null;
+    let bestScore = 0;
+    for (const ing of ingredients) {
+      const iTokens = tokenize(ingredientDisplayName(ing));
+      if (!iTokens.length) continue;
+      const iSet = new Set(iTokens);
+      const shared = iTokens.filter((tk) => tokenSet.has(tk)).length;
+      const score = shared / Math.min(tokenSet.size, iSet.size);
+      if (score > bestScore) {
+        bestScore = score;
+        best = ing;
+      }
+    }
+    if (!best || bestScore < 0.5) return null;
+    return { id: best.id, confident: bestScore >= 0.99 };
   };
 
   const compressImageFile = (file) =>
@@ -1293,17 +1321,41 @@ export default function App() {
         throw new Error(msg);
       }
       const items = (data.items || []).map((it) => {
-        const normalized = normalizeUnitAndPrice(it);
+        // Vérifie que quantité × prix unitaire ≈ prix total ; sinon on fait confiance
+        // au total/quantité plutôt qu'à un prix unitaire mal lu (ex: total pris pour un prix au kg).
+        const qty = it.quantity || 0;
+        const total = it.totalPriceHT || 0;
+        let unitPriceHT = it.unitPriceHT || 0;
+        let priceCorrected = false;
+        if (qty > 0 && total > 0) {
+          const expected = total / qty;
+          const diff = Math.abs((unitPriceHT || expected) - expected) / Math.max(expected, 0.01);
+          if (unitPriceHT <= 0 || diff > 0.15) {
+            unitPriceHT = expected;
+            priceCorrected = true;
+          }
+        }
+
+        const normalized = normalizeUnitAndPrice({ ...it, unitPriceHT });
         const merged = { ...it, unit: normalized.unit, unitPriceHT: normalized.unitPriceHT };
-        const matchedId = guessIngredientId(merged.name);
+
+        const match = guessIngredientId(merged.name);
+        const matchedId = match ? match.id : null;
         const matchedIng = matchedId ? ingredientById(matchedId) : null;
         const currentPrice = matchedIng ? activeSupplier(matchedIng)?.price ?? null : null;
+
         return {
           ...merged,
           assignTo: matchedId || "new",
+          matchConfident: match ? match.confident : false,
+          // Pour une correspondance approximative (pas exacte), on propose par défaut
+          // de renommer l'ingrédient existant avec le nom plus précis détecté sur la facture.
+          renameOnImport: !!(match && !match.confident),
           imported: false,
           currentPrice,
-          priceUp: currentPrice !== null && merged.unitPriceHT > currentPrice,
+          priceCorrected,
+          priceUp: currentPrice !== null && unitPriceHT > currentPrice * 1.02,
+          priceDown: currentPrice !== null && unitPriceHT < currentPrice * 0.98,
         };
       });
       setScanResult({ supplier: data.supplier || null, date: data.date || null, items });
@@ -1351,7 +1403,8 @@ export default function App() {
             suppliers = [...suppliers, { id: uid(), name: supplierName, price: finalPrice }];
           }
           const history = [...(ing.history || []), { date: today(), price: finalPrice, supplierName }].slice(-15);
-          return { ...ing, unit: finalUnit, suppliers, history, selectedSupplierId: existing ? ing.selectedSupplierId : ing.selectedSupplierId };
+          const renamed = item.renameOnImport && item.name ? { name: item.name, catalogId: null } : {};
+          return { ...ing, unit: finalUnit, suppliers, history, ...renamed, selectedSupplierId: existing ? ing.selectedSupplierId : ing.selectedSupplierId };
         })
       );
     }
@@ -1566,11 +1619,31 @@ export default function App() {
                           </select>
                         </div>
 
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                          {item.assignTo === "new" ? (
+                            <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold" style={{ color: "#10B981", background: "#10B98122" }}>
+                              {t("scanNewIngredient")}
+                            </span>
+                          ) : (
+                            <span
+                              className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
+                              style={{ color: item.matchConfident ? "#10B981" : TIER_COLORS.mid, background: item.matchConfident ? "#10B98122" : `${TIER_COLORS.mid}22` }}
+                            >
+                              {item.matchConfident ? t("scanLinkedSure") : t("scanLinkedGuess")}
+                            </span>
+                          )}
+                          {item.priceCorrected && !item.imported && (
+                            <span className="text-[9px] text-white/40" title={t("scanPriceCorrectedHint")}>
+                              ⚠ {t("scanPriceCorrected")}
+                            </span>
+                          )}
+                        </div>
+
                         <div className="flex items-center gap-2 mt-1.5 text-xs text-white/60">
                           <select
                             value={item.assignTo}
                             disabled={item.imported}
-                            onChange={(e) => updateScanItem(idx, { assignTo: e.target.value })}
+                            onChange={(e) => updateScanItem(idx, { assignTo: e.target.value, matchConfident: true, renameOnImport: false })}
                             className="flex-1 min-w-0 bg-black/20 rounded px-1.5 py-1 outline-none"
                             style={{ colorScheme: "dark" }}
                           >
@@ -1590,15 +1663,31 @@ export default function App() {
                           </div>
                         </div>
 
-                        {item.priceUp && !item.imported && (
-                          <div className="flex items-center gap-1 mt-1.5 text-[10px]" style={{ color: TIER_COLORS.mid }}>
-                            <TrendingUp size={11} /> {t("scanPriceIncrease")} : {item.currentPrice.toFixed(2)}€ → {(item.unitPriceHT || 0).toFixed(2)}€
+                        {item.assignTo !== "new" && !item.imported && item.name && ingredientById(item.assignTo) && ingredientDisplayName(ingredientById(item.assignTo)) !== item.name && (
+                          <label className="flex items-center gap-1.5 mt-1.5 text-[10px] text-white/50">
+                            <input
+                              type="checkbox"
+                              checked={!!item.renameOnImport}
+                              onChange={(e) => updateScanItem(idx, { renameOnImport: e.target.checked })}
+                            />
+                            {t("scanRenameHint")(item.name)}
+                          </label>
+                        )}
+
+                        {!item.imported && item.currentPrice !== null && (
+                          <div className="flex items-center gap-1 mt-1.5 text-[10px]" style={{ color: item.priceUp ? TIER_COLORS.mid : item.priceDown ? "#10B981" : "rgba(255,255,255,0.4)" }}>
+                            {item.priceUp && <TrendingUp size={11} />}
+                            {item.priceUp
+                              ? `${t("scanPriceIncrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
+                              : item.priceDown
+                              ? `${t("scanPriceDecrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
+                              : t("scanPriceSame")}
                           </div>
                         )}
 
                         <div className="flex justify-end mt-1.5">
                           {item.imported ? (
-                            <span className="text-[10px] text-[#3F8F52] font-semibold">{t("scanImported")}</span>
+                            <span className="text-[10px] text-[#10B981] font-semibold">{t("scanImported")}</span>
                           ) : (
                             <button
                               onClick={() => importScanItem(idx)}

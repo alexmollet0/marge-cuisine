@@ -35,6 +35,14 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
   ]
 }
 
+RÈGLES DE LECTURE DES COLONNES (très important, source d'erreurs fréquente) :
+- Une ligne de facture a généralement 3 valeurs numériques distinctes : la QUANTITÉ achetée, le PRIX D'UNE UNITÉ, et le PRIX TOTAL de la ligne.
+- Ne confonds JAMAIS le prix total avec un prix au kilo/litre. Vérifie toujours avec cette formule avant de répondre :
+  quantité × prix unitaire ≈ prix total (à quelques centimes près).
+  Exemple : "Filet de poulet — 6,2 kg — 11,00 €/kg — 68,20 €" → quantity: 6.2, unitPriceHT: 11.00, totalPriceHT: 68.20.
+  Si tu ne vois qu'UNE SEULE valeur de prix sur la ligne (pas de distinction unité/total), et que tu connais la quantité, calcule le prix unitaire = prix affiché ÷ quantité plutôt que de recopier le prix affiché tel quel comme prix unitaire.
+- Si après ton calcul la formule quantité × unitPriceHT ne correspond pas au totalPriceHT que tu as lu, refais le calcul : c'est signe que tu as confondu deux colonnes.
+
 RÈGLES DE CONVERSION D'UNITÉ (très important, à appliquer systématiquement) :
 1. Si le libellé mentionne un POIDS (g, gr, kg...) : unit = "kg" et unitPriceHT = prix payé ÷ poids en kg.
    Exemple : "Chicorée 250g à 3,09 €" → name: "Chicorée", unit: "kg", unitPriceHT: 12.36 (calcul : 3.09 / 0.25).
