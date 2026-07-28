@@ -341,8 +341,8 @@ const TR = {
     scanPriceCorrectedHint: "Le prix unitaire lu semblait incohérent avec le total, on l'a recalculé automatiquement.",
     scanPriceSame: "Prix inchangé", scanPriceDecrease: "Prix en baisse",
     scanBulkPackaging: "Conditionnement groupé — vérifie",
-    scanPriceInconsistent: "Incohérent avec le total, vérifie",
-    scanUseSuggested: "Utiliser",
+    scanPriceInconsistent: "Écart avec le total imprimé, vérifie",
+    scanExpectedTotal: "attendu", scanPrintedTotal: "imprimé :",
     scanConfirmBigChange: "Confirmer ce changement important",
     scanManyUpWarning: "Plusieurs prix semblent en forte hausse par rapport à tes prix connus — vérifie que le document est bien net avant d'importer.",
     scanImport: "Importer", scanImported: "Importé ✓", scanImportAll: "Importer les lignes sûres",
@@ -386,8 +386,8 @@ const TR = {
     scanPriceCorrectedHint: "El precio unitario leído parecía inconsistente con el total, se recalculó automáticamente.",
     scanPriceSame: "Precio sin cambios", scanPriceDecrease: "Precio a la baja",
     scanBulkPackaging: "Embalaje agrupado — verifica",
-    scanPriceInconsistent: "Inconsistente con el total, verifica",
-    scanUseSuggested: "Usar",
+    scanPriceInconsistent: "Diferencia con el total impreso, verifica",
+    scanExpectedTotal: "esperado", scanPrintedTotal: "impreso:",
     scanConfirmBigChange: "Confirmar este cambio importante",
     scanManyUpWarning: "Varios precios parecen estar muy al alza respecto a tus precios conocidos — verifica que el documento esté bien nítido antes de importar.",
     scanImport: "Importar", scanImported: "Importado ✓", scanImportAll: "Importar las líneas seguras",
@@ -1313,9 +1313,44 @@ export default function App() {
       reader.readAsDataURL(file);
     });
 
-  // Mots indiquant un conditionnement groupé (caisse, carton...) où la quantité lue
-  // ne correspond pas forcément à des kg/L — on préfère alerter plutôt que deviner.
-  const BULK_PACKAGING_RE = /\b(caisse|carton|colis|lot|palette|sachet|bo[iî]te|pack|filet)\b/i;
+  // Calcule le prix final au kg/L/pièce à partir de : combien de colis achetés,
+  // ce que contient UN colis, et le prix tel qu'imprimé (déjà au kg/L, ou par colis entier).
+  // Rien de tout ça n'est deviné par l'IA seule : c'est un calcul déterministe, vérifiable.
+  const computeItemPricing = (it) => {
+    // Repli sur l'ancien format si jamais l'IA ne renvoie pas les nouveaux champs.
+    if (it.packageContent === undefined || it.printedPriceUnit === undefined) {
+      const legacy = normalizeUnitAndPrice(it);
+      return { finalUnit: legacy.unit, finalUnitPrice: legacy.unitPriceHT, priceInconsistent: false, expectedTotal: null };
+    }
+
+    const packageCount = it.packageCount && it.packageCount > 0 ? it.packageCount : 1;
+    const packageContent = it.packageContent && it.packageContent > 0 ? it.packageContent : 1;
+    const packageContentUnit = it.packageContentUnit || "pièce";
+    const printedPrice = it.printedUnitPriceHT || 0;
+    const printedUnit = it.printedPriceUnit || "colis";
+
+    let finalUnit;
+    let finalUnitPrice;
+    if (printedUnit === "kg" || printedUnit === "L") {
+      // Le prix imprimé est déjà un prix au kilo/litre : on l'utilise tel quel, sans y toucher.
+      finalUnit = printedUnit;
+      finalUnitPrice = printedPrice;
+    } else {
+      // Le prix imprimé est celui d'un colis entier : on le ramène au kg/L/pièce via son contenu.
+      finalUnit = packageContentUnit === "kg" || packageContentUnit === "L" ? packageContentUnit : "pièce";
+      finalUnitPrice = printedPrice / packageContent;
+    }
+
+    const expectedTotal = packageCount * packageContent * finalUnitPrice;
+    const printedTotal = it.totalPriceHT || 0;
+    let priceInconsistent = false;
+    if (printedTotal > 0 && expectedTotal > 0) {
+      const diff = Math.abs(expectedTotal - printedTotal) / Math.max(printedTotal, 0.01);
+      if (diff > 0.15) priceInconsistent = true;
+    }
+
+    return { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal };
+  };
 
   const handleScanFile = async (e) => {
     const file = e.target.files?.[0];
@@ -1338,30 +1373,8 @@ export default function App() {
         throw new Error(msg);
       }
       const items = (data.items || []).map((it) => {
-        const qty = it.quantity || 0;
-        const total = it.totalPriceHT || 0;
-        const unitPriceHT = it.unitPriceHT || 0;
-
-        // On ne remplace JAMAIS silencieusement le prix lu par l'IA : on se contente
-        // de calculer une suggestion et de signaler l'écart si besoin, à l'utilisateur de trancher.
-        let priceInconsistent = false;
-        let suggestedUnitPrice = null;
-        if (qty > 0 && total > 0) {
-          const expected = total / qty;
-          const diff = Math.abs((unitPriceHT || expected) - expected) / Math.max(expected, 0.01);
-          if (unitPriceHT <= 0 || diff > 0.15) {
-            priceInconsistent = true;
-            suggestedUnitPrice = expected;
-          }
-        }
-
-        const ambiguousPackaging = BULK_PACKAGING_RE.test(it.rawLabel || "");
-        // On évite la conversion automatique kg/L quand un conditionnement groupé est détecté :
-        // le poids d'une "caisse" n'est pas fiable à deviner.
-        const normalized = ambiguousPackaging
-          ? { unit: it.unit || "kg", unitPriceHT }
-          : normalizeUnitAndPrice({ ...it, unitPriceHT });
-        const merged = { ...it, unit: normalized.unit, unitPriceHT: normalized.unitPriceHT };
+        const { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal } = computeItemPricing(it);
+        const merged = { ...it, unit: finalUnit, unitPriceHT: finalUnitPrice };
 
         const match = guessIngredientId(merged.name);
         const matchedId = match ? match.id : null;
@@ -1386,8 +1399,7 @@ export default function App() {
           currentPrice,
           currentPriceIsReal,
           priceInconsistent,
-          suggestedUnitPrice,
-          ambiguousPackaging,
+          expectedTotal,
           bigChange,
           priceUp: currentPrice !== null && merged.unitPriceHT > currentPrice * 1.02,
           priceDown: currentPrice !== null && merged.unitPriceHT < currentPrice * 0.98,
@@ -1456,7 +1468,7 @@ export default function App() {
   // (prix incohérent, conditionnement ambigu, grosse variation, correspondance incertaine)
   // doit être validé ligne par ligne, en connaissance de cause.
   const isSafeScanItem = (item) =>
-    !item.priceInconsistent && !item.ambiguousPackaging && !item.bigChange && (item.assignTo === "new" || item.matchConfident);
+    !item.priceInconsistent && !item.bigChange && (item.assignTo === "new" || item.matchConfident);
 
   const importAllScanItems = () => {
     scanResult.items.forEach((item, idx) => {
@@ -1688,25 +1700,21 @@ export default function App() {
                               {item.matchConfident ? t("scanLinkedSure") : t("scanLinkedGuess")}
                             </span>
                           )}
-                          {item.ambiguousPackaging && !item.imported && (
-                            <span className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold" style={{ color: TIER_COLORS.mid, background: `${TIER_COLORS.mid}22` }}>
-                              📦 {t("scanBulkPackaging")}
-                            </span>
-                          )}
                         </div>
 
+                        {(item.packageCount || item.packageContent) && !item.imported && (
+                          <div className="text-[10px] text-white/35 mt-1 font-mono">
+                            {item.packageCount || 1} × {item.packageContent || 1}{item.packageContentUnit === "pièce" ? "" : item.packageContentUnit} @ {(item.printedUnitPriceHT || 0).toFixed(2)}€/{item.printedPriceUnit === "colis" ? (lang === "es" ? "paquete" : "colis") : item.printedPriceUnit}
+                          </div>
+                        )}
+
                         {item.priceInconsistent && !item.imported && (
-                          <div className="flex items-center justify-between gap-2 mt-1.5 text-[10px] rounded px-2 py-1.5" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
-                            <span>⚠ {t("scanPriceInconsistent")}{item.suggestedUnitPrice !== null ? ` (≈ ${item.suggestedUnitPrice.toFixed(2)}€)` : ""}</span>
-                            {item.suggestedUnitPrice !== null && (
-                              <button
-                                onClick={() => updateScanItem(idx, { unitPriceHT: item.suggestedUnitPrice, priceInconsistent: false, suggestedUnitPrice: null })}
-                                className="shrink-0 text-[9px] uppercase tracking-wide px-2 py-0.5 rounded-full font-semibold"
-                                style={{ background: TIER_COLORS.mid, color: "#000" }}
-                              >
-                                {t("scanUseSuggested")}
-                              </button>
-                            )}
+                          <div className="flex items-center gap-1.5 mt-1.5 text-[10px] rounded px-2 py-1.5" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+                            <AlertTriangle size={11} className="shrink-0" />
+                            <span>
+                              {t("scanPriceInconsistent")}
+                              {item.expectedTotal !== null ? ` (${t("scanExpectedTotal")} ≈ ${item.expectedTotal.toFixed(2)}€, ${t("scanPrintedTotal")} ${(item.totalPriceHT || 0).toFixed(2)}€)` : ""}
+                            </span>
                           </div>
                         )}
 

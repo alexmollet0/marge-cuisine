@@ -17,7 +17,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Aucune image reçue." });
   }
 
-  const prompt = `Tu es un assistant spécialisé dans la lecture de factures et tickets fournisseurs pour la restauration.
+  const prompt = `Tu es un assistant spécialisé dans la lecture de factures et bons de livraison fournisseurs pour la restauration.
 Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de balises markdown), au format exact :
 
 {
@@ -25,38 +25,35 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
   "date": "AAAA-MM-JJ ou null",
   "items": [
     {
-      "rawLabel": "le texte EXACT et complet de la ligne tel qu'imprimé sur le document, SANS AUCUNE simplification (garde les codes, abréviations, mentions de poids/volume comme '250G', '0.5KG', '75CL', '1.5L')",
+      "rawLabel": "le texte EXACT et complet de la ligne tel qu'imprimé, SANS AUCUNE simplification (garde codes, abréviations, mentions de conditionnement)",
       "name": "nom SIMPLIFIÉ et NORMALISÉ de l'ingrédient en français, ex: 'Crème liquide 35%' au lieu de 'CR. LFF. 35% BQ 1L'",
-      "quantity": nombre,
-      "unit": "kg" ou "L" ou "pièce",
-      "unitPriceHT": nombre — DÉJÀ CONVERTI dans l'unité ci-dessus (voir règles de conversion ci-dessous),
-      "totalPriceHT": nombre
+      "packageCount": nombre de colis/unités achetés (le "x2", "x3" imprimé — PAS le poids total),
+      "packageContent": nombre représentant le contenu d'UN SEUL colis dans packageContentUnit,
+      "packageContentUnit": "kg" ou "L" ou "pièce",
+      "printedUnitPriceHT": le prix unitaire EXACTEMENT tel qu'imprimé sur le document, sans aucun calcul,
+      "printedPriceUnit": "kg" si le prix imprimé est déjà un prix au kilo, "L" si déjà au litre, "colis" s'il s'agit du prix d'un colis/pièce entière,
+      "totalPriceHT": le prix total de la ligne tel qu'imprimé
     }
   ]
 }
 
-RÈGLES DE LECTURE DES COLONNES (très important, source d'erreurs fréquente) :
-- Une ligne de facture a généralement 3 valeurs numériques distinctes : la QUANTITÉ achetée, le PRIX D'UNE UNITÉ, et le PRIX TOTAL de la ligne.
-- Ne confonds JAMAIS le prix total avec un prix au kilo/litre. Vérifie toujours avec cette formule avant de répondre :
-  quantité × prix unitaire ≈ prix total (à quelques centimes près).
-  Exemple : "Filet de poulet — 6,2 kg — 11,00 €/kg — 68,20 €" → quantity: 6.2, unitPriceHT: 11.00, totalPriceHT: 68.20.
-  Si tu ne vois qu'UNE SEULE valeur de prix sur la ligne (pas de distinction unité/total), et que tu connais la quantité, calcule le prix unitaire = prix affiché ÷ quantité plutôt que de recopier le prix affiché tel quel comme prix unitaire.
-- Si après ton calcul la formule quantité × unitPriceHT ne correspond pas au totalPriceHT que tu as lu, refais le calcul : c'est signe que tu as confondu deux colonnes.
+COMMENT REMPLIR packageContent / packageContentUnit (le point le plus important, lis bien) :
+Chaque ligne de facture décrit un conditionnement entre parenthèses ou dans le libellé : "Sac 10kg", "Caisse 4kg", "Bidon 5L", "Plateau de 30", "Carton 6x75cl", "Plaque 2kg", "Filet 5kg", "Brick 1L", "Caisse 20pcs"...
+- "Sac 10kg" → packageContent: 10, packageContentUnit: "kg"
+- "Bidon 5L" → packageContent: 5, packageContentUnit: "L"
+- "Plateau de 30" (œufs) → packageContent: 30, packageContentUnit: "pièce"
+- "Carton 6x75cl" (bouteilles de vin) → packageContent: 4.5, packageContentUnit: "L" (6 × 0,75L, fais le calcul toi-même)
+- "Caisse 20pcs" (pain) → packageContent: 20, packageContentUnit: "pièce"
+- Si aucun conditionnement n'est précisé (produit vraiment vendu à l'unité simple, ex: 1 avocat) → packageContent: 1, packageContentUnit: "pièce"
+Ne confonds JAMAIS packageCount (combien de colis on achète, le "x2") avec packageContent (combien contient UN colis, ex: 10kg) — ce sont deux nombres différents sur la même ligne.
 
-RÈGLES DE CONVERSION D'UNITÉ (très important, à appliquer systématiquement) :
-1. Si le libellé mentionne un POIDS (g, gr, kg...) : unit = "kg" et unitPriceHT = prix payé ÷ poids en kg.
-   Exemple : "Chicorée 250g à 3,09 €" → name: "Chicorée", unit: "kg", unitPriceHT: 12.36 (calcul : 3.09 / 0.25).
-2. Si le libellé mentionne un VOLUME (cl, ml, L...) : unit = "L" et unitPriceHT = prix payé ÷ volume en litres.
-   Exemple : "Huile d'olive 75cl à 9,00 €" → name: "Huile d'olive", unit: "L", unitPriceHT: 12.00 (calcul : 9.00 / 0.75).
-3. Si AUCUN poids ni volume n'est mentionné (produit vraiment vendu à l'unité, ex: œuf, citron, avocat, burrata) : unit = "pièce", unitPriceHT = prix d'une pièce, sans conversion.
-4. Si le prix est déjà affiché au kilo ou au litre sur le document (ex: "1,35 €/kg" imprimé), UTILISE TOUJOURS cette valeur imprimée telle quelle comme unitPriceHT — ne la recalcule JAMAIS à partir d'un total ou d'une quantité de colis/caisses, qui sont beaucoup moins fiables.
-5. Si le produit est vendu par CONDITIONNEMENT GROUPÉ (caisse, carton, colis, lot, palette) sans poids ni prix au kilo visible : garde unit = "pièce" avec la quantité de colis/caisses et leur prix, SANS essayer de deviner un prix au kilo — tu n'as pas l'information nécessaire pour le calculer correctement.
-Fais toujours le calcul toi-même avec précision (2 décimales) — ne laisse jamais un produit pesé/mesuré en "pièce" si un poids ou volume est visible.
+COMMENT REMPLIR printedUnitPriceHT / printedPriceUnit :
+Recopie le prix unitaire strictement tel qu'il est imprimé (ex: "0,94€/kg" → printedUnitPriceHT: 0.94, printedPriceUnit: "kg" ; "34,15€/U" → printedUnitPriceHT: 34.15, printedPriceUnit: "colis"). NE FAIS AUCUNE CONVERSION toi-même, ne divise rien — la conversion sera faite ensuite par un programme, pas par toi. Ton seul travail ici est de recopier fidèlement les nombres imprimés dans les bons champs.
 
 Autres règles :
-- Simplifie systématiquement les abréviations fournisseurs en noms clairs et courts.
+- Simplifie systématiquement les abréviations fournisseurs en noms clairs et courts pour le champ "name" (mais garde rawLabel intact).
 - Si une ligne entière est trop floue/illisible pour être fiable, IGNORE-la simplement (ne l'inclus pas dans "items") plutôt que de bloquer toute la réponse.
-- Pour un champ isolé illisible sur une ligne par ailleurs lisible, mets null pour ce champ uniquement (jamais de texte inventé).
+- Pour un champ isolé illisible sur une ligne par ailleurs lisible, mets null pour ce champ uniquement (jamais de valeur inventée).
 - Les prix sont toujours HT (hors taxes) si la facture les distingue, sinon utilise le prix affiché.
 - N'invente aucune ligne qui n'est pas visible sur le document.
 - Réponds TOUJOURS avec un JSON valide, même si l'image est floue, partiellement illisible ou de mauvaise qualité. Ne refuse jamais de répondre et n'ajoute aucun commentaire, explication ou avertissement en dehors du JSON.`;
@@ -71,7 +68,7 @@ Autres règles :
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1500,
+        max_tokens: 2000,
         messages: [
           {
             role: "user",
