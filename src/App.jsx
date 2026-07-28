@@ -15,6 +15,10 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  Camera,
+  X,
+  Loader2,
+  TrendingUp,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -197,11 +201,21 @@ const TR = {
     total: "Coût total", costPerPortion: "Coût / portion", sellPriceTTC: "Prix de vente (TTC)",
     sellPriceHT: "Prix HT", vat: "TVA", targetMargin: "Marge cible", suggestedPrice: "Prix conseillé (TTC)",
     use: "Utiliser", marginLabel: "marge", lowMarginWarning: `En dessous de ${CRITICAL_MARGIN}%, à surveiller`,
+    marginExcellentTitle: "Marge excellente", marginExcellentDetail: "Déjà au-dessus de ton objectif, aucun ajustement de prix nécessaire.",
+    simulateHigherMargin: (v) => `Simuler ${v}%`,
+    excellentMarginBadge: "Rentabilité optimale",
     notes: "Notes / Instructions", notesPlaceholder: "Ex : Faire mariner la viande, mijoter 3h, dresser avec persil…",
     allergens: "Allergènes", allergensPlaceholder: "ex : gluten, lait, céleri…",
     allergensAutoBadge: "détecté auto", allergensReset: "Revenir à la détection auto",
     createdOn: "Créé le", settings: "Paramètres", defaultVat: "TVA par défaut",
     minMarginLabel: "Marge minimale souhaitée", close: "Fermer",
+    scanInvoice: "Scanner une facture", scanning: "Analyse de la facture en cours…",
+    scanError: "Erreur pendant l'analyse", scanRetry: "Réessayer",
+    scanResultTitle: "Résultat du scan", scanSupplier: "Fournisseur",
+    scanDate: "Date", scanAssignTo: "Associer à", scanNewIngredient: "🆕 Nouvel ingrédient",
+    scanImport: "Importer", scanImported: "Importé ✓", scanImportAll: "Tout importer",
+    scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
+    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
   },
   es: {
     appTitle: "Margen en cocina", saved: "Guardado", loading: "Cargando…",
@@ -220,11 +234,21 @@ const TR = {
     total: "Coste total", costPerPortion: "Coste / ración", sellPriceTTC: "Precio de venta (IVA inc.)",
     sellPriceHT: "Precio sin IVA", vat: "IVA", targetMargin: "Margen objetivo", suggestedPrice: "Precio sugerido (IVA inc.)",
     use: "Usar", marginLabel: "margen", lowMarginWarning: `Por debajo del ${CRITICAL_MARGIN}%, vigilar`,
+    marginExcellentTitle: "Margen excelente", marginExcellentDetail: "Ya por encima de tu objetivo, sin necesidad de ajustar el precio.",
+    simulateHigherMargin: (v) => `Simular ${v}%`,
+    excellentMarginBadge: "Rentabilidad óptima",
     notes: "Notas / Instrucciones", notesPlaceholder: "Ej : Marinar la carne, cocinar a fuego lento 3h, emplatar con perejil…",
     allergens: "Alérgenos", allergensPlaceholder: "ej: gluten, lácteos, apio…",
     allergensAutoBadge: "detectado auto", allergensReset: "Volver a la detección automática",
     createdOn: "Creado el", settings: "Ajustes", defaultVat: "IVA por defecto",
     minMarginLabel: "Margen mínimo deseado", close: "Cerrar",
+    scanInvoice: "Escanear una factura", scanning: "Analizando la factura…",
+    scanError: "Error durante el análisis", scanRetry: "Reintentar",
+    scanResultTitle: "Resultado del escaneo", scanSupplier: "Proveedor",
+    scanDate: "Fecha", scanAssignTo: "Asociar a", scanNewIngredient: "🆕 Nuevo ingrediente",
+    scanImport: "Importar", scanImported: "Importado ✓", scanImportAll: "Importar todo",
+    scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
+    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
   },
 };
 
@@ -250,7 +274,7 @@ const SEED_INGREDIENTS = [
 
 const SEED_RECIPES = [
   {
-    id: "r1", name: "Boeuf bourguignon", portions: 6, sellPrice: 18, targetMargin: 65,
+    id: "r1", name: "Boeuf bourguignon", portions: 6, sellPrice: 18, targetMargin: 75,
     notes: "Faire mariner le boeuf 12h dans le vin. Mijoter 3h à feu doux. Dresser avec persil frais.",
     allergens: "Sulfites (vin)", allergensAuto: false, createdAt: "2026-06-10",
     lines: [
@@ -337,6 +361,13 @@ export default function App() {
   const [pantryQuery, setPantryQuery] = useState("");
   const [pantryCategory, setPantryCategory] = useState("all");
 
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanErr, setScanErr] = useState(null);
+  const [scanResult, setScanResult] = useState(null); // { supplier, date, items: [...] }
+  const fileInputRef = useRef(null);
+
+
   const t = useCallback((key) => TR[lang][key] ?? TR.fr[key] ?? key, [lang]);
   const ingredientDisplayName = useCallback(
     (ing) => (ing?.catalogId && CATALOG_MAP[ing.catalogId] ? CATALOG_MAP[ing.catalogId][lang] : ing?.name || ""),
@@ -408,9 +439,14 @@ export default function App() {
   const costPerPortion = active ? recipeCostPerPortion(active) : 0;
   const sellHT = active ? priceHT(active.sellPrice || 0) : 0;
   const margin = active ? recipeMargin(active) : null;
-  const targetMargin = active?.targetMargin ?? 65;
+  const targetMargin = active?.targetMargin ?? 75;
   const suggestedHT = active && targetMargin < 100 ? costPerPortion / (1 - targetMargin / 100) : null;
   const suggestedTTC = suggestedHT !== null ? suggestedHT * (1 + vatRate / 100) : null;
+  // Règle : on ne propose un prix conseillé que si la marge actuelle n'atteint pas encore l'objectif.
+  // Si l'objectif est déjà atteint ou dépassé, on ne suggère jamais un prix plus bas.
+  const isBelowTarget = margin !== null && margin < targetMargin;
+  const isAtOrAboveTarget = margin !== null && margin >= targetMargin;
+  const nextMarginStep = margin !== null ? Math.min(99, Math.ceil((margin + 5) / 5) * 5) : null;
 
   const updateRecipe = (patch) => setRecipes((rs) => rs.map((r) => (r.id === active.id ? { ...r, ...patch } : r)));
   const applyLinesChange = (newLines) => {
@@ -433,7 +469,7 @@ export default function App() {
 
   const addRecipe = () => {
     const nr = {
-      id: uid(), name: t("newRecipeName"), portions: 4, sellPrice: 0, targetMargin: 65,
+      id: uid(), name: t("newRecipeName"), portions: 4, sellPrice: 0, targetMargin: 75,
       notes: "", allergens: "", allergensAuto: true, createdAt: today(), lines: [],
     };
     setRecipes((rs) => [...rs, nr]);
@@ -520,6 +556,144 @@ export default function App() {
   };
 
   const handlePrint = () => window.print();
+
+  // --- Scan de facture ---
+
+  const normalizeStr = (s) =>
+    (s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+  const guessIngredientId = (name) => {
+    const n = normalizeStr(name);
+    if (!n) return null;
+    const exact = ingredients.find((i) => normalizeStr(ingredientDisplayName(i)) === n);
+    if (exact) return exact.id;
+    const partial = ingredients.find(
+      (i) => n.includes(normalizeStr(ingredientDisplayName(i))) || normalizeStr(ingredientDisplayName(i)).includes(n)
+    );
+    return partial ? partial.id : null;
+  };
+
+  const compressImageFile = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Lecture du fichier impossible"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Image illisible"));
+        img.onload = () => {
+          const maxDim = 1400;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            const scale = maxDim / Math.max(width, height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
+          resolve({ base64: dataUrl.split(",")[1], mediaType: "image/jpeg" });
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+  const handleScanFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permet de re-sélectionner le même fichier plus tard
+    if (!file) return;
+    setScanOpen(true);
+    setScanning(true);
+    setScanErr(null);
+    setScanResult(null);
+    try {
+      const { base64, mediaType } = await compressImageFile(file);
+      const res = await fetch("/api/scan-invoice", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ image: base64, mediaType }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Échec de l'analyse");
+      const items = (data.items || []).map((it) => {
+        const matchedId = guessIngredientId(it.name);
+        const matchedIng = matchedId ? ingredientById(matchedId) : null;
+        const currentPrice = matchedIng ? activeSupplier(matchedIng)?.price ?? null : null;
+        return {
+          ...it,
+          assignTo: matchedId || "new",
+          imported: false,
+          currentPrice,
+          priceUp: currentPrice !== null && it.unitPriceHT > currentPrice,
+        };
+      });
+      setScanResult({ supplier: data.supplier || null, date: data.date || null, items });
+    } catch (err) {
+      setScanErr(err.message || "Erreur inconnue");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const updateScanItem = (idx, patch) => {
+    setScanResult((r) => ({ ...r, items: r.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)) }));
+  };
+
+  const importScanItem = (idx) => {
+    const item = scanResult.items[idx];
+    if (!item || item.imported) return;
+    const supplierName = scanResult.supplier || t("scanInvoice");
+
+    if (item.assignTo === "new") {
+      const sId = uid();
+      const ni = {
+        id: uid(),
+        name: item.name,
+        unit: item.unit || "kg",
+        catalogId: null,
+        category: "autres",
+        selectedSupplierId: sId,
+        suppliers: [{ id: sId, name: supplierName, price: item.unitPriceHT || 0 }],
+        history: [{ date: today(), price: item.unitPriceHT || 0, supplierName }],
+      };
+      setIngredients((ings) => [...ings, ni]);
+    } else {
+      const ingId = item.assignTo;
+      setIngredients((ings) =>
+        ings.map((ing) => {
+          if (ing.id !== ingId) return ing;
+          let suppliers = ing.suppliers;
+          const existing = suppliers.find((s) => normalizeStr(s.name) === normalizeStr(supplierName));
+          if (existing) {
+            suppliers = suppliers.map((s) => (s.id === existing.id ? { ...s, price: item.unitPriceHT || 0 } : s));
+          } else {
+            suppliers = [...suppliers, { id: uid(), name: supplierName, price: item.unitPriceHT || 0 }];
+          }
+          const history = [...(ing.history || []), { date: today(), price: item.unitPriceHT || 0, supplierName }].slice(-15);
+          return { ...ing, suppliers, history, selectedSupplierId: existing ? ing.selectedSupplierId : ing.selectedSupplierId };
+        })
+      );
+    }
+    updateScanItem(idx, { imported: true });
+  };
+
+  const importAllScanItems = () => {
+    scanResult.items.forEach((_, idx) => importScanItem(idx));
+  };
+
+  const closeScan = () => {
+    setScanOpen(false);
+    setScanResult(null);
+    setScanErr(null);
+  };
+
   const tier = marginTier(margin, settings.minMargin);
   const marginLow = tier === "low";
 
@@ -623,12 +797,166 @@ export default function App() {
         </div>
       )}
 
+      {scanOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeScan}>
+          <div
+            className="rounded-md p-5 w-full max-w-xl max-h-[85vh] overflow-y-auto font-body"
+            style={{ background: "#2F3437" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("scanResultTitle")}</h3>
+              <button onClick={closeScan} className="text-white/50 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            {scanning && (
+              <div className="flex flex-col items-center justify-center py-10 text-white/60 text-sm gap-3">
+                <Loader2 size={26} className="animate-spin" style={{ color: "#C9A227" }} />
+                {t("scanning")}
+              </div>
+            )}
+
+            {scanErr && !scanning && (
+              <div className="text-center py-6">
+                <div className="text-[#B23A2E] text-sm mb-3">{t("scanError")} : {scanErr}</div>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs uppercase tracking-wide px-3 py-1.5 rounded border border-white/20 text-white/70 hover:border-[#C9A227] hover:text-[#C9A227]"
+                >
+                  {t("scanRetry")}
+                </button>
+              </div>
+            )}
+
+            {scanResult && !scanning && (
+              <div>
+                <div className="text-xs text-white/50 mb-3 flex flex-wrap gap-x-4 gap-y-1">
+                  <span>{t("scanSupplier")}: <span className="text-white/80">{scanResult.supplier || "—"}</span></span>
+                  <span>{t("scanDate")}: <span className="text-white/80">{scanResult.date || "—"}</span></span>
+                </div>
+                <p className="text-[11px] text-white/40 mb-3">{t("scanHint")}</p>
+
+                {scanResult.items.length === 0 ? (
+                  <div className="text-white/40 text-sm py-4 text-center">{t("scanNoItems")}</div>
+                ) : (
+                  <div className="space-y-2">
+                    {scanResult.items.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className={`rounded-md p-2.5 ${item.imported ? "opacity-40" : ""}`}
+                        style={{ background: "#23272A" }}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            value={item.name || ""}
+                            disabled={item.imported}
+                            onChange={(e) => updateScanItem(idx, { name: e.target.value })}
+                            className="flex-1 min-w-0 bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#C9A227]"
+                          />
+                          <NumField
+                            value={item.quantity || 0}
+                            onChange={(v) => updateScanItem(idx, { quantity: v })}
+                            className="w-14 shrink-0 bg-transparent text-white/80 text-xs text-right outline-none border-b border-white/10"
+                          />
+                          <select
+                            value={item.unit || "kg"}
+                            disabled={item.imported}
+                            onChange={(e) => updateScanItem(idx, { unit: e.target.value })}
+                            className="bg-transparent text-white/60 text-xs outline-none shrink-0"
+                            style={{ colorScheme: "dark" }}
+                          >
+                            <option value="kg">kg</option>
+                            <option value="L">L</option>
+                            <option value="pièce">pièce</option>
+                          </select>
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-1.5 text-xs text-white/60">
+                          <select
+                            value={item.assignTo}
+                            disabled={item.imported}
+                            onChange={(e) => updateScanItem(idx, { assignTo: e.target.value })}
+                            className="flex-1 min-w-0 bg-black/20 rounded px-1.5 py-1 outline-none"
+                            style={{ colorScheme: "dark" }}
+                          >
+                            <option value="new">{t("scanNewIngredient")}</option>
+                            {ingredients.map((i) => (
+                              <option key={i.id} value={i.id}>{ingredientDisplayName(i)}</option>
+                            ))}
+                          </select>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-white/40">HT/u :</span>
+                            <NumField
+                              value={item.unitPriceHT || 0}
+                              onChange={(v) => updateScanItem(idx, { unitPriceHT: v })}
+                              className="w-14 bg-transparent text-right outline-none border-b border-white/10 font-mono"
+                            />
+                            <span>€</span>
+                          </div>
+                        </div>
+
+                        {item.priceUp && !item.imported && (
+                          <div className="flex items-center gap-1 mt-1.5 text-[10px]" style={{ color: TIER_COLORS.mid }}>
+                            <TrendingUp size={11} /> {t("scanPriceIncrease")} : {item.currentPrice.toFixed(2)}€ → {(item.unitPriceHT || 0).toFixed(2)}€
+                          </div>
+                        )}
+
+                        <div className="flex justify-end mt-1.5">
+                          {item.imported ? (
+                            <span className="text-[10px] text-[#3F8F52] font-semibold">{t("scanImported")}</span>
+                          ) : (
+                            <button
+                              onClick={() => importScanItem(idx)}
+                              className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border border-white/20 text-white/70 hover:border-[#C9A227] hover:text-[#C9A227]"
+                            >
+                              {t("scanImport")}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {scanResult.items.length > 0 && (
+                  <button
+                    onClick={importAllScanItems}
+                    className="mt-4 w-full text-xs font-display uppercase tracking-wide py-2 rounded"
+                    style={{ background: "#C9A227", color: "#000" }}
+                  >
+                    {t("scanImportAll")}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <main className="max-w-6xl mx-auto px-4 sm:px-5 py-8 grid grid-main grid-cols-1 lg:grid-cols-[280px_1fr] gap-8 w-full">
         {/* Pantry */}
         <aside className="font-body print:hidden min-w-0">
           <button onClick={() => setPantryOpen((o) => !o)} className="w-full flex items-center justify-between mb-3 group">
             <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">{t("pantry")}</h2>
             {pantryOpen ? <ChevronUp size={16} className="text-white/40 group-hover:text-[#C9A227]" /> : <ChevronDown size={16} className="text-white/40 group-hover:text-[#C9A227]" />}
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleScanFile}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-md mb-4 text-black"
+            style={{ background: "#C9A227" }}
+          >
+            <Camera size={15} /> {t("scanInvoice")}
           </button>
 
           {pantryOpen && (
@@ -927,7 +1255,7 @@ export default function App() {
                       <span>%</span>
                     </div>
                   </div>
-                  {suggestedTTC !== null && (
+                  {isBelowTarget && suggestedTTC !== null && (
                     <div className="flex justify-between items-center">
                       <span>{t("suggestedPrice")}</span>
                       <div className="flex items-center gap-2">
@@ -938,11 +1266,35 @@ export default function App() {
                       </div>
                     </div>
                   )}
+                  {isAtOrAboveTarget && (
+                    <div className="rounded p-2 mt-1" style={{ background: `${TIER_COLORS.high}18` }}>
+                      <div className="flex items-center gap-1.5 font-semibold" style={{ color: TIER_COLORS.high }}>
+                        <Check size={12} /> {t("marginExcellentTitle")}
+                      </div>
+                      <div className="text-black/50 mt-0.5">{t("marginExcellentDetail")}</div>
+                      {nextMarginStep !== null && (
+                        <button
+                          onClick={() => updateRecipe({ targetMargin: nextMarginStep })}
+                          className="mt-1.5 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border border-black/30 hover:bg-black hover:text-[#F2ECDD] transition"
+                        >
+                          {t("simulateHigherMargin")(nextMarginStep)}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {margin !== null && (
-                  <div className="flex justify-center mt-6 mb-1">
+                  <div className="flex flex-col items-center mt-6 mb-1 gap-1.5">
                     <div className="stamp px-4 py-1.5 text-sm" style={{ color: TIER_COLORS[tier] }}>{t("marginLabel")} {margin.toFixed(0)}%</div>
+                    {tier === "high" && (
+                      <div
+                        className="flex items-center gap-1 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full font-semibold"
+                        style={{ color: TIER_COLORS.high, background: `${TIER_COLORS.high}18` }}
+                      >
+                        <Check size={11} /> {t("excellentMarginBadge")}
+                      </div>
+                    )}
                   </div>
                 )}
                 {marginLow && (
