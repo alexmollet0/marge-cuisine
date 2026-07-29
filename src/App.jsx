@@ -351,7 +351,7 @@ const TR = {
     scanItemsToReview: (n) => `${n} produit${n > 1 ? "s" : ""} à vérifier`,
     scanVerifyOneByOne: "Vérifier un par un", scanValidate: "Valider", scanModify: "Modifier",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
-    scanAllReviewed: "Tout est vérifié ! 🎉", scanContinue: "Continuer",
+    scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanUpcoming: "Suivants",
     scanExistingLabel: "Ingrédient existant :", scanScannedLabel: "Nom détecté sur la facture :",
     scanKeepName: "Garder l'existant", scanUseNewName: "Utiliser ce nouveau nom",
@@ -359,7 +359,7 @@ const TR = {
     scanPricingUnknownHint: "Ce produit se vend normalement au poids, mais aucune info de poids/prix au kilo n'est visible ici (courant sur un simple ticket de caisse). Choisis l'unité et indique le prix toi-même :",
     scanEnterPriceManually: "Unité et prix HT :",
     scanSearchIngredientPlaceholder: "Rechercher un ingrédient existant…",
-    scanBackToCard: "Retour à la carte", scanMakeNew: "Créer comme nouveau",
+    scanBackToCard: "Retour", scanMakeNew: "Créer comme nouveau",
     scanSkip: "Ne pas ajouter cet ingrédient", scanSkippedSection: "Ignorés", scanUndoSkip: "Annuler",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer les lignes sûres",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
@@ -412,7 +412,7 @@ const TR = {
     scanItemsToReview: (n) => `${n} producto${n > 1 ? "s" : ""} a verificar`,
     scanVerifyOneByOne: "Verificar uno por uno", scanValidate: "Validar", scanModify: "Modificar",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
-    scanAllReviewed: "¡Todo verificado! 🎉", scanContinue: "Continuar",
+    scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanUpcoming: "Siguientes",
     scanExistingLabel: "Ingrediente existente:", scanScannedLabel: "Nombre detectado en la factura:",
     scanKeepName: "Mantener el existente", scanUseNewName: "Usar este nuevo nombre",
@@ -420,7 +420,7 @@ const TR = {
     scanPricingUnknownHint: "Este producto normalmente se vende por peso, pero no hay información de peso/precio por kilo aquí (habitual en un simple ticket de caja). Elige la unidad e indica el precio tú mismo:",
     scanEnterPriceManually: "Unidad y precio sin IVA:",
     scanSearchIngredientPlaceholder: "Buscar un ingrediente existente…",
-    scanBackToCard: "Volver a la tarjeta", scanMakeNew: "Crear como nuevo",
+    scanBackToCard: "Volver", scanMakeNew: "Crear como nuevo",
     scanSkip: "No añadir este ingrediente", scanSkippedSection: "Omitidos", scanUndoSkip: "Deshacer",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar las líneas seguras",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
@@ -985,7 +985,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
   const [pickerOpen, setPickerOpen] = useState(false);
   const matchedIng = item.assignTo !== "new" ? ingredients.find((i) => i.id === item.assignTo) : null;
   const needsRename = item.assignTo !== "new" && item.name && matchedIng && ingredientDisplayName(matchedIng) !== item.name;
-  const matchColor = item.assignTo === "new" || item.matchConfident ? "#10B981" : TIER_COLORS.mid;
+  const matchColor = item.assignTo === "new" ? "#3B82F6" : item.matchConfident ? "#10B981" : TIER_COLORS.mid;
 
   const targetName = item.assignTo === "new" ? item.name : needsRename && item.renameOnImport ? item.name : matchedIng ? ingredientDisplayName(matchedIng) : "";
   const summary =
@@ -1151,32 +1151,28 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
         <div className="mt-2.5 text-[11px] text-white/45 italic border-t border-white/5 pt-2">{summary}</div>
       )}
 
-      <div className="flex items-center justify-between mt-2">
-        {!item.imported && onSkip ? (
-          <button onClick={onSkip} className="text-[10px] text-white/30 hover:text-[#EF4444] underline">
-            {t("scanSkip")}
-          </button>
-        ) : <span />}
-        {item.imported ? (
-          <span className="text-[10px] text-[#10B981] font-semibold">{t("scanImported")}</span>
-        ) : item.bigChange ? (
+      {item.imported ? (
+        <div className="mt-2 text-center text-[11px] text-[#10B981] font-semibold">{t("scanImported")}</div>
+      ) : (
+        <div className="flex gap-2 mt-2.5">
+          {onSkip && (
+            <button
+              onClick={onSkip}
+              className="flex-1 text-[11px] uppercase tracking-wide py-2 rounded-full font-semibold border"
+              style={{ borderColor: "rgba(239,68,68,0.4)", color: "#EF4444" }}
+            >
+              {t("scanSkip")}
+            </button>
+          )}
           <button
             onClick={onImport}
-            className="text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded-full font-semibold flex items-center gap-1"
-            style={{ background: TIER_COLORS.low, color: "#fff" }}
+            className="flex-1 text-[11px] uppercase tracking-wide py-2 rounded-full font-semibold"
+            style={{ background: item.bigChange ? TIER_COLORS.low : "#10B981", color: "#fff" }}
           >
-            <AlertTriangle size={11} /> {t("scanConfirmBigChange")}
+            {item.bigChange ? t("scanConfirmBigChange") : t("scanImport")}
           </button>
-        ) : (
-          <button
-            onClick={onImport}
-            className="text-[10px] uppercase tracking-wide px-3 py-1.5 rounded-full font-semibold"
-            style={{ background: "#10B981", color: "#fff" }}
-          >
-            {t("scanImport")}
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1689,9 +1685,10 @@ export default function App() {
     setScanResult((r) => ({ ...r, items: r.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)) }));
   };
 
-  const importScanItem = (idx) => {
-    const item = scanResult.items[idx];
-    if (!item || item.imported) return;
+  const importScanItem = (idx, override = {}) => {
+    const raw = scanResult.items[idx];
+    if (!raw || raw.imported) return;
+    const item = { ...raw, ...override };
     const supplierName = scanResult.supplier || t("scanInvoice");
     const finalUnit = item.unit || "kg";
     const finalPrice = item.unitPriceHT || 0;
@@ -1727,7 +1724,7 @@ export default function App() {
         })
       );
     }
-    updateScanItem(idx, { imported: true });
+    updateScanItem(idx, { ...override, imported: true });
   };
 
   // "Importer tout" ne traite QUE les lignes sans aucun signal d'alerte — tout le reste
@@ -1952,7 +1949,8 @@ export default function App() {
                       if (review.length === 0) {
                         return (
                           <div className="text-center py-10">
-                            <div className="text-white text-base mb-4">{t("scanAllReviewed")}</div>
+                            <div className="text-white text-base font-semibold mb-1">{t("scanAllReviewed")}</div>
+                            <div className="text-white/50 text-xs mb-4">{t("scanAllReviewedDetail")}</div>
                             <button
                               onClick={() => setReviewStackOpen(false)}
                               className="text-xs uppercase tracking-wide px-4 py-2 rounded-full font-semibold"
@@ -2002,9 +2000,9 @@ export default function App() {
                                 <div>
                                   <button
                                     onClick={() => setExpandedReviewIdx(null)}
-                                    className="flex items-center gap-1 text-[11px] text-white/50 hover:text-white mb-2"
+                                    className="w-full mb-2 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/25 text-white/80 font-semibold"
                                   >
-                                    <ArrowLeft size={12} /> {t("scanBackToCard")}
+                                    {t("scanBackToCard")}
                                   </button>
                                   <ScanItemCard
                                     item={current.item}
@@ -2021,26 +2019,15 @@ export default function App() {
                                   className="rounded-xl border p-4"
                                   style={{ background: "#18181B", borderColor: current.item.bigChange ? TIER_COLORS.low : `${TIER_COLORS.mid}80` }}
                                 >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span
-                                      className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
-                                      style={{
-                                        color: current.item.assignTo === "new" ? "#10B981" : TIER_COLORS.mid,
-                                        background: current.item.assignTo === "new" ? "#10B98122" : `${TIER_COLORS.mid}22`,
-                                      }}
-                                    >
-                                      {current.item.assignTo === "new" ? t("scanNewIngredient") : t("scanLinkedGuess")}
-                                    </span>
-                                    {current.item.assignTo !== "new" && (
-                                      <button
-                                        onClick={() => updateScanItem(current.idx, { assignTo: "new", renameOnImport: false })}
-                                        className="text-[9px] uppercase tracking-wide px-2 py-1 rounded-full font-semibold shrink-0"
-                                        style={{ background: "#10B98122", color: "#10B981" }}
-                                      >
-                                        🆕 {t("scanMakeNew")}
-                                      </button>
-                                    )}
-                                  </div>
+                                  <span
+                                    className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
+                                    style={{
+                                      color: current.item.assignTo === "new" ? "#3B82F6" : TIER_COLORS.mid,
+                                      background: current.item.assignTo === "new" ? "#3B82F622" : `${TIER_COLORS.mid}22`,
+                                    }}
+                                  >
+                                    {current.item.assignTo === "new" ? t("scanNewIngredient") : t("scanLinkedGuess")}
+                                  </span>
 
                                   {current.item.assignTo === "new" ? (
                                     <div className="text-white text-lg font-semibold mt-2">{current.item.name}</div>
@@ -2132,26 +2119,36 @@ export default function App() {
                                         )}
                                   </div>
 
-                                  <div className="flex gap-2 mt-3">
+                                  <div className="flex gap-1.5 mt-3">
                                     <button
-                                      onClick={() => setExpandedReviewIdx(current.idx)}
-                                      className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70"
+                                      onClick={() => skipScanItem(current.idx)}
+                                      className="flex-1 text-[10px] uppercase tracking-wide py-2.5 rounded-full font-semibold border"
+                                      style={{ borderColor: "rgba(239,68,68,0.4)", color: "#EF4444" }}
                                     >
-                                      {t("scanModify")}
+                                      {t("scanSkip")}
                                     </button>
+                                    {current.item.assignTo !== "new" && (
+                                      <button
+                                        onClick={() => importScanItem(current.idx, { assignTo: "new", renameOnImport: false })}
+                                        className="flex-1 text-[10px] uppercase tracking-wide py-2.5 rounded-full font-semibold border"
+                                        style={{ borderColor: "rgba(59,130,246,0.5)", color: "#3B82F6" }}
+                                      >
+                                        {t("scanMakeNew")}
+                                      </button>
+                                    )}
                                     <button
                                       onClick={() => importScanItem(current.idx)}
-                                      className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold"
+                                      className="flex-1 text-[10px] uppercase tracking-wide py-2.5 rounded-full font-semibold"
                                       style={{ background: "#10B981", color: "#fff" }}
                                     >
                                       {t("scanValidate")}
                                     </button>
                                   </div>
                                   <button
-                                    onClick={() => skipScanItem(current.idx)}
-                                    className="w-full text-center mt-2 text-[10px] text-white/30 hover:text-[#EF4444] underline"
+                                    onClick={() => setExpandedReviewIdx(current.idx)}
+                                    className="w-full text-center mt-2 text-[10px] text-white/40 hover:text-white"
                                   >
-                                    {t("scanSkip")}
+                                    {t("scanModify")}
                                   </button>
                                 </div>
                               )}
