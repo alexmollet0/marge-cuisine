@@ -308,7 +308,7 @@ function detectAllergens(lines, ingredientsList, lang) {
 
 const TR = {
   fr: {
-    appTitle: "Marge en cuisine", saved: "Enregistré", loading: "Chargement…", greeting: "Bonjour Chef 👋",
+    appTitle: "Marge en cuisine", saved: "Enregistré", loading: "Chargement…", greeting: "Bonjour Chef",
     dataUnavailable: "Données locales indisponibles", resetData: "Réinitialiser mes données",
     pantry: "Garde-manger", newIngredient: "Nouvel ingrédient", addIngredient: "Ajouter un ingrédient",
     searchPlaceholder: "Rechercher un ingrédient…", pantryFilterPlaceholder: "Filtrer le garde-manger…",
@@ -368,6 +368,13 @@ const TR = {
     scanRestoreNonFood: "Ajouter quand même à la vérification",
     scanPriceLabel: "Prix (modifiable) :",
     estimatedPriceBadge: "estimé", estimatedPriceHint: "Prix de départ estimé, jamais confirmé par un scan ou une saisie manuelle — vérifie-le avec ton vrai fournisseur.",
+    estimatedPriceLegend: "Prix estimé, pas encore vérifié avec ton fournisseur",
+    pantryEmptyPrompt: "Choisis une catégorie ci-dessus ou lance une recherche pour voir tes ingrédients.",
+    coefLabel: "Coef.",
+    printRecipeSheet: "Imprimer la fiche recette",
+    deleteRecipeConfirm: (name) => `Supprimer définitivement la recette "${name}" ?`,
+    allergenSheetLink: "Fiche allergènes", allergenSheetTitle: "Fiche allergènes — toutes les recettes",
+    allergenSheetNone: "Aucun allergène renseigné",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer les lignes sûres",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
@@ -375,7 +382,7 @@ const TR = {
     scanTab: "Scanner", scanTabHint: "Prends en photo une facture ou un ticket fournisseur : l'IA extrait les articles automatiquement.",
   },
   es: {
-    appTitle: "Margen en cocina", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef 👋",
+    appTitle: "Margen en cocina", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef",
     dataUnavailable: "Datos locales no disponibles", resetData: "Restablecer mis datos",
     pantry: "Despensa", newIngredient: "Nuevo ingrediente", addIngredient: "Añadir ingrediente",
     searchPlaceholder: "Buscar un ingrediente…", pantryFilterPlaceholder: "Filtrar la despensa…",
@@ -435,6 +442,13 @@ const TR = {
     scanRestoreNonFood: "Añadir de todos modos a la verificación",
     scanPriceLabel: "Precio (editable):",
     estimatedPriceBadge: "estimado", estimatedPriceHint: "Precio de partida estimado, nunca confirmado por un escaneo o entrada manual — verifícalo con tu proveedor real.",
+    estimatedPriceLegend: "Precio estimado, aún no verificado con tu proveedor",
+    pantryEmptyPrompt: "Elige una categoría arriba o busca algo para ver tus ingredientes.",
+    coefLabel: "Coef.",
+    printRecipeSheet: "Imprimir la ficha de receta",
+    deleteRecipeConfirm: (name) => `¿Eliminar definitivamente la receta "${name}"?`,
+    allergenSheetLink: "Ficha de alérgenos", allergenSheetTitle: "Ficha de alérgenos — todas las recetas",
+    allergenSheetNone: "Sin alérgenos indicados",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar las líneas seguras",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
@@ -995,6 +1009,8 @@ const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 // Carte d'un article scanné : correspondance affichée en grand (plutôt qu'un petit menu discret),
 // bascule de renommage en vrai bouton, et une phrase en clair juste avant d'importer.
 function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredientDisplayName, lang, t, skipMuted }) {
+  const [expanded, setExpanded] = useState(false);
+  const [editingPrice, setEditingPrice] = useState(false);
   const matchedIng = item.assignTo !== "new" ? ingredients.find((i) => i.id === item.assignTo) : null;
   const needsRename = item.assignTo !== "new" && item.name && matchedIng && ingredientDisplayName(matchedIng) !== item.name;
   const matchColor = item.assignTo === "new" ? "#3B82F6" : item.matchConfident ? "#10B981" : TIER_COLORS.mid;
@@ -1004,180 +1020,186 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
     item.assignTo === "new"
       ? t("scanSummaryNew")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit)
       : t("scanSummaryUpdate")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit);
+  const hasWarning = item.pricingUnknown || item.priceInconsistent;
 
   return (
     <div
-      className={`rounded-xl p-2.5 border ${item.imported ? "opacity-40" : ""}`}
-      style={{ background: "#18181B", borderColor: item.bigChange ? TIER_COLORS.low : item.priceInconsistent || (!item.matchConfident && item.assignTo !== "new") ? `${TIER_COLORS.mid}80` : "rgba(255,255,255,0.1)" }}
+      className={`rounded-xl border ${item.imported ? "opacity-40" : ""}`}
+      style={{ background: "#18181B", borderColor: item.bigChange ? TIER_COLORS.low : hasWarning || (!item.matchConfident && item.assignTo !== "new") ? `${TIER_COLORS.mid}80` : "rgba(255,255,255,0.1)" }}
     >
-      <div className="flex items-center gap-1.5">
-        <input
-          value={item.name || ""}
-          disabled={item.imported}
-          onChange={(e) => onUpdate({ name: e.target.value })}
-          className="flex-1 min-w-0 bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#10B981]"
-        />
-        <NumField
-          value={item.quantity || 0}
-          onChange={(v) => onUpdate({ quantity: v })}
-          className="w-14 shrink-0 bg-transparent text-white/80 text-xs text-right outline-none border-b border-white/10"
-        />
-        <select
-          value={item.unit || "kg"}
-          disabled={item.imported}
-          onChange={(e) => onUpdate({ unit: e.target.value })}
-          className="bg-transparent text-white/60 text-xs outline-none shrink-0"
-          style={{ colorScheme: "dark" }}
-        >
-          <option value="kg">kg</option>
-          <option value="L">L</option>
-          <option value="pièce">pièce</option>
-        </select>
-      </div>
-
-      {(item.packageCount || item.packageContent) && !item.imported && !item.pricingUnknown && (
-        <div className="text-[10px] text-white/35 mt-0.5 font-mono">
-          {item.packageCount || 1} × {item.packageContent || 1}
-          {item.packageContentUnit === "pièce" ? "" : item.packageContentUnit} @ {(item.printedUnitPriceHT || 0).toFixed(2)}€/
-          {item.printedPriceUnit === "colis" ? (lang === "es" ? "paquete" : "colis") : item.printedPriceUnit}
+      {/* Ligne compacte : toujours visible, sans clic — le nom qui sera vraiment utilisé saute aux yeux */}
+      <div className="px-2.5 py-2">
+        <div className="flex items-center gap-1.5">
+          <input
+            value={item.name || ""}
+            disabled={item.imported}
+            onChange={(e) => onUpdate({ name: e.target.value })}
+            className="flex-1 min-w-0 bg-transparent text-white text-sm font-medium outline-none"
+          />
+          <NumField
+            value={item.quantity || 0}
+            onChange={(v) => onUpdate({ quantity: v })}
+            className="w-10 shrink-0 bg-transparent text-white/50 text-[11px] text-right outline-none"
+          />
+          <span className="text-white/40 text-[11px] shrink-0">{item.unit}</span>
         </div>
-      )}
 
-      {item.pricingUnknown && !item.imported && (
-        <div className="mt-1.5 rounded-lg p-2 text-[11px]" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
-          <div className="flex items-center gap-1.5 font-semibold">
-            <AlertTriangle size={12} className="shrink-0" /> {t("scanPricingUnknown")}
-          </div>
-          <div className="mt-1 text-white/60">{t("scanPricingUnknownHint")}</div>
-          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            <span className="text-white/50">{t("scanEnterPriceManually")}</span>
+        <div className="flex items-center gap-1.5 mt-1 min-w-0">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: matchColor }} />
+          <span className="text-xs font-semibold truncate" style={{ color: matchColor }}>
+            {targetName || "—"}
+          </span>
+          {needsRename && (
+            <span className="text-[10px] text-white/35 truncate">({t("scanScannedLabel")} : {item.name})</span>
+          )}
+          {hasWarning && !item.imported && <AlertTriangle size={12} className="shrink-0 ml-auto" style={{ color: TIER_COLORS.mid }} />}
+        </div>
+
+        <div className="flex items-center gap-1.5 mt-1.5">
+          {editingPrice ? (
             <NumField
               value={item.unitPriceHT || 0}
               onChange={(v) => onUpdate({ unitPriceHT: v })}
-              className="w-16 bg-black/20 rounded px-1.5 py-1 text-right outline-none font-mono text-white"
+              className="w-16 bg-black/20 rounded px-1.5 py-1 text-right text-white text-sm font-mono outline-none"
             />
-            <span>€ / {item.unit}</span>
-          </div>
-        </div>
-      )}
-
-      {item.priceInconsistent && !item.imported && (
-        <div className="flex items-center gap-1.5 mt-1 text-[10px] rounded px-2 py-1" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
-          <AlertTriangle size={11} className="shrink-0" />
-          <span>
-            {t("scanPriceInconsistent")}
-            {item.expectedTotal !== null ? ` (${t("scanExpectedTotal")} ≈ ${item.expectedTotal.toFixed(2)}€, ${t("scanPrintedTotal")} ${(item.totalPriceHT || 0).toFixed(2)}€)` : ""}
-          </span>
-        </div>
-      )}
-
-      {/* Statut de correspondance : pavé coloré bien visible (informatif, pas besoin de cliquer) */}
-      {!item.imported && (
-        <div className="mt-1.5 rounded-lg px-2.5 py-2" style={{ background: `${matchColor}18`, border: `1px solid ${matchColor}55` }}>
-          <div className="text-[9px] uppercase tracking-wide font-bold" style={{ color: matchColor }}>
-            {item.assignTo === "new" ? t("scanNewIngredient") : item.matchConfident ? t("scanLinkedSure") : t("scanLinkedGuess")}
-          </div>
-          <div className="text-sm text-white font-semibold truncate">
-            {item.assignTo === "new" ? item.name : matchedIng ? ingredientDisplayName(matchedIng) : "—"}
-          </div>
-        </div>
-      )}
-
-      {!item.imported && (
-        <div className="mt-1.5 flex items-center gap-2 rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.06)" }}>
-          <span className="text-[10px] uppercase tracking-wide text-white/40 shrink-0">{t("scanPriceLabel")}</span>
-          <NumField
-            value={item.unitPriceHT || 0}
-            onChange={(v) => onUpdate({ unitPriceHT: v })}
-            className="flex-1 min-w-0 bg-transparent text-white text-base font-semibold text-right outline-none border-b border-white/15 focus:border-[#10B981]"
-          />
-          <span className="text-white/50 text-sm shrink-0">€/{item.unit}</span>
-        </div>
-      )}
-
-      {/* Recherche toujours accessible, un seul clic pour taper — pas besoin d'ouvrir quoi que ce soit avant */}
-      {!item.imported && (
-        <div className="mt-1 flex items-center gap-1.5">
-          <IngredientPicker
-            ingredients={ingredients}
-            value={item.assignTo !== "new" ? item.assignTo : null}
-            displayName={ingredientDisplayName}
-            onChange={(id) => onUpdate({ assignTo: id, matchConfident: true, renameOnImport: false })}
-            placeholder={t("scanSearchIngredientPlaceholder")}
-            className="flex-1 min-w-0 bg-black/30 text-white text-xs rounded-lg px-2.5 py-2"
-          />
-          <button
-            type="button"
-            onClick={() => onUpdate({ assignTo: "new", renameOnImport: false })}
-            className="shrink-0 text-[9px] uppercase tracking-wide px-2 py-2 rounded-lg font-semibold whitespace-nowrap"
-            style={{ background: "#3B82F622", color: "#3B82F6" }}
-          >
-            {t("scanNewIngredient")}
-          </button>
-        </div>
-      )}
-
-      {needsRename && !item.imported && (
-        <button
-          type="button"
-          onClick={() => onUpdate({ renameOnImport: !item.renameOnImport })}
-          className="w-full mt-1.5 flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left"
-          style={{ background: item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.06)", color: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.55)" }}
-        >
-          <span
-            className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
-            style={{ background: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.15)" }}
-          >
-            {item.renameOnImport && <Check size={12} color="#000" />}
-          </span>
-          {t("scanRenameHint")(item.name)}
-        </button>
-      )}
-
-      {!item.imported && item.currentPrice !== null && item.currentPriceIsReal && (
-        <div
-          className="flex items-center gap-1 mt-1 text-[10px]"
-          style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : item.priceDown ? "#10B981" : "rgba(255,255,255,0.4)" }}
-        >
-          {(item.priceUp || item.bigChange) && <TrendingUp size={11} />}
-          {item.priceUp
-            ? `${t("scanPriceIncrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
-            : item.priceDown
-            ? `${t("scanPriceDecrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
-            : t("scanPriceSame")}
-        </div>
-      )}
-
-      {!item.imported && (
-        <div className="mt-1.5 text-[11px] text-white/45 italic border-t border-white/5 pt-1.5">{summary}</div>
-      )}
-
-      {item.imported ? (
-        <div className="mt-1.5 text-center text-[11px] text-[#10B981] font-semibold">{t("scanImported")}</div>
-      ) : (
-        <div className="flex gap-2 mt-2">
-          {onSkip && (
-            <button
-              onClick={onSkip}
-              className="flex-1 text-[11px] uppercase tracking-wide py-2 rounded-full font-semibold border transition-colors"
-              style={
-                skipMuted
-                  ? { borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.4)" }
-                  : { borderColor: "rgba(239,68,68,0.4)", color: "#EF4444" }
-              }
-              onMouseEnter={skipMuted ? (e) => { e.currentTarget.style.borderColor = "rgba(239,68,68,0.4)"; e.currentTarget.style.color = "#EF4444"; } : undefined}
-              onMouseLeave={skipMuted ? (e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } : undefined}
-            >
-              {t("scanSkip")}
+          ) : (
+            <span className="text-white text-sm font-semibold">{(item.unitPriceHT || 0).toFixed(2)}€</span>
+          )}
+          <span className="text-white/40 text-[11px]">/{item.unit}</span>
+          {!item.imported && (
+            <button onClick={() => setEditingPrice((v) => !v)} className="text-white/30 hover:text-white shrink-0">
+              <Pencil size={12} />
             </button>
           )}
+
           <button
-            onClick={onImport}
-            className="flex-1 text-[11px] uppercase tracking-wide py-2 rounded-full font-semibold"
-            style={{ background: item.bigChange ? TIER_COLORS.low : "#10B981", color: "#fff" }}
+            onClick={() => setExpanded((e) => !e)}
+            className="flex items-center gap-0.5 text-[10px] text-white/35 hover:text-white ml-1"
           >
-            {item.bigChange ? t("scanConfirmBigChange") : t("scanImport")}
+            {t("scanModify")} <ChevronDown size={12} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
           </button>
+
+          <div className="flex-1" />
+
+          {item.imported ? (
+            <span className="text-[10px] text-[#10B981] font-semibold">{t("scanImported")}</span>
+          ) : (
+            <>
+              {onSkip && (
+                <button
+                  onClick={onSkip}
+                  className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 border transition-colors"
+                  style={skipMuted ? { borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.35)" } : { borderColor: "rgba(239,68,68,0.4)", color: "#EF4444" }}
+                  onMouseEnter={skipMuted ? (e) => { e.currentTarget.style.borderColor = "rgba(239,68,68,0.4)"; e.currentTarget.style.color = "#EF4444"; } : undefined}
+                  onMouseLeave={skipMuted ? (e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.color = "rgba(255,255,255,0.35)"; } : undefined}
+                  title={t("scanSkip")}
+                >
+                  <X size={14} />
+                </button>
+              )}
+              <button
+                onClick={onImport}
+                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: item.bigChange ? TIER_COLORS.low : "#10B981" }}
+                title={item.bigChange ? t("scanConfirmBigChange") : t("scanImport")}
+              >
+                {item.bigChange ? <AlertTriangle size={14} color="#fff" /> : <Check size={14} color="#fff" />}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {expanded && !item.imported && (
+        <div className="px-2.5 pb-2.5 pt-1 border-t border-white/5 space-y-2">
+          {(item.packageCount || item.packageContent) && !item.pricingUnknown && (
+            <div className="text-[10px] text-white/35 font-mono">
+              {item.packageCount || 1} × {item.packageContent || 1}
+              {item.packageContentUnit === "pièce" ? "" : item.packageContentUnit} @ {(item.printedUnitPriceHT || 0).toFixed(2)}€/
+              {item.printedPriceUnit === "colis" ? (lang === "es" ? "paquete" : "colis") : item.printedPriceUnit}
+            </div>
+          )}
+
+          {item.pricingUnknown && (
+            <div className="rounded-lg p-2 text-[11px]" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+              <div className="flex items-center gap-1.5 font-semibold">
+                <AlertTriangle size={12} className="shrink-0" /> {t("scanPricingUnknown")}
+              </div>
+              <div className="mt-1 text-white/60">{t("scanPricingUnknownHint")}</div>
+            </div>
+          )}
+
+          {item.priceInconsistent && (
+            <div className="flex items-center gap-1.5 text-[10px] rounded px-2 py-1" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+              <AlertTriangle size={11} className="shrink-0" />
+              <span>
+                {t("scanPriceInconsistent")}
+                {item.expectedTotal !== null ? ` (${t("scanExpectedTotal")} ≈ ${item.expectedTotal.toFixed(2)}€, ${t("scanPrintedTotal")} ${(item.totalPriceHT || 0).toFixed(2)}€)` : ""}
+              </span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5">
+            <select
+              value={item.unit || "kg"}
+              onChange={(e) => onUpdate({ unit: e.target.value })}
+              className="bg-black/20 text-white/70 text-xs outline-none rounded px-1.5 py-1.5 shrink-0"
+              style={{ colorScheme: "dark" }}
+            >
+              <option value="kg">kg</option>
+              <option value="L">L</option>
+              <option value="pièce">pièce</option>
+            </select>
+            <IngredientPicker
+              ingredients={ingredients}
+              value={item.assignTo !== "new" ? item.assignTo : null}
+              displayName={ingredientDisplayName}
+              onChange={(id) => onUpdate({ assignTo: id, matchConfident: true, renameOnImport: false })}
+              placeholder={t("scanSearchIngredientPlaceholder")}
+              className="flex-1 min-w-0 bg-black/30 text-white text-xs rounded-lg px-2.5 py-2"
+            />
+            <button
+              type="button"
+              onClick={() => onUpdate({ assignTo: "new", renameOnImport: false })}
+              className="shrink-0 text-[9px] uppercase tracking-wide px-2 py-2 rounded-lg font-semibold whitespace-nowrap"
+              style={{ background: "#3B82F622", color: "#3B82F6" }}
+            >
+              {t("scanNewIngredient")}
+            </button>
+          </div>
+
+          {needsRename && (
+            <button
+              type="button"
+              onClick={() => onUpdate({ renameOnImport: !item.renameOnImport })}
+              className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left"
+              style={{ background: item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.06)", color: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.55)" }}
+            >
+              <span
+                className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
+                style={{ background: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.15)" }}
+              >
+                {item.renameOnImport && <Check size={12} color="#000" />}
+              </span>
+              {t("scanRenameHint")(item.name)}
+            </button>
+          )}
+
+          {item.currentPrice !== null && item.currentPriceIsReal && (
+            <div
+              className="flex items-center gap-1 text-[10px]"
+              style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : item.priceDown ? "#10B981" : "rgba(255,255,255,0.4)" }}
+            >
+              {(item.priceUp || item.bigChange) && <TrendingUp size={11} />}
+              {item.priceUp
+                ? `${t("scanPriceIncrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
+                : item.priceDown
+                ? `${t("scanPriceDecrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
+                : t("scanPriceSame")}
+            </div>
+          )}
+
+          <div className="text-[11px] text-white/45 italic border-t border-white/5 pt-1.5">{summary}</div>
         </div>
       )}
     </div>
@@ -1226,6 +1248,8 @@ export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [activeId, setActiveId] = useState("r1");
   const [activeTab, setActiveTab] = useState("recipes"); // 'recipes' | 'scanner' | 'pantry'
+  const [hidePricesPrint, setHidePricesPrint] = useState(false);
+  const [allergenSheetOpen, setAllergenSheetOpen] = useState(false);
   const [recipeSubView, setRecipeSubView] = useState("list"); // 'list' | 'detail'
   const [lang, setLang] = useState("fr");
   const [showSettings, setShowSettings] = useState(false);
@@ -1236,7 +1260,7 @@ export default function App() {
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
   const [pantryQuery, setPantryQuery] = useState("");
-  const [pantryCategory, setPantryCategory] = useState("all");
+  const [pantryCategory, setPantryCategory] = useState("none");
   const [expandedIngId, setExpandedIngId] = useState(null);
   const [autoOpenIdx, setAutoOpenIdx] = useState(null);
 
@@ -1379,6 +1403,10 @@ export default function App() {
     }
   };
 
+  const confirmDeleteRecipe = (id, name) => {
+    if (window.confirm(t("deleteRecipeConfirm")(name))) deleteRecipe(id);
+  };
+
   const updateIngredientField = (id, field, value) =>
     setIngredients((ings) => ings.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
   const updateIngredientName = (id, value) =>
@@ -1446,6 +1474,13 @@ export default function App() {
   };
 
   const handlePrint = () => window.print();
+  const handlePrintRecipeSheet = () => {
+    setHidePricesPrint(true);
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => setHidePricesPrint(false), 500);
+    }, 50);
+  };
 
   // --- Scan de facture ---
 
@@ -1786,10 +1821,12 @@ export default function App() {
     : CATALOG.slice(0, 6);
 
   const pantryFiltered = ingredients.filter((i) => {
-    const catOk = pantryCategory === "all" || (i.category || "autres") === pantryCategory;
     const q = pantryQuery.trim().toLowerCase();
     const nameOk = q === "" || ingredientDisplayName(i).toLowerCase().includes(q);
-    return catOk && nameOk;
+    if (!nameOk) return false;
+    if (pantryCategory === "none") return q !== ""; // rien par défaut : il faut choisir une catégorie ou chercher
+    const catOk = pantryCategory === "all" || (i.category || "autres") === pantryCategory;
+    return catOk;
   });
 
   // Tableau du garde-manger : regroupé par catégorie, puis ordre alphabétique dans chaque groupe.
@@ -1824,8 +1861,10 @@ export default function App() {
         .stamp { border: 3px solid currentColor; transform: rotate(-6deg); font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.9; }
         @media print {
           body * { visibility: hidden; }
-          .ticket, .ticket * { visibility: visible; }
+          .ticket, .ticket *, .allergen-sheet, .allergen-sheet * { visibility: visible; }
           .ticket { position: absolute; top: 0; left: 0; right: 0; margin: 0 auto; box-shadow: none; }
+          .allergen-sheet { position: absolute; top: 0; left: 0; right: 0; margin: 0 auto; }
+          .hide-prices .price-field { display: none !important; }
         }
         @media (max-width: 1024px) { .grid-main { grid-template-columns: 1fr !important; } }
       `}</style>
@@ -2134,11 +2173,11 @@ export default function App() {
                                     <span className="text-white/50 text-sm shrink-0">€/{current.item.unit}</span>
                                     <button
                                       onClick={() => setExpandedReviewIdx(current.idx)}
-                                      className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg"
+                                      className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-lg text-[11px] text-white/60 font-semibold"
                                       style={{ background: "rgba(255,255,255,0.08)" }}
                                       title={t("scanModify")}
                                     >
-                                      <Pencil size={14} className="text-white/60" />
+                                      <Pencil size={13} /> {t("scanModify")}
                                     </button>
                                   </div>
 
@@ -2296,6 +2335,45 @@ export default function App() {
         </div>
       )}
 
+      {allergenSheetOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={() => setAllergenSheetOpen(false)}>
+          <div
+            className="rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto font-body border border-white/10"
+            style={{ background: "#1F1F25" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("allergenSheetTitle")}</h3>
+              <button onClick={() => setAllergenSheetOpen(false)} className="text-white/50 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="allergen-sheet">
+              <h1 className="font-display text-lg uppercase tracking-wide mb-1 text-white print:text-black">{t("allergenSheetTitle")}</h1>
+              <p className="text-white/40 text-xs mb-4 print:text-black">{today()}</p>
+              <div className="space-y-2">
+                {recipes.map((r) => (
+                  <div key={r.id} className="flex items-start justify-between gap-3 border-b border-white/10 pb-2 print:border-black/20">
+                    <span className="text-white text-sm font-medium shrink-0 print:text-black">{r.name}</span>
+                    <span className="text-white/50 text-xs text-right print:text-black">{r.allergens || t("allergenSheetNone")}</span>
+                  </div>
+                ))}
+                {recipes.length === 0 && <div className="text-white/40 text-sm text-center py-6">{t("noRecipeYet")}</div>}
+              </div>
+            </div>
+
+            <button
+              onClick={() => window.print()}
+              className="w-full mt-5 text-xs font-display uppercase tracking-wide py-2.5 rounded-full font-semibold flex items-center justify-center gap-1.5"
+              style={{ background: "#10B981", color: "#fff" }}
+            >
+              <Printer size={13} /> {t("print")}
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-2xl mx-auto px-4 py-5 w-full pb-28">
         {/* ---------------- ONGLET RECETTES ---------------- */}
         {activeTab === "recipes" && recipeSubView === "list" && (
@@ -2304,17 +2382,27 @@ export default function App() {
               <ChefHat size={18} color="#10B981" />
               <span className="font-display text-white/50 text-[11px] uppercase tracking-widest">{t("appTitle")}</span>
             </div>
-            <h1 className="font-display text-white text-xl mb-5">{t("greeting")}</h1>
+            <h1 className="font-display text-white text-xl mb-5 flex items-center gap-2">
+              {t("greeting")} <ChefHat size={20} color="#10B981" />
+            </h1>
 
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">{t("recipes")}</h2>
-              <button
-                onClick={addRecipe}
-                className="flex items-center gap-1 text-xs font-display uppercase tracking-wide px-3 py-1.5 rounded-full active:scale-95 transition-transform"
-                style={{ background: "#10B981", color: "#fff" }}
-              >
-                <Plus size={14} /> {t("newRecipe")}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setAllergenSheetOpen(true)}
+                  className="text-[10px] uppercase tracking-wide text-white/40 hover:text-white underline"
+                >
+                  {t("allergenSheetLink")}
+                </button>
+                <button
+                  onClick={addRecipe}
+                  className="flex items-center gap-1 text-xs font-display uppercase tracking-wide px-3 py-1.5 rounded-full active:scale-95 transition-transform"
+                  style={{ background: "#10B981", color: "#fff" }}
+                >
+                  <Plus size={14} /> {t("newRecipe")}
+                </button>
+              </div>
             </div>
 
             {recipes.length === 0 ? (
@@ -2326,29 +2414,40 @@ export default function App() {
                   const m = recipeMargin(r);
                   const rt = marginTier(m, settings.minMargin);
                   return (
-                    <button
+                    <div
                       key={r.id}
-                      onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); }}
-                      className="w-full text-left rounded-2xl px-4 py-3.5 flex items-center justify-between gap-3 font-body transition hover:brightness-110 active:scale-95 border border-white/10"
+                      className="rounded-2xl px-4 py-3.5 flex items-center gap-2 font-body transition hover:brightness-110 border border-white/10"
                       style={{ background: "#1F1F25" }}
                     >
-                      <div className="min-w-0">
-                        <div className="text-white font-medium text-sm truncate">{r.name}</div>
-                        <div className="text-white/40 text-[11px] font-mono mt-1">
-                          {cpp.toFixed(2)}€ &rarr; {(r.sellPrice || 0).toFixed(2)}€
+                      <button
+                        onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); }}
+                        className="flex-1 min-w-0 flex items-center justify-between gap-3 text-left active:scale-95 transition-transform"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-white font-medium text-sm truncate">{r.name}</div>
+                          <div className="text-white/40 text-[11px] font-mono mt-1">
+                            {cpp.toFixed(2)}€ &rarr; {(r.sellPrice || 0).toFixed(2)}€
+                          </div>
                         </div>
-                      </div>
-                      {m !== null ? (
-                        <span
-                          className="shrink-0 text-xs font-mono font-semibold px-2.5 py-1 rounded-full"
-                          style={{ color: TIER_COLORS[rt], background: `${TIER_COLORS[rt]}22` }}
-                        >
-                          {Math.round(m)}%
-                        </span>
-                      ) : (
-                        <span className="shrink-0 text-white/20 text-xs">—</span>
-                      )}
-                    </button>
+                        {m !== null ? (
+                          <span
+                            className="shrink-0 text-xs font-mono font-semibold px-2.5 py-1 rounded-full"
+                            style={{ color: TIER_COLORS[rt], background: `${TIER_COLORS[rt]}22` }}
+                          >
+                            {Math.round(m)}%
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-white/20 text-xs">—</span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => confirmDeleteRecipe(r.id, r.name)}
+                        className="shrink-0 p-2 text-white/25 hover:text-[#EF4444]"
+                        title={t("duplicate") === "Dupliquer" ? "Supprimer" : "Eliminar"}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -2369,17 +2468,20 @@ export default function App() {
               >
                 <ArrowLeft size={14} /> {t("recipes")}
               </button>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-2.5">
                 <button onClick={() => duplicateRecipe(active)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#10B981] font-display uppercase tracking-wide">
                   <Copy size={13} /> {t("duplicate")}
                 </button>
                 <button onClick={handlePrint} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#10B981] font-display uppercase tracking-wide">
                   <Printer size={13} /> {t("print")}
                 </button>
+                <button onClick={handlePrintRecipeSheet} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#3B82F6] font-display uppercase tracking-wide">
+                  <Printer size={13} /> {t("printRecipeSheet")}
+                </button>
               </div>
             </div>
 
-            <div className="ticket rounded-sm px-5 sm:px-6 py-8 max-w-md mx-auto font-mono text-sm">
+            <div className={`ticket rounded-sm px-5 sm:px-6 py-8 max-w-md mx-auto font-mono text-sm ${hidePricesPrint ? "hide-prices" : ""}`}>
               <input
                 value={active.name}
                 onChange={(e) => updateRecipe({ name: e.target.value })}
@@ -2410,7 +2512,7 @@ export default function App() {
                       {activeSupplier(ing)?.priceSource === "estimate" && (
                         <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
                       )}
-                      <span className="w-14 shrink-0 text-right">{lineCost(line).toFixed(2)}€</span>
+                      <span className="w-14 shrink-0 text-right price-field">{lineCost(line).toFixed(2)}€</span>
                       <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0"><Trash2 size={12} /></button>
                     </div>
                   );
@@ -2418,9 +2520,15 @@ export default function App() {
                 <button onClick={addLine} className="text-xs text-black/40 hover:text-black flex items-center gap-1 pt-1 print:hidden">
                   <Plus size={12} /> {t("line")}
                 </button>
+                {active.lines.some((l) => activeSupplier(ingredientById(l.ingredientId))?.priceSource === "estimate") && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-black/40 pt-1 print:hidden">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: TIER_COLORS.mid }} />
+                    {t("estimatedPriceLegend")}
+                  </div>
+                )}
               </div>
 
-              <div className="pt-3 space-y-1 text-sm">
+              <div className="pt-3 space-y-1 text-sm price-field">
                 <div className="flex justify-between"><span>{t("total")}</span><span className="font-semibold">{totalCost.toFixed(2)}€</span></div>
                 <div className="flex justify-between"><span>{t("costPerPortion")}</span><span className="font-semibold">{costPerPortion.toFixed(2)}€</span></div>
                 <div className="flex justify-between items-center pt-1">
@@ -2474,8 +2582,13 @@ export default function App() {
               </div>
 
               {margin !== null && (
-                <div className="flex flex-col items-center mt-6 mb-1 gap-2">
-                  <div className="stamp px-4 py-1.5 text-sm" style={{ color: TIER_COLORS[tier] }}>{t("marginLabel")} {Math.round(margin)}%</div>
+                <div className="flex flex-col items-center mt-6 mb-1 gap-2 price-field">
+                  <div className="flex items-center gap-2">
+                    <div className="stamp px-4 py-1.5 text-sm" style={{ color: TIER_COLORS[tier] }}>{t("marginLabel")} {Math.round(margin)}%</div>
+                    {costPerPortion > 0 && (
+                      <div className="text-xs text-black/40 font-mono">{t("coefLabel")} {(sellHT / costPerPortion).toFixed(1)}</div>
+                    )}
+                  </div>
                   <div
                     className="flex items-center gap-1.5 text-[11px] font-body text-center px-3 py-1.5 rounded-full font-medium max-w-[280px]"
                     style={{ color: TIER_COLORS[tier], background: `${TIER_COLORS[tier]}18` }}
@@ -2579,7 +2692,9 @@ export default function App() {
 
             <div className="rounded-xl overflow-hidden font-body border border-white/10" style={{ background: "#1F1F25" }}>
               {pantryGrouped.length === 0 && (
-                <div className="px-3 py-6 text-center text-white/30 text-sm">{t("noFilterMatch")}</div>
+                <div className="px-3 py-8 text-center text-white/30 text-sm">
+                  {pantryCategory === "none" && !pantryQuery.trim() ? t("pantryEmptyPrompt") : t("noFilterMatch")}
+                </div>
               )}
               {pantryGrouped.map(({ cat, items }) => (
                 <div key={cat.id}>
