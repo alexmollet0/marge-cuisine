@@ -355,6 +355,9 @@ const TR = {
     scanUpcoming: "Suivants",
     scanExistingLabel: "Ingrédient existant :", scanScannedLabel: "Nom détecté sur la facture :",
     scanKeepName: "Garder l'existant", scanUseNewName: "Utiliser ce nouveau nom",
+    scanPricingUnknown: "Prix au kilo non indiqué sur ce document",
+    scanPricingUnknownHint: "Ce produit se vend normalement au poids, mais aucune info de poids/prix au kilo n'est visible ici (courant sur un simple ticket de caisse). Choisis l'unité et indique le prix toi-même :",
+    scanEnterPriceManually: "Unité et prix HT :",
     scanImport: "Importer", scanImported: "Importé ✓", scanImportAll: "Importer les lignes sûres",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
@@ -410,6 +413,9 @@ const TR = {
     scanUpcoming: "Siguientes",
     scanExistingLabel: "Ingrediente existente:", scanScannedLabel: "Nombre detectado en la factura:",
     scanKeepName: "Mantener el existente", scanUseNewName: "Usar este nuevo nombre",
+    scanPricingUnknown: "Precio por kilo no indicado en este documento",
+    scanPricingUnknownHint: "Este producto normalmente se vende por peso, pero no hay información de peso/precio por kilo aquí (habitual en un simple ticket de caja). Elige la unidad e indica el precio tú mismo:",
+    scanEnterPriceManually: "Unidad y precio sin IVA:",
     scanImport: "Importar", scanImported: "Importado ✓", scanImportAll: "Importar las líneas seguras",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
@@ -1011,11 +1017,29 @@ function ScanItemCard({ item, onUpdate, onImport, ingredients, ingredientDisplay
         </select>
       </div>
 
-      {(item.packageCount || item.packageContent) && !item.imported && (
+      {(item.packageCount || item.packageContent) && !item.imported && !item.pricingUnknown && (
         <div className="text-[10px] text-white/35 mt-1 font-mono">
           {item.packageCount || 1} × {item.packageContent || 1}
           {item.packageContentUnit === "pièce" ? "" : item.packageContentUnit} @ {(item.printedUnitPriceHT || 0).toFixed(2)}€/
           {item.printedPriceUnit === "colis" ? (lang === "es" ? "paquete" : "colis") : item.printedPriceUnit}
+        </div>
+      )}
+
+      {item.pricingUnknown && !item.imported && (
+        <div className="mt-2 rounded-lg p-2.5 text-[11px]" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+          <div className="flex items-center gap-1.5 font-semibold">
+            <AlertTriangle size={12} className="shrink-0" /> {t("scanPricingUnknown")}
+          </div>
+          <div className="mt-1 text-white/60">{t("scanPricingUnknownHint")}</div>
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            <span className="text-white/50">{t("scanEnterPriceManually")}</span>
+            <NumField
+              value={item.unitPriceHT || 0}
+              onChange={(v) => onUpdate({ unitPriceHT: v })}
+              className="w-16 bg-black/20 rounded px-1.5 py-1 text-right outline-none font-mono text-white"
+            />
+            <span>€ / {item.unit}</span>
+          </div>
         </div>
       )}
 
@@ -1533,7 +1557,7 @@ export default function App() {
     // Repli sur l'ancien format si jamais l'IA ne renvoie pas les nouveaux champs.
     if (it.packageContent === undefined || it.printedPriceUnit === undefined) {
       const legacy = normalizeUnitAndPrice(it);
-      return { finalUnit: legacy.unit, finalUnitPrice: legacy.unitPriceHT, priceInconsistent: false, expectedTotal: null };
+      return { finalUnit: legacy.unit, finalUnitPrice: legacy.unitPriceHT, priceInconsistent: false, expectedTotal: null, pricingUnknown: false };
     }
 
     const packageCount = it.packageCount && it.packageCount > 0 ? it.packageCount : 1;
@@ -1554,15 +1578,20 @@ export default function App() {
       finalUnitPrice = printedPrice / packageContent;
     }
 
+    // Produit normalement vendu au poids (légume, viande...) mais AUCUNE info de poids/volume
+    // trouvée sur le document (typique d'un simple ticket de caisse) : impossible de calculer
+    // un vrai prix au kilo fiable. Mieux vaut le dire clairement plutôt que d'inventer un chiffre.
+    const pricingUnknown = !!it.weighable && printedUnit !== "kg" && printedUnit !== "L" && (!it.packageContent || it.packageContent <= 1) && packageContentUnit === "pièce";
+
     const expectedTotal = packageCount * packageContent * finalUnitPrice;
     const printedTotal = it.totalPriceHT || 0;
     let priceInconsistent = false;
-    if (printedTotal > 0 && expectedTotal > 0) {
+    if (!pricingUnknown && printedTotal > 0 && expectedTotal > 0) {
       const diff = Math.abs(expectedTotal - printedTotal) / Math.max(printedTotal, 0.01);
       if (diff > 0.15) priceInconsistent = true;
     }
 
-    return { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal };
+    return { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal, pricingUnknown };
   };
 
   const handleScanFile = async (e) => {
@@ -1588,8 +1617,8 @@ export default function App() {
         throw new Error(msg);
       }
       const items = (data.items || []).map((it) => {
-        const { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal } = computeItemPricing(it);
-        const merged = { ...it, unit: finalUnit, unitPriceHT: finalUnitPrice };
+        const { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal, pricingUnknown } = computeItemPricing(it);
+        const merged = { ...it, unit: finalUnit, unitPriceHT: pricingUnknown ? 0 : finalUnitPrice };
 
         const match = guessIngredientId(merged.name);
         const matchedId = match ? match.id : null;
@@ -1615,6 +1644,7 @@ export default function App() {
           currentPriceIsReal,
           priceInconsistent,
           expectedTotal,
+          pricingUnknown,
           bigChange,
           priceUp: currentPrice !== null && merged.unitPriceHT > currentPrice * 1.02,
           priceDown: currentPrice !== null && merged.unitPriceHT < currentPrice * 0.98,
@@ -1683,7 +1713,7 @@ export default function App() {
   // (prix incohérent, conditionnement ambigu, grosse variation, correspondance incertaine)
   // doit être validé ligne par ligne, en connaissance de cause.
   const isSafeScanItem = (item) =>
-    !item.priceInconsistent && !item.bigChange && (item.assignTo === "new" || item.matchConfident);
+    !item.priceInconsistent && !item.bigChange && !item.pricingUnknown && (item.assignTo === "new" || item.matchConfident);
 
   const importAllScanItems = () => {
     scanResult.items.forEach((item, idx) => {
@@ -2010,6 +2040,34 @@ export default function App() {
                                       >
                                         {t("scanUseNewName")}
                                       </button>
+                                    </div>
+                                  )}
+
+                                  {current.item.pricingUnknown && (
+                                    <div className="mt-3 rounded-lg p-2.5 text-[11px]" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+                                      <div className="flex items-center gap-1.5 font-semibold">
+                                        <AlertTriangle size={12} className="shrink-0" /> {t("scanPricingUnknown")}
+                                      </div>
+                                      <div className="mt-1 text-white/60">{t("scanPricingUnknownHint")}</div>
+                                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                        <span className="text-white/50">{t("scanEnterPriceManually")}</span>
+                                        <select
+                                          value={current.item.unit || "kg"}
+                                          onChange={(e) => updateScanItem(current.idx, { unit: e.target.value })}
+                                          className="bg-black/20 rounded px-1.5 py-1 outline-none text-white"
+                                          style={{ colorScheme: "dark" }}
+                                        >
+                                          <option value="kg">kg</option>
+                                          <option value="L">L</option>
+                                          <option value="pièce">pièce</option>
+                                        </select>
+                                        <NumField
+                                          value={current.item.unitPriceHT || 0}
+                                          onChange={(v) => updateScanItem(current.idx, { unitPriceHT: v })}
+                                          className="w-16 bg-black/20 rounded px-1.5 py-1 text-right outline-none font-mono text-white"
+                                        />
+                                        <span>€</span>
+                                      </div>
                                     </div>
                                   )}
 

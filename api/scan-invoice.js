@@ -30,6 +30,7 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
       "packageCount": nombre de colis/unités achetés (le "x2", "x3" imprimé — PAS le poids total),
       "packageContent": nombre représentant le contenu d'UN SEUL colis dans packageContentUnit,
       "packageContentUnit": "kg" ou "L" ou "pièce",
+      "weighable": true si ce type de produit se vend normalement au poids/volume en cuisine professionnelle (légumes, fruits, viande, poisson, fromage, farine, huile, vin, boissons vendues en bouteille/carton avec un volume indiqué...), false s'il se vend vraiment à l'unité entière et indivisible (œuf, boîte de conserve, plateau, sachet compté à la pièce...),
       "printedUnitPriceHT": le prix unitaire EXACTEMENT tel qu'imprimé sur le document, sans aucun calcul,
       "printedPriceUnit": "kg" si le prix imprimé est déjà un prix au kilo, "L" si déjà au litre, "colis" s'il s'agit du prix d'un colis/pièce entière,
       "totalPriceHT": le prix total de la ligne tel qu'imprimé
@@ -49,6 +50,9 @@ Ne confonds JAMAIS packageCount (combien de colis on achète, le "x2") avec pack
 
 COMMENT REMPLIR printedUnitPriceHT / printedPriceUnit :
 Recopie le prix unitaire strictement tel qu'il est imprimé (ex: "0,94€/kg" → printedUnitPriceHT: 0.94, printedPriceUnit: "kg" ; "34,15€/U" → printedUnitPriceHT: 34.15, printedPriceUnit: "colis"). NE FAIS AUCUNE CONVERSION toi-même, ne divise rien — la conversion sera faite ensuite par un programme, pas par toi. Ton seul travail ici est de recopier fidèlement les nombres imprimés dans les bons champs.
+
+CAS DES TICKETS DE CAISSE SIMPLES (sans détail de poids/conditionnement) :
+Si le document ne montre qu'un nom et un prix total, sans aucune indication de poids, volume ou prix au kilo/litre, pour un produit normalement vendu au poids (ex: "TOMATES 2.30€" sans autre précision) : mets quand même printedUnitPriceHT au prix affiché et printedPriceUnit: "colis", packageContent: 1, packageContentUnit: "pièce", mais mets bien weighable: true. Ne tente JAMAIS d'inventer un poids ou un prix au kilo que tu ne peux pas lire.
 
 Autres règles :
 - Simplifie systématiquement les abréviations fournisseurs en noms clairs et courts pour le champ "name" (mais garde rawLabel intact).
