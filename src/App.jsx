@@ -353,7 +353,8 @@ const TR = {
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanUpcoming: "Suivants",
-    scanExistingLabel: "Ingrédient existant :", scanScannedLabel: "Nom détecté sur la facture :",
+    scanExistingLabel: "existant", scanScannedLabel: "sur la facture",
+    scanChooseNameLabel: "Quel nom garder ?",
     scanKeepName: "Garder l'existant", scanUseNewName: "Utiliser ce nouveau nom",
     scanPricingUnknown: "Prix au kilo non indiqué sur ce document",
     scanPricingUnknownHint: "Ce produit se vend normalement au poids, mais aucune info de poids/prix au kilo n'est visible ici (courant sur un simple ticket de caisse). Choisis l'unité et indique le prix toi-même :",
@@ -415,7 +416,8 @@ const TR = {
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanUpcoming: "Siguientes",
-    scanExistingLabel: "Ingrediente existente:", scanScannedLabel: "Nombre detectado en la factura:",
+    scanExistingLabel: "existente", scanScannedLabel: "en la factura",
+    scanChooseNameLabel: "¿Qué nombre mantener?",
     scanKeepName: "Mantener el existente", scanUseNewName: "Usar este nuevo nombre",
     scanPricingUnknown: "Precio por kilo no indicado en este documento",
     scanPricingUnknownHint: "Este producto normalmente se vende por peso, pero no hay información de peso/precio por kilo aquí (habitual en un simple ticket de caja). Elige la unidad e indica el precio tú mismo:",
@@ -1060,15 +1062,15 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
         </div>
       )}
 
-      {/* Statut de correspondance : compact, en couleur */}
+      {/* Statut de correspondance : pavé coloré bien visible (informatif, pas besoin de cliquer) */}
       {!item.imported && (
-        <div className="mt-1.5 flex items-center gap-1.5">
-          <span className="text-[9px] uppercase tracking-wide font-semibold shrink-0" style={{ color: matchColor }}>
+        <div className="mt-1.5 rounded-lg px-2.5 py-2" style={{ background: `${matchColor}18`, border: `1px solid ${matchColor}55` }}>
+          <div className="text-[9px] uppercase tracking-wide font-bold" style={{ color: matchColor }}>
             {item.assignTo === "new" ? t("scanNewIngredient") : item.matchConfident ? t("scanLinkedSure") : t("scanLinkedGuess")}
-          </span>
-          <span className="text-xs text-white font-medium truncate">
+          </div>
+          <div className="text-sm text-white font-semibold truncate">
             {item.assignTo === "new" ? item.name : matchedIng ? ingredientDisplayName(matchedIng) : "—"}
-          </span>
+          </div>
         </div>
       )}
 
@@ -2029,15 +2031,46 @@ export default function App() {
                                   {current.item.assignTo === "new" ? (
                                     <div className="text-white text-lg font-semibold mt-2">{current.item.name}</div>
                                   ) : needsRename ? (
-                                    <div className="mt-2">
-                                      <div className="text-white/40 text-xs">{t("scanExistingLabel")}</div>
-                                      <div className={`text-base font-medium ${current.item.renameOnImport ? "text-white/40 line-through" : "text-white"}`}>
-                                        {ingredientDisplayName(matchedIng)}
-                                      </div>
-                                      <div className="text-white/40 text-xs mt-1">{t("scanScannedLabel")}</div>
-                                      <div className={`text-base font-medium ${current.item.renameOnImport ? "text-white" : "text-white/40 line-through"}`}>
-                                        {current.item.name}
-                                      </div>
+                                    <div className="mt-2 space-y-1.5">
+                                      <div className="text-white/40 text-[10px] uppercase tracking-wide">{t("scanChooseNameLabel")}</div>
+                                      <button
+                                        onClick={() => updateScanItem(current.idx, { renameOnImport: false })}
+                                        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left"
+                                        style={{
+                                          background: !current.item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.05)",
+                                          border: `1px solid ${!current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.12)"}`,
+                                        }}
+                                      >
+                                        <span
+                                          className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center"
+                                          style={{ border: `2px solid ${!current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.3)"}` }}
+                                        >
+                                          {!current.item.renameOnImport && <span className="w-2 h-2 rounded-full" style={{ background: "#10B981" }} />}
+                                        </span>
+                                        <span className={`text-sm font-medium ${!current.item.renameOnImport ? "text-white" : "text-white/50"}`}>
+                                          {ingredientDisplayName(matchedIng)}
+                                        </span>
+                                        <span className="text-[9px] text-white/30 ml-auto shrink-0">{t("scanExistingLabel")}</span>
+                                      </button>
+                                      <button
+                                        onClick={() => updateScanItem(current.idx, { renameOnImport: true })}
+                                        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left"
+                                        style={{
+                                          background: current.item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.05)",
+                                          border: `1px solid ${current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.12)"}`,
+                                        }}
+                                      >
+                                        <span
+                                          className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center"
+                                          style={{ border: `2px solid ${current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.3)"}` }}
+                                        >
+                                          {current.item.renameOnImport && <span className="w-2 h-2 rounded-full" style={{ background: "#10B981" }} />}
+                                        </span>
+                                        <span className={`text-sm font-medium ${current.item.renameOnImport ? "text-white" : "text-white/50"}`}>
+                                          {current.item.name}
+                                        </span>
+                                        <span className="text-[9px] text-white/30 ml-auto shrink-0">{t("scanScannedLabel")}</span>
+                                      </button>
                                     </div>
                                   ) : (
                                     <div className="text-white text-lg font-semibold mt-2">{ingredientDisplayName(matchedIng)}</div>
@@ -2046,31 +2079,6 @@ export default function App() {
                                   <div className="text-white/50 text-sm mt-2">
                                     {(current.item.unitPriceHT || 0).toFixed(2)}€/{current.item.unit}
                                   </div>
-
-                                  {needsRename && (
-                                    <div className="flex gap-2 mt-3">
-                                      <button
-                                        onClick={() => updateScanItem(current.idx, { renameOnImport: false })}
-                                        className="flex-1 text-[11px] uppercase tracking-wide py-2 rounded-lg font-semibold"
-                                        style={{
-                                          background: !current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.08)",
-                                          color: !current.item.renameOnImport ? "#fff" : "rgba(255,255,255,0.6)",
-                                        }}
-                                      >
-                                        {t("scanKeepName")}
-                                      </button>
-                                      <button
-                                        onClick={() => updateScanItem(current.idx, { renameOnImport: true })}
-                                        className="flex-1 text-[11px] uppercase tracking-wide py-2 rounded-lg font-semibold"
-                                        style={{
-                                          background: current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.08)",
-                                          color: current.item.renameOnImport ? "#fff" : "rgba(255,255,255,0.6)",
-                                        }}
-                                      >
-                                        {t("scanUseNewName")}
-                                      </button>
-                                    </div>
-                                  )}
 
                                   {current.item.pricingUnknown && (
                                     <div className="mt-3 rounded-lg p-2.5 text-[11px]" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
