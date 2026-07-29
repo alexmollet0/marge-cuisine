@@ -361,6 +361,7 @@ const TR = {
     scanSearchIngredientPlaceholder: "Rechercher un ingrédient existant…",
     scanBackToCard: "Retour", scanMakeNew: "Créer comme nouveau",
     scanSkip: "Ne pas ajouter cet ingrédient", scanSkippedSection: "Ignorés", scanUndoSkip: "Annuler",
+    scanDoneSection: "Déjà ajoutés",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer les lignes sûres",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
@@ -422,6 +423,7 @@ const TR = {
     scanSearchIngredientPlaceholder: "Buscar un ingrediente existente…",
     scanBackToCard: "Volver", scanMakeNew: "Crear como nuevo",
     scanSkip: "No añadir este ingrediente", scanSkippedSection: "Omitidos", scanUndoSkip: "Deshacer",
+    scanDoneSection: "Ya añadidos",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar las líneas seguras",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
@@ -981,8 +983,7 @@ const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 
 // Carte d'un article scanné : correspondance affichée en grand (plutôt qu'un petit menu discret),
 // bascule de renommage en vrai bouton, et une phrase en clair juste avant d'importer.
-function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredientDisplayName, lang, t }) {
-  const [pickerOpen, setPickerOpen] = useState(false);
+function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredientDisplayName, lang, t, skipMuted }) {
   const matchedIng = item.assignTo !== "new" ? ingredients.find((i) => i.id === item.assignTo) : null;
   const needsRename = item.assignTo !== "new" && item.name && matchedIng && ingredientDisplayName(matchedIng) !== item.name;
   const matchColor = item.assignTo === "new" ? "#3B82F6" : item.matchConfident ? "#10B981" : TIER_COLORS.mid;
@@ -995,7 +996,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
 
   return (
     <div
-      className={`rounded-xl p-3 border ${item.imported ? "opacity-40" : ""}`}
+      className={`rounded-xl p-2.5 border ${item.imported ? "opacity-40" : ""}`}
       style={{ background: "#18181B", borderColor: item.bigChange ? TIER_COLORS.low : item.priceInconsistent || (!item.matchConfident && item.assignTo !== "new") ? `${TIER_COLORS.mid}80` : "rgba(255,255,255,0.1)" }}
     >
       <div className="flex items-center gap-1.5">
@@ -1024,7 +1025,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
       </div>
 
       {(item.packageCount || item.packageContent) && !item.imported && !item.pricingUnknown && (
-        <div className="text-[10px] text-white/35 mt-1 font-mono">
+        <div className="text-[10px] text-white/35 mt-0.5 font-mono">
           {item.packageCount || 1} × {item.packageContent || 1}
           {item.packageContentUnit === "pièce" ? "" : item.packageContentUnit} @ {(item.printedUnitPriceHT || 0).toFixed(2)}€/
           {item.printedPriceUnit === "colis" ? (lang === "es" ? "paquete" : "colis") : item.printedPriceUnit}
@@ -1032,12 +1033,12 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
       )}
 
       {item.pricingUnknown && !item.imported && (
-        <div className="mt-2 rounded-lg p-2.5 text-[11px]" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+        <div className="mt-1.5 rounded-lg p-2 text-[11px]" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
           <div className="flex items-center gap-1.5 font-semibold">
             <AlertTriangle size={12} className="shrink-0" /> {t("scanPricingUnknown")}
           </div>
           <div className="mt-1 text-white/60">{t("scanPricingUnknownHint")}</div>
-          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
             <span className="text-white/50">{t("scanEnterPriceManually")}</span>
             <NumField
               value={item.unitPriceHT || 0}
@@ -1050,7 +1051,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
       )}
 
       {item.priceInconsistent && !item.imported && (
-        <div className="flex items-center gap-1.5 mt-1.5 text-[10px] rounded px-2 py-1.5" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+        <div className="flex items-center gap-1.5 mt-1 text-[10px] rounded px-2 py-1" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
           <AlertTriangle size={11} className="shrink-0" />
           <span>
             {t("scanPriceInconsistent")}
@@ -1059,54 +1060,41 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
         </div>
       )}
 
-      {/* Carte de correspondance : grande, en couleur, difficile à louper */}
-      <button
-        type="button"
-        onClick={() => setPickerOpen((o) => !o)}
-        disabled={item.imported}
-        className="w-full mt-2 rounded-lg p-2.5 text-left flex items-center justify-between gap-2"
-        style={{ background: `${matchColor}15`, border: `1px solid ${matchColor}50` }}
-      >
-        <div className="min-w-0">
-          <div className="text-[9px] uppercase tracking-wide font-semibold" style={{ color: matchColor }}>
+      {/* Statut de correspondance : compact, en couleur */}
+      {!item.imported && (
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <span className="text-[9px] uppercase tracking-wide font-semibold shrink-0" style={{ color: matchColor }}>
             {item.assignTo === "new" ? t("scanNewIngredient") : item.matchConfident ? t("scanLinkedSure") : t("scanLinkedGuess")}
-          </div>
-          <div className="text-sm text-white font-medium truncate">
+          </span>
+          <span className="text-xs text-white font-medium truncate">
             {item.assignTo === "new" ? item.name : matchedIng ? ingredientDisplayName(matchedIng) : "—"}
-          </div>
+          </span>
         </div>
-        {!item.imported && <ChevronDown size={16} className="text-white/40 shrink-0" />}
-      </button>
+      )}
 
-      {pickerOpen && !item.imported && (
-        <div className="flex items-center gap-1.5 mt-1.5">
+      {/* Recherche toujours accessible, un seul clic pour taper — pas besoin d'ouvrir quoi que ce soit avant */}
+      {!item.imported && (
+        <div className="mt-1 flex items-center gap-1.5">
           <IngredientPicker
             ingredients={ingredients}
             value={item.assignTo !== "new" ? item.assignTo : null}
             displayName={ingredientDisplayName}
-            onChange={(id) => {
-              onUpdate({ assignTo: id, matchConfident: true, renameOnImport: false });
-              setPickerOpen(false);
-            }}
-            autoOpen
+            onChange={(id) => onUpdate({ assignTo: id, matchConfident: true, renameOnImport: false })}
             placeholder={t("scanSearchIngredientPlaceholder")}
-            className="flex-1 min-w-0 bg-black/30 text-white text-sm rounded-lg px-3 py-2.5"
+            className="flex-1 min-w-0 bg-black/30 text-white text-xs rounded-lg px-2.5 py-2"
           />
           <button
             type="button"
-            onClick={() => {
-              onUpdate({ assignTo: "new", renameOnImport: false });
-              setPickerOpen(false);
-            }}
-            className="shrink-0 text-[10px] uppercase tracking-wide px-2.5 py-2.5 rounded-lg font-semibold whitespace-nowrap"
-            style={{ background: "#10B98122", color: "#10B981" }}
+            onClick={() => onUpdate({ assignTo: "new", renameOnImport: false })}
+            className="shrink-0 text-[9px] uppercase tracking-wide px-2 py-2 rounded-lg font-semibold whitespace-nowrap"
+            style={{ background: "#3B82F622", color: "#3B82F6" }}
           >
-            🆕 {t("scanNewIngredient")}
+            {t("scanNewIngredient")}
           </button>
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 mt-2 text-xs text-white/60 justify-end">
+      <div className="flex items-center gap-1.5 mt-1.5 text-xs text-white/60 justify-end">
         <span className="text-white/40">HT/u :</span>
         <NumField
           value={item.unitPriceHT || 0}
@@ -1120,7 +1108,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
         <button
           type="button"
           onClick={() => onUpdate({ renameOnImport: !item.renameOnImport })}
-          className="w-full mt-2 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs text-left"
+          className="w-full mt-1.5 flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left"
           style={{ background: item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.06)", color: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.55)" }}
         >
           <span
@@ -1135,7 +1123,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
 
       {!item.imported && item.currentPrice !== null && item.currentPriceIsReal && (
         <div
-          className="flex items-center gap-1 mt-1.5 text-[10px]"
+          className="flex items-center gap-1 mt-1 text-[10px]"
           style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : item.priceDown ? "#10B981" : "rgba(255,255,255,0.4)" }}
         >
           {(item.priceUp || item.bigChange) && <TrendingUp size={11} />}
@@ -1148,18 +1136,24 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
       )}
 
       {!item.imported && (
-        <div className="mt-2.5 text-[11px] text-white/45 italic border-t border-white/5 pt-2">{summary}</div>
+        <div className="mt-1.5 text-[11px] text-white/45 italic border-t border-white/5 pt-1.5">{summary}</div>
       )}
 
       {item.imported ? (
-        <div className="mt-2 text-center text-[11px] text-[#10B981] font-semibold">{t("scanImported")}</div>
+        <div className="mt-1.5 text-center text-[11px] text-[#10B981] font-semibold">{t("scanImported")}</div>
       ) : (
-        <div className="flex gap-2 mt-2.5">
+        <div className="flex gap-2 mt-2">
           {onSkip && (
             <button
               onClick={onSkip}
-              className="flex-1 text-[11px] uppercase tracking-wide py-2 rounded-full font-semibold border"
-              style={{ borderColor: "rgba(239,68,68,0.4)", color: "#EF4444" }}
+              className="flex-1 text-[11px] uppercase tracking-wide py-2 rounded-full font-semibold border transition-colors"
+              style={
+                skipMuted
+                  ? { borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.4)" }
+                  : { borderColor: "rgba(239,68,68,0.4)", color: "#EF4444" }
+              }
+              onMouseEnter={skipMuted ? (e) => { e.currentTarget.style.borderColor = "rgba(239,68,68,0.4)"; e.currentTarget.style.color = "#EF4444"; } : undefined}
+              onMouseLeave={skipMuted ? (e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; } : undefined}
             >
               {t("scanSkip")}
             </button>
@@ -1655,7 +1649,9 @@ export default function App() {
           ...merged,
           assignTo: matchedId || "new",
           matchConfident: match ? match.confident : false,
-          renameOnImport: !!(match && !match.confident),
+          // Par défaut on garde toujours le nom existant : renommer doit être un choix
+          // explicite de l'utilisateur, jamais une conséquence silencieuse d'un scan.
+          renameOnImport: false,
           imported: false,
           currentPrice,
           currentPriceIsReal,
@@ -1941,6 +1937,7 @@ export default function App() {
                         ingredientDisplayName={ingredientDisplayName}
                         lang={lang}
                         t={t}
+                        skipMuted
                       />
                     );
 
@@ -2207,7 +2204,14 @@ export default function App() {
                             </div>
                           </div>
                         )}
-                        {done.length > 0 && <div className="space-y-2">{done.map(renderCard)}</div>}
+                        {done.length > 0 && (
+                          <div>
+                            <div className="text-[11px] uppercase tracking-widest mb-2 flex items-center gap-1.5 font-semibold text-white/40">
+                              <Check size={12} /> {t("scanDoneSection")} ({done.length})
+                            </div>
+                            <div className="space-y-2">{done.map(renderCard)}</div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()
