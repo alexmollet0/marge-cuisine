@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Package,
   Pencil,
+  Upload,
   ArrowLeft,
 } from "lucide-react";
 
@@ -320,7 +321,7 @@ const TR = {
     sellPriceCol: "Prix vente TTC", marginCol: "Marge", noRecipes: "Aucune recette pour l'instant.",
     overviewHint: "Touche une ligne pour ouvrir le ticket. Couleur = distance à ta marge cible.",
     noRecipeYet: "Aucune recette. Crée-en une pour commencer.",
-    duplicate: "Dupliquer", print: "Imprimer / PDF", portions: "Portions", line: "ligne",
+    duplicate: "Dupliquer", print: "Imprimer", printTicket: "Imprimer (avec prix)", portions: "Portions", line: "ligne",
     total: "Coût total", costPerPortion: "Coût / portion", sellPriceTTC: "Prix de vente (TTC)",
     sellPriceHT: "Prix HT", vat: "TVA", targetMargin: "Marge cible", suggestedPrice: "Prix conseillé (TTC)",
     use: "Utiliser", marginLabel: "marge", lowMarginWarning: `En dessous de ${CRITICAL_MARGIN}%, à surveiller`,
@@ -356,6 +357,7 @@ const TR = {
     scanUpcoming: "Suivants",
     scanExistingLabel: "existant", scanScannedLabel: "sur la facture",
     scanChooseNameLabel: "Quel nom garder ?",
+    scanRelinkLabel: "Relier à un autre ingrédient / créer nouveau :",
     scanKeepName: "Garder l'existant", scanUseNewName: "Utiliser ce nouveau nom",
     scanPricingUnknown: "Prix au kilo non indiqué sur ce document",
     scanPricingUnknownHint: "Ce produit se vend normalement au poids, mais aucune info de poids/prix au kilo n'est visible ici (courant sur un simple ticket de caisse). Choisis l'unité et indique le prix toi-même :",
@@ -379,7 +381,8 @@ const TR = {
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
-    scanTab: "Scanner", scanTabHint: "Prends en photo une facture ou un ticket fournisseur : l'IA extrait les articles automatiquement.",
+    scanTab: "Scanner", scanTabHint: "Prends en photo ta facture Métro, Promocash, Transgourmet ou tout autre fournisseur — l'IA s'occupe du reste.",
+    scanTakePhoto: "Prendre une photo", scanUploadFile: "Choisir une photo ou un fichier",
   },
   es: {
     appTitle: "Margen en cocina", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef",
@@ -394,7 +397,7 @@ const TR = {
     sellPriceCol: "Precio venta IVA inc.", marginCol: "Margen", noRecipes: "Todavía no hay recetas.",
     overviewHint: "Toca una fila para abrir el ticket. Color = distancia a tu margen objetivo.",
     noRecipeYet: "No hay recetas. Crea una para empezar.",
-    duplicate: "Duplicar", print: "Imprimir / PDF", portions: "Raciones", line: "línea",
+    duplicate: "Duplicar", print: "Imprimir", printTicket: "Imprimir (con precios)", portions: "Raciones", line: "línea",
     total: "Coste total", costPerPortion: "Coste / ración", sellPriceTTC: "Precio de venta (IVA inc.)",
     sellPriceHT: "Precio sin IVA", vat: "IVA", targetMargin: "Margen objetivo", suggestedPrice: "Precio sugerido (IVA inc.)",
     use: "Usar", marginLabel: "margen", lowMarginWarning: `Por debajo del ${CRITICAL_MARGIN}%, vigilar`,
@@ -430,6 +433,7 @@ const TR = {
     scanUpcoming: "Siguientes",
     scanExistingLabel: "existente", scanScannedLabel: "en la factura",
     scanChooseNameLabel: "¿Qué nombre mantener?",
+    scanRelinkLabel: "Asociar a otro ingrediente / crear nuevo:",
     scanKeepName: "Mantener el existente", scanUseNewName: "Usar este nuevo nombre",
     scanPricingUnknown: "Precio por kilo no indicado en este documento",
     scanPricingUnknownHint: "Este producto normalmente se vende por peso, pero no hay información de peso/precio por kilo aquí (habitual en un simple ticket de caja). Elige la unidad e indica el precio tú mismo:",
@@ -453,7 +457,8 @@ const TR = {
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
-    scanTab: "Escanear", scanTabHint: "Haz una foto de una factura o ticket de proveedor: la IA extrae los artículos automáticamente.",
+    scanTab: "Escanear", scanTabHint: "Haz una foto de tu factura de Makro, Gros Mercat o cualquier otro proveedor — la IA se encarga del resto.",
+    scanTakePhoto: "Tomar una foto", scanUploadFile: "Elegir una foto o un archivo",
   },
 };
 
@@ -883,8 +888,8 @@ const SEED_INGREDIENTS = [
 
 const SEED_RECIPES = [
   {
-    id: "r1", name: "Boeuf bourguignon", portions: 6, sellPrice: 18, targetMargin: 75,
-    notes: "Faire mariner le boeuf 12h dans le vin. Mijoter 3h à feu doux. Dresser avec persil frais.",
+    id: "r1", name: "Bœuf bourguignon (recette exemple)", portions: 6, sellPrice: 19.9, targetMargin: 75,
+    notes: "Détaillez le bœuf en cubes de 4-5 cm, salez, poivrez. Faites-le mariner 12h au frais dans le vin rouge avec thym, laurier et un oignon émincé. Égouttez la viande en réservant la marinade, épongez-la bien avant de la saisir à feu vif dans un mélange beurre/huile jusqu'à belle coloration ; réservez. Faites revenir les lardons, puis les oignons et les carottes coupés en rondelles. Remettez la viande, saupoudrez d'une cuillère de farine, mouillez avec la marinade filtrée et complétez avec un peu d'eau ou de fond si besoin pour bien couvrir. Portez à frémissement, couvrez et laissez mijoter 3h à feu très doux. Ajoutez les champignons 30 min avant la fin de cuisson. Rectifiez l'assaisonnement, montez la sauce au beurre froid hors du feu pour la lier et la lustrer. Dressez avec du persil frais ciselé ; accompagnez de pommes de terre vapeur ou de tagliatelles fraîches.",
     allergens: "Sulfites (vin)", allergensAuto: false, createdAt: "2026-06-10",
     lines: [
       { ingredientId: "i1", qty: 1.2 }, { ingredientId: "i2", qty: 0.4 }, { ingredientId: "i3", qty: 0.3 },
@@ -956,7 +961,13 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
   }, [autoOpen]);
 
   useEffect(() => {
-    if (!open) setQuery("");
+    if (!open) {
+      setQuery("");
+    } else if (wrapRef.current) {
+      // Recentre la carte à l'écran pour que les suggestions ne se retrouvent pas
+      // masquées sous le clavier mobile.
+      setTimeout(() => wrapRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }), 150);
+    }
   }, [open]);
 
   const filtered =
@@ -1008,8 +1019,8 @@ const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 
 // Carte d'un article scanné : correspondance affichée en grand (plutôt qu'un petit menu discret),
 // bascule de renommage en vrai bouton, et une phrase en clair juste avant d'importer.
-function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredientDisplayName, lang, t, skipMuted }) {
-  const [expanded, setExpanded] = useState(false);
+function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredientDisplayName, lang, t, skipMuted, startExpanded }) {
+  const [expanded, setExpanded] = useState(!!startExpanded);
   const [editingPrice, setEditingPrice] = useState(false);
   const matchedIng = item.assignTo !== "new" ? ingredients.find((i) => i.id === item.assignTo) : null;
   const needsRename = item.assignTo !== "new" && item.name && matchedIng && ingredientDisplayName(matchedIng) !== item.name;
@@ -1139,51 +1150,57 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             </div>
           )}
 
-          <div className="flex items-center gap-1.5">
-            <select
-              value={item.unit || "kg"}
-              onChange={(e) => onUpdate({ unit: e.target.value })}
-              className="bg-black/20 text-white/70 text-xs outline-none rounded px-1.5 py-1.5 shrink-0"
-              style={{ colorScheme: "dark" }}
-            >
-              <option value="kg">kg</option>
-              <option value="L">L</option>
-              <option value="pièce">pièce</option>
-            </select>
-            <IngredientPicker
-              ingredients={ingredients}
-              value={item.assignTo !== "new" ? item.assignTo : null}
-              displayName={ingredientDisplayName}
-              onChange={(id) => onUpdate({ assignTo: id, matchConfident: true, renameOnImport: false })}
-              placeholder={t("scanSearchIngredientPlaceholder")}
-              className="flex-1 min-w-0 bg-black/30 text-white text-xs rounded-lg px-2.5 py-2"
-            />
-            <button
-              type="button"
-              onClick={() => onUpdate({ assignTo: "new", renameOnImport: false })}
-              className="shrink-0 text-[9px] uppercase tracking-wide px-2 py-2 rounded-lg font-semibold whitespace-nowrap"
-              style={{ background: "#3B82F622", color: "#3B82F6" }}
-            >
-              {t("scanNewIngredient")}
-            </button>
-          </div>
-
           {needsRename && (
-            <button
-              type="button"
-              onClick={() => onUpdate({ renameOnImport: !item.renameOnImport })}
-              className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left"
-              style={{ background: item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.06)", color: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.55)" }}
-            >
-              <span
-                className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
-                style={{ background: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.15)" }}
+            <div>
+              <div className="text-[9px] uppercase tracking-wide text-white/35 mb-1">{t("scanChooseNameLabel")}</div>
+              <button
+                type="button"
+                onClick={() => onUpdate({ renameOnImport: !item.renameOnImport })}
+                className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left"
+                style={{ background: item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.06)", color: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.55)" }}
               >
-                {item.renameOnImport && <Check size={12} color="#000" />}
-              </span>
-              {t("scanRenameHint")(item.name)}
-            </button>
+                <span
+                  className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
+                  style={{ background: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.15)" }}
+                >
+                  {item.renameOnImport && <Check size={12} color="#000" />}
+                </span>
+                {t("scanRenameHint")(item.name)}
+              </button>
+            </div>
           )}
+
+          <div className={needsRename ? "border-t border-white/5 pt-2" : ""}>
+            <div className="text-[9px] uppercase tracking-wide text-white/35 mb-1">{t("scanRelinkLabel")}</div>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={item.unit || "kg"}
+                onChange={(e) => onUpdate({ unit: e.target.value })}
+                className="bg-black/20 text-white/70 text-xs outline-none rounded px-1.5 py-1.5 shrink-0"
+                style={{ colorScheme: "dark" }}
+              >
+                <option value="kg">kg</option>
+                <option value="L">L</option>
+                <option value="pièce">pièce</option>
+              </select>
+              <IngredientPicker
+                ingredients={ingredients}
+                value={item.assignTo !== "new" ? item.assignTo : null}
+                displayName={ingredientDisplayName}
+                onChange={(id) => onUpdate({ assignTo: id, matchConfident: true, renameOnImport: false })}
+                placeholder={t("scanSearchIngredientPlaceholder")}
+                className="flex-1 min-w-0 bg-black/30 text-white text-xs rounded-lg px-2.5 py-2"
+              />
+              <button
+                type="button"
+                onClick={() => onUpdate({ assignTo: "new", renameOnImport: false })}
+                className="shrink-0 text-[9px] uppercase tracking-wide px-2 py-2 rounded-lg font-semibold whitespace-nowrap"
+                style={{ background: "#3B82F622", color: "#3B82F6" }}
+              >
+                {t("scanNewIngredient")}
+              </button>
+            </div>
+          </div>
 
           {item.currentPrice !== null && item.currentPriceIsReal && (
             <div
@@ -1272,6 +1289,7 @@ export default function App() {
   const [stackTotal, setStackTotal] = useState(0);
   const [expandedReviewIdx, setExpandedReviewIdx] = useState(null);
   const fileInputRef = useRef(null);
+  const fileInputLibraryRef = useRef(null);
 
 
   const t = useCallback((key) => TR[lang][key] ?? TR.fr[key] ?? key, [lang]);
@@ -1867,6 +1885,23 @@ export default function App() {
           .hide-prices .price-field { display: none !important; }
         }
         @media (max-width: 1024px) { .grid-main { grid-template-columns: 1fr !important; } }
+        /* Empêche le zoom automatique de Safari mobile sur les champs de saisie
+           (qui décalait la vue et cachait les suggestions dès la 1ère lettre tapée). */
+        @media (max-width: 767px) {
+          input, select, textarea { font-size: 16px !important; }
+        }
+        @keyframes scanPulse {
+          0%, 100% { transform: translateY(-18px); opacity: 0; }
+          15% { opacity: 1; }
+          50% { transform: translateY(18px); opacity: 1; }
+          85% { opacity: 1; }
+          100% { transform: translateY(-18px); opacity: 0; }
+        }
+        @keyframes scanFlash {
+          0%, 70%, 100% { transform: scale(1); }
+          78% { transform: scale(1.15); }
+          86% { transform: scale(1); }
+        }
       `}</style>
 
       <header className="border-b border-white/10 px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-2 print:hidden" style={{ background: "#1F1F25" }}>
@@ -2099,6 +2134,7 @@ export default function App() {
                                     ingredientDisplayName={ingredientDisplayName}
                                     lang={lang}
                                     t={t}
+                                    startExpanded
                                   />
                                 </div>
                               ) : (
@@ -2382,9 +2418,7 @@ export default function App() {
               <ChefHat size={18} color="#10B981" />
               <span className="font-display text-white/50 text-[11px] uppercase tracking-widest">{t("appTitle")}</span>
             </div>
-            <h1 className="font-display text-white text-xl mb-5 flex items-center gap-2">
-              {t("greeting")} <ChefHat size={20} color="#10B981" />
-            </h1>
+            <h1 className="font-display text-white text-xl mb-5">{t("greeting")}</h1>
 
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">{t("recipes")}</h2>
@@ -2473,7 +2507,7 @@ export default function App() {
                   <Copy size={13} /> {t("duplicate")}
                 </button>
                 <button onClick={handlePrint} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#10B981] font-display uppercase tracking-wide">
-                  <Printer size={13} /> {t("print")}
+                  <Printer size={13} /> {t("printTicket")}
                 </button>
                 <button onClick={handlePrintRecipeSheet} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#3B82F6] font-display uppercase tracking-wide">
                   <Printer size={13} /> {t("printRecipeSheet")}
@@ -2487,9 +2521,20 @@ export default function App() {
                 onChange={(e) => updateRecipe({ name: e.target.value })}
                 className="w-full bg-transparent font-display text-lg sm:text-xl uppercase tracking-wide mb-1 outline-none text-center border-b border-dashed border-black/20 pb-2"
               />
-              <div className="flex justify-center items-center gap-2 text-xs text-black/50 mb-1">
-                <span>{t("portions")} :</span>
-                <NumField allowDecimal={false} value={active.portions} onChange={(v) => updateRecipe({ portions: v || 1 })} className="w-12 bg-transparent text-center outline-none border-b border-black/20" />
+              <div className="flex justify-center mb-2">
+                <div
+                  className="flex items-center gap-2 rounded-lg px-3 py-1.5"
+                  style={{ background: `${TIER_COLORS.mid}18`, border: `1.5px solid ${TIER_COLORS.mid}70` }}
+                >
+                  <span className="text-[11px] uppercase tracking-wide font-bold" style={{ color: TIER_COLORS.mid }}>{t("portions")}</span>
+                  <NumField
+                    allowDecimal={false}
+                    value={active.portions}
+                    onChange={(v) => updateRecipe({ portions: v || 1 })}
+                    className="w-10 bg-transparent text-center outline-none text-lg font-bold"
+                    style={{ color: TIER_COLORS.mid }}
+                  />
+                </div>
               </div>
               <div className="text-center text-[10px] text-black/40 mb-4">{t("createdOn")} {active.createdAt || today()}</div>
 
@@ -2510,7 +2555,7 @@ export default function App() {
                       <NumField value={line.qty} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
                       <span className="text-black/40 w-6 shrink-0">{ing?.unit}</span>
                       {activeSupplier(ing)?.priceSource === "estimate" && (
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0 price-field" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
                       )}
                       <span className="w-14 shrink-0 text-right price-field">{lineCost(line).toFixed(2)}€</span>
                       <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0"><Trash2 size={12} /></button>
@@ -2521,7 +2566,7 @@ export default function App() {
                   <Plus size={12} /> {t("line")}
                 </button>
                 {active.lines.some((l) => activeSupplier(ingredientById(l.ingredientId))?.priceSource === "estimate") && (
-                  <div className="flex items-center gap-1.5 text-[10px] text-black/40 pt-1 print:hidden">
+                  <div className="flex items-center justify-start gap-1.5 text-[10px] text-black/40 pt-1 text-left price-field">
                     <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: TIER_COLORS.mid }} />
                     {t("estimatedPriceLegend")}
                   </div>
@@ -2583,10 +2628,18 @@ export default function App() {
 
               {margin !== null && (
                 <div className="flex flex-col items-center mt-6 mb-1 gap-2 price-field">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <div className="stamp px-4 py-1.5 text-sm" style={{ color: TIER_COLORS[tier] }}>{t("marginLabel")} {Math.round(margin)}%</div>
                     {costPerPortion > 0 && (
-                      <div className="text-xs text-black/40 font-mono">{t("coefLabel")} {(sellHT / costPerPortion).toFixed(1)}</div>
+                      <div className="flex flex-col items-center">
+                        <div
+                          className="w-11 h-11 rounded-full border-2 flex items-center justify-center font-mono font-bold text-sm"
+                          style={{ borderColor: TIER_COLORS[tier], color: TIER_COLORS[tier] }}
+                        >
+                          ×{(sellHT / costPerPortion).toFixed(1)}
+                        </div>
+                        <span className="text-[8px] uppercase tracking-wide text-black/35 mt-0.5">{t("coefLabel")}</span>
+                      </div>
                     )}
                   </div>
                   <div
@@ -2641,10 +2694,23 @@ export default function App() {
         {activeTab === "scanner" && (
           <div className="max-w-md mx-auto pt-6">
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanFile} />
+            <input ref={fileInputLibraryRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleScanFile} />
             <div className="rounded-2xl p-8 flex flex-col items-center gap-3 text-center font-body border border-white/10" style={{ background: "#1F1F25" }}>
-              <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "#10B98122" }}>
-                <Camera size={28} color="#10B981" />
-              </div>
+              <svg viewBox="0 0 120 120" width="104" height="104" className="mb-1">
+                <rect x="30" y="14" width="60" height="86" rx="4" fill="#F2ECDD" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
+                {[26, 34, 42, 50, 58, 66, 74].map((y, i) => (
+                  <rect key={i} x="38" y={y} width={i % 3 === 0 ? 30 : 44} height="3" rx="1.5" fill="#2B262022" />
+                ))}
+                <rect x="38" y="84" width="44" height="4" rx="2" fill="#10B98155" />
+                <g style={{ transformOrigin: "60px 57px", animation: "scanPulse 2.2s ease-in-out infinite" }}>
+                  <rect x="26" y="53" width="68" height="3" rx="1.5" fill="#10B981" opacity="0.9" />
+                </g>
+                <g style={{ animation: "scanFlash 2.2s ease-in-out infinite" }}>
+                  <circle cx="94" cy="100" r="17" fill="#10B981" />
+                  <rect x="86" y="93" width="16" height="12" rx="2.5" fill="#0b0b0b" />
+                  <circle cx="94" cy="99" r="3.4" fill="#10B981" />
+                </g>
+              </svg>
               <h2 className="font-display text-white uppercase tracking-wide text-sm mt-1">{t("scanInvoice")}</h2>
               <p className="text-white/40 text-xs leading-relaxed">{t("scanTabHint")}</p>
               <button
@@ -2652,7 +2718,13 @@ export default function App() {
                 className="mt-3 w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
                 style={{ background: "#10B981", color: "#fff" }}
               >
-                <Camera size={15} /> {t("scanInvoice")}
+                <Camera size={15} /> {t("scanTakePhoto")}
+              </button>
+              <button
+                onClick={() => fileInputLibraryRef.current?.click()}
+                className="w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform border border-white/20 text-white/70"
+              >
+                <Upload size={15} /> {t("scanUploadFile")}
               </button>
             </div>
           </div>
@@ -2674,7 +2746,7 @@ export default function App() {
             </div>
             <div className="flex flex-wrap gap-1 mb-4">
               <button
-                onClick={() => setPantryCategory("all")}
+                onClick={() => setPantryCategory((c) => (c === "all" ? "none" : "all"))}
                 className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === "all" ? "bg-[#10B981] text-white border-[#10B981]" : "text-white/50 border-white/15 hover:border-white/40"}`}
               >
                 {t("allCategories")}
@@ -2682,7 +2754,7 @@ export default function App() {
               {CATEGORIES.map((c) => (
                 <button
                   key={c.id}
-                  onClick={() => setPantryCategory(c.id)}
+                  onClick={() => setPantryCategory((cur) => (cur === c.id ? "none" : c.id))}
                   className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === c.id ? "bg-[#10B981] text-white border-[#10B981]" : "text-white/50 border-white/15 hover:border-white/40"}`}
                 >
                   {c[lang]}
