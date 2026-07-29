@@ -353,6 +353,8 @@ const TR = {
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié ! 🎉", scanContinue: "Continuer",
     scanUpcoming: "Suivants",
+    scanExistingLabel: "Ingrédient existant :", scanScannedLabel: "Nom détecté sur la facture :",
+    scanKeepName: "Garder l'existant", scanUseNewName: "Utiliser ce nouveau nom",
     scanImport: "Importer", scanImported: "Importé ✓", scanImportAll: "Importer les lignes sûres",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
@@ -406,6 +408,8 @@ const TR = {
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado! 🎉", scanContinue: "Continuar",
     scanUpcoming: "Siguientes",
+    scanExistingLabel: "Ingrediente existente:", scanScannedLabel: "Nombre detectado en la factura:",
+    scanKeepName: "Mantener el existente", scanUseNewName: "Usar este nuevo nombre",
     scanImport: "Importar", scanImported: "Importado ✓", scanImportAll: "Importar las líneas seguras",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
@@ -1907,6 +1911,7 @@ export default function App() {
                       const upcoming = review.slice(1, 3);
                       const isExpanded = expandedReviewIdx === current.idx;
                       const matchedIng = current.item.assignTo !== "new" ? ingredientById(current.item.assignTo) : null;
+                      const needsRename = current.item.assignTo !== "new" && current.item.name && matchedIng && ingredientDisplayName(matchedIng) !== current.item.name;
                       return (
                         <div>
                           <div className="flex items-center justify-between mb-3">
@@ -1961,17 +1966,70 @@ export default function App() {
                                   >
                                     {current.item.assignTo === "new" ? t("scanNewIngredient") : t("scanLinkedGuess")}
                                   </span>
-                                  <div className="text-white text-lg font-semibold mt-2">{current.item.name}</div>
-                                  <div className="text-white/50 text-sm mt-1">
-                                    {current.item.assignTo !== "new" && matchedIng ? `→ ${ingredientDisplayName(matchedIng)} · ` : ""}
+
+                                  {current.item.assignTo === "new" ? (
+                                    <div className="text-white text-lg font-semibold mt-2">{current.item.name}</div>
+                                  ) : needsRename ? (
+                                    <div className="mt-2">
+                                      <div className="text-white/40 text-xs">{t("scanExistingLabel")}</div>
+                                      <div className={`text-base font-medium ${current.item.renameOnImport ? "text-white/40 line-through" : "text-white"}`}>
+                                        {ingredientDisplayName(matchedIng)}
+                                      </div>
+                                      <div className="text-white/40 text-xs mt-1">{t("scanScannedLabel")}</div>
+                                      <div className={`text-base font-medium ${current.item.renameOnImport ? "text-white" : "text-white/40 line-through"}`}>
+                                        {current.item.name}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="text-white text-lg font-semibold mt-2">{ingredientDisplayName(matchedIng)}</div>
+                                  )}
+
+                                  <div className="text-white/50 text-sm mt-2">
                                     {(current.item.unitPriceHT || 0).toFixed(2)}€/{current.item.unit}
                                   </div>
+
+                                  {needsRename && (
+                                    <div className="flex gap-2 mt-3">
+                                      <button
+                                        onClick={() => updateScanItem(current.idx, { renameOnImport: false })}
+                                        className="flex-1 text-[11px] uppercase tracking-wide py-2 rounded-lg font-semibold"
+                                        style={{
+                                          background: !current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.08)",
+                                          color: !current.item.renameOnImport ? "#fff" : "rgba(255,255,255,0.6)",
+                                        }}
+                                      >
+                                        {t("scanKeepName")}
+                                      </button>
+                                      <button
+                                        onClick={() => updateScanItem(current.idx, { renameOnImport: true })}
+                                        className="flex-1 text-[11px] uppercase tracking-wide py-2 rounded-lg font-semibold"
+                                        style={{
+                                          background: current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.08)",
+                                          color: current.item.renameOnImport ? "#fff" : "rgba(255,255,255,0.6)",
+                                        }}
+                                      >
+                                        {t("scanUseNewName")}
+                                      </button>
+                                    </div>
+                                  )}
+
                                   {current.item.priceInconsistent && (
-                                    <div className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1.5 mt-2" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+                                    <div className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1.5 mt-3" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
                                       <AlertTriangle size={11} className="shrink-0" /> {t("scanPriceInconsistent")}
                                     </div>
                                   )}
-                                  <div className="flex gap-2 mt-4">
+
+                                  <div className="mt-3 text-[11px] text-white/45 italic border-t border-white/5 pt-2">
+                                    {current.item.assignTo === "new"
+                                      ? t("scanSummaryNew")(current.item.name || "?", (current.item.unitPriceHT || 0).toFixed(2), current.item.unit)
+                                      : t("scanSummaryUpdate")(
+                                          needsRename && current.item.renameOnImport ? current.item.name : ingredientDisplayName(matchedIng),
+                                          (current.item.unitPriceHT || 0).toFixed(2),
+                                          current.item.unit
+                                        )}
+                                  </div>
+
+                                  <div className="flex gap-2 mt-3">
                                     <button
                                       onClick={() => setExpandedReviewIdx(current.idx)}
                                       className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70"
