@@ -31,6 +31,7 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
       "packageContent": nombre représentant le contenu d'UN SEUL colis dans packageContentUnit,
       "packageContentUnit": "kg" ou "L" ou "pièce",
       "weighable": true si ce type de produit se vend normalement au poids/volume en cuisine professionnelle (légumes, fruits, viande, poisson, fromage, farine, huile, vin, boissons vendues en bouteille/carton avec un volume indiqué...), false s'il se vend vraiment à l'unité entière et indivisible (œuf, boîte de conserve, plateau, sachet compté à la pièce...),
+      "isFood": true si c'est un ingrédient de cuisine consommable (tout ce qui se mange ou se boit, y compris épices, condiments, boissons), false si c'est un article NON-alimentaire (produit d'entretien, lessive, papier cuisson/toilette, pics à brochette, serviettes jetables, gants, sacs poubelle, vaisselle jetable, éponges, matériel...). En cas de doute réel sur un produit ambigu, mets true (mieux vaut le proposer en vérification que le perdre silencieusement).
       "printedUnitPriceHT": le prix unitaire EXACTEMENT tel qu'imprimé sur le document, sans aucun calcul,
       "printedPriceUnit": "kg" si le prix imprimé est déjà un prix au kilo, "L" si déjà au litre, "colis" s'il s'agit du prix d'un colis/pièce entière,
       "totalPriceHT": le prix total de la ligne tel qu'imprimé

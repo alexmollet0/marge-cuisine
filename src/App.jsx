@@ -18,6 +18,7 @@ import {
   Loader2,
   TrendingUp,
   Package,
+  Pencil,
   ArrowLeft,
 } from "lucide-react";
 
@@ -363,6 +364,10 @@ const TR = {
     scanBackToCard: "Retour", scanMakeNew: "Créer comme nouveau",
     scanSkip: "Ne pas ajouter cet ingrédient", scanSkippedSection: "Ignorés", scanUndoSkip: "Annuler",
     scanDoneSection: "Déjà ajoutés",
+    scanNonFoodExcluded: (n) => `${n} article${n > 1 ? "s" : ""} non-alimentaire${n > 1 ? "s" : ""} écarté${n > 1 ? "s" : ""} du garde-manger (clique pour en récupérer un) :`,
+    scanRestoreNonFood: "Ajouter quand même à la vérification",
+    scanPriceLabel: "Prix (modifiable) :",
+    estimatedPriceBadge: "estimé", estimatedPriceHint: "Prix de départ estimé, jamais confirmé par un scan ou une saisie manuelle — vérifie-le avec ton vrai fournisseur.",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer les lignes sûres",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
@@ -426,6 +431,10 @@ const TR = {
     scanBackToCard: "Volver", scanMakeNew: "Crear como nuevo",
     scanSkip: "No añadir este ingrediente", scanSkippedSection: "Omitidos", scanUndoSkip: "Deshacer",
     scanDoneSection: "Ya añadidos",
+    scanNonFoodExcluded: (n) => `${n} artículo${n > 1 ? "s" : ""} no alimentario${n > 1 ? "s" : ""} excluido${n > 1 ? "s" : ""} de la despensa (toca para recuperar uno):`,
+    scanRestoreNonFood: "Añadir de todos modos a la verificación",
+    scanPriceLabel: "Precio (editable):",
+    estimatedPriceBadge: "estimado", estimatedPriceHint: "Precio de partida estimado, nunca confirmado por un escaneo o entrada manual — verifícalo con tu proveedor real.",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar las líneas seguras",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
@@ -1074,6 +1083,18 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
         </div>
       )}
 
+      {!item.imported && (
+        <div className="mt-1.5 flex items-center gap-2 rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.06)" }}>
+          <span className="text-[10px] uppercase tracking-wide text-white/40 shrink-0">{t("scanPriceLabel")}</span>
+          <NumField
+            value={item.unitPriceHT || 0}
+            onChange={(v) => onUpdate({ unitPriceHT: v })}
+            className="flex-1 min-w-0 bg-transparent text-white text-base font-semibold text-right outline-none border-b border-white/15 focus:border-[#10B981]"
+          />
+          <span className="text-white/50 text-sm shrink-0">€/{item.unit}</span>
+        </div>
+      )}
+
       {/* Recherche toujours accessible, un seul clic pour taper — pas besoin d'ouvrir quoi que ce soit avant */}
       {!item.imported && (
         <div className="mt-1 flex items-center gap-1.5">
@@ -1095,16 +1116,6 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
           </button>
         </div>
       )}
-
-      <div className="flex items-center gap-1.5 mt-1.5 text-xs text-white/60 justify-end">
-        <span className="text-white/40">HT/u :</span>
-        <NumField
-          value={item.unitPriceHT || 0}
-          onChange={(v) => onUpdate({ unitPriceHT: v })}
-          className="w-16 bg-transparent text-right outline-none border-b border-white/10 font-mono text-sm"
-        />
-        <span>€</span>
-      </div>
 
       {needsRename && !item.imported && (
         <button
@@ -1666,12 +1677,18 @@ export default function App() {
         };
       });
 
+      // Les articles non-alimentaires (produits d'entretien, consommables...) ne polluent pas
+      // le garde-manger : on les met de côté, mais jamais silencieusement — on les affiche
+      // quand même dans un résumé, avec la possibilité de les récupérer si besoin.
+      const foodItems = items.filter((it) => it.isFood !== false);
+      const nonFoodItems = items.filter((it) => it.isFood === false);
+
       // Alerte globale si une grosse majorité des prix scannés semble en forte hausse
       // par rapport aux vrais prix déjà connus — signe probable d'un souci de lecture du document.
-      const comparable = items.filter((i) => i.currentPrice !== null && i.currentPriceIsReal);
+      const comparable = foodItems.filter((i) => i.currentPrice !== null && i.currentPriceIsReal);
       const manyUp = comparable.length >= 3 && comparable.filter((i) => i.priceUp).length / comparable.length > 0.6;
 
-      setScanResult({ supplier: data.supplier || null, date: data.date || null, items, manyUp });
+      setScanResult({ supplier: data.supplier || null, date: data.date || null, items: foodItems, nonFoodItems, manyUp });
     } catch (err) {
       setScanErr(err.message || "Erreur inconnue");
     } finally {
@@ -1733,6 +1750,19 @@ export default function App() {
 
   const skipScanItem = (idx) => updateScanItem(idx, { skipped: true });
   const unskipScanItem = (idx) => updateScanItem(idx, { skipped: false });
+
+  const restoreNonFoodItem = (idx) => {
+    setScanResult((r) => {
+      if (!r) return r;
+      const item = r.nonFoodItems[idx];
+      if (!item) return r;
+      return {
+        ...r,
+        items: [...r.items, item],
+        nonFoodItems: r.nonFoodItems.filter((_, i) => i !== idx),
+      };
+    });
+  };
 
   const importAllScanItems = () => {
     scanResult.items.forEach((item, idx) => {
@@ -1918,6 +1948,25 @@ export default function App() {
                   </div>
                 )}
 
+                {scanResult.nonFoodItems && scanResult.nonFoodItems.length > 0 && (
+                  <div className="rounded-lg p-2.5 mb-3 text-[11px]" style={{ background: "#1F1F25", border: "1px solid rgba(255,255,255,0.1)" }}>
+                    <div className="text-white/50">{t("scanNonFoodExcluded")(scanResult.nonFoodItems.length)}</div>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {scanResult.nonFoodItems.map((nf, i) => (
+                        <button
+                          key={i}
+                          onClick={() => restoreNonFoodItem(i)}
+                          className="text-[10px] px-2 py-1 rounded-full text-white/50 hover:text-white flex items-center gap-1"
+                          style={{ background: "rgba(255,255,255,0.06)" }}
+                          title={t("scanRestoreNonFood")}
+                        >
+                          {nf.name} <Plus size={10} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {scanResult.items.length === 0 ? (
                   <div className="text-white/40 text-sm py-4 text-center">{t("scanNoItems")}</div>
                 ) : (
@@ -2076,8 +2125,21 @@ export default function App() {
                                     <div className="text-white text-lg font-semibold mt-2">{ingredientDisplayName(matchedIng)}</div>
                                   )}
 
-                                  <div className="text-white/50 text-sm mt-2">
-                                    {(current.item.unitPriceHT || 0).toFixed(2)}€/{current.item.unit}
+                                  <div className="flex items-center gap-2 mt-2 rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.06)" }}>
+                                    <NumField
+                                      value={current.item.unitPriceHT || 0}
+                                      onChange={(v) => updateScanItem(current.idx, { unitPriceHT: v })}
+                                      className="flex-1 min-w-0 bg-transparent text-white text-base font-semibold text-right outline-none border-b border-white/15 focus:border-[#10B981]"
+                                    />
+                                    <span className="text-white/50 text-sm shrink-0">€/{current.item.unit}</span>
+                                    <button
+                                      onClick={() => setExpandedReviewIdx(current.idx)}
+                                      className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg"
+                                      style={{ background: "rgba(255,255,255,0.08)" }}
+                                      title={t("scanModify")}
+                                    >
+                                      <Pencil size={14} className="text-white/60" />
+                                    </button>
                                   </div>
 
                                   {current.item.pricingUnknown && (
@@ -2149,12 +2211,6 @@ export default function App() {
                                       {t("scanValidate")}
                                     </button>
                                   </div>
-                                  <button
-                                    onClick={() => setExpandedReviewIdx(current.idx)}
-                                    className="w-full text-center mt-2 text-[10px] text-white/40 hover:text-white"
-                                  >
-                                    {t("scanModify")}
-                                  </button>
                                 </div>
                               )}
                             </div>
@@ -2351,6 +2407,9 @@ export default function App() {
                       />
                       <NumField value={line.qty} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
                       <span className="text-black/40 w-6 shrink-0">{ing?.unit}</span>
+                      {activeSupplier(ing)?.priceSource === "estimate" && (
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
+                      )}
                       <span className="w-14 shrink-0 text-right">{lineCost(line).toFixed(2)}€</span>
                       <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0"><Trash2 size={12} /></button>
                     </div>
@@ -2537,6 +2596,15 @@ export default function App() {
                           className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
                         >
                           <span className="flex-1 min-w-0 text-white text-sm truncate">{ingredientDisplayName(ing)}</span>
+                          {sup?.priceSource === "estimate" && (
+                            <span
+                              className="shrink-0 text-[8px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
+                              style={{ color: TIER_COLORS.mid, background: `${TIER_COLORS.mid}22` }}
+                              title={t("estimatedPriceHint")}
+                            >
+                              {t("estimatedPriceBadge")}
+                            </span>
+                          )}
                           <span className="text-white/40 text-[11px] shrink-0">{ing.unit}</span>
                           <span className="text-white/80 text-xs font-mono shrink-0 w-16 text-right">{(sup?.price || 0).toFixed(2)}€</span>
                           <ChevronDown size={14} className={`text-white/30 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
