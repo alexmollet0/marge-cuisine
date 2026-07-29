@@ -72,7 +72,7 @@ Autres règles :
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 2000,
+        max_tokens: 4096,
         messages: [
           {
             role: "user",
@@ -92,13 +92,21 @@ Autres règles :
 
     const data = await response.json();
     const textBlock = (data.content || []).find((c) => c.type === "text");
-    const raw = (textBlock?.text || "{}").trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+    let raw = (textBlock?.text || "{}").trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+
+    // Filet de sécurité : si l'IA a malgré tout ajouté du texte avant/après le JSON,
+    // on ne garde que ce qu'il y a entre la première { et la dernière }.
+    const firstBrace = raw.indexOf("{");
+    const lastBrace = raw.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      raw = raw.slice(firstBrace, lastBrace + 1);
+    }
 
     let parsed;
     try {
       parsed = JSON.parse(raw);
     } catch (e) {
-      return res.status(502).json({ error: "Réponse de l'IA illisible.", raw });
+      return res.status(502).json({ error: "Réponse de l'IA illisible.", detail: raw ? raw.slice(0, 500) : "(réponse vide)" });
     }
 
     return res.status(200).json(parsed);

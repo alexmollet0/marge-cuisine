@@ -1613,7 +1613,8 @@ export default function App() {
       });
       const data = await res.json();
       if (!res.ok) {
-        const msg = data.detail ? `${data.error} (${data.detail})` : data.error || "Échec de l'analyse";
+        const debugDetail = data.detail || data.raw;
+        const msg = debugDetail ? `${data.error} (${debugDetail})` : data.error || "Échec de l'analyse";
         throw new Error(msg);
       }
       const items = (data.items || []).map((it) => {
