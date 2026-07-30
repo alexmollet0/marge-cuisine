@@ -21,6 +21,8 @@ import {
   Upload,
   Clock,
   ArrowLeft,
+  ShieldCheck,
+  Award,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -316,11 +318,44 @@ const ALLERGEN_MAP = {
   amandes: ["fruits_a_coque"], noisettes: ["fruits_a_coque"],
 };
 
+// Détection complémentaire par mots-clés dans le nom (comparaison mot entier, jamais sous-chaîne,
+// pour éviter des faux positifs comme "laitue" -> "lait"). Sert de filet pour les ingrédients créés
+// depuis le scan de facture, qui n'ont pas de catalogId reconnu dans ALLERGEN_MAP ci-dessus.
+// Toujours comparé au nom source français, indépendamment de la langue d'interface choisie.
+const ALLERGEN_NAME_KEYWORDS = {
+  gluten: ["farine", "ble", "froment", "pain", "pate", "pates", "semoule", "couscous", "chapelure", "biscuit", "biscuits", "vermicelle", "orge", "seigle", "avoine", "boulgour"],
+  lait: ["lait", "creme", "beurre", "fromage", "yaourt", "yogourt", "mozzarella", "parmesan", "mascarpone", "chevre", "comte", "emmental", "gruyere", "cheddar", "ricotta", "brie", "camembert", "roquefort", "burrata", "feta"],
+  oeufs: ["oeuf", "oeufs"],
+  sulfites: ["sulfite", "sulfites"],
+  poisson: ["saumon", "cabillaud", "thon", "bar", "dorade", "anchois", "morue", "sole", "truite", "colin", "merlan", "hareng", "maquereau", "lieu", "poisson"],
+  crustaces: ["crevette", "crevettes", "gambas", "langoustine", "langoustines", "crabe", "homard", "ecrevisse"],
+  mollusques: ["moule", "moules", "huitre", "huitres", "poulpe", "calamar", "calamars", "seiche", "praire", "praires", "palourde", "palourdes", "coquille", "escargot", "escargots"],
+  moutarde: ["moutarde"],
+  soja: ["soja", "tofu", "edamame"],
+  celeri: ["celeri"],
+  fruits_a_coque: ["amande", "amandes", "noisette", "noisettes", "noix", "pistache", "pistaches", "cajou", "macadamia"],
+};
+
+const normalizeAllergenText = (s) =>
+  (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[^\x00-\x7F]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
 function detectAllergens(lines, ingredientsList, lang) {
   const set = new Set();
   lines.forEach((l) => {
     const ing = ingredientsList.find((i) => i.id === l.ingredientId);
-    if (ing?.catalogId && ALLERGEN_MAP[ing.catalogId]) ALLERGEN_MAP[ing.catalogId].forEach((a) => set.add(a));
+    if (!ing) return;
+    if (ing.catalogId && ALLERGEN_MAP[ing.catalogId]) ALLERGEN_MAP[ing.catalogId].forEach((a) => set.add(a));
+
+    const sourceName = ing.catalogId && CATALOG_MAP[ing.catalogId] ? CATALOG_MAP[ing.catalogId].fr : ing.name;
+    const tokens = new Set(normalizeAllergenText(sourceName).split(" ").filter(Boolean));
+    Object.entries(ALLERGEN_NAME_KEYWORDS).forEach(([allergen, keywords]) => {
+      if (keywords.some((k) => tokens.has(k))) set.add(allergen);
+    });
   });
   return Array.from(set).map((a) => ALLERGEN_LABELS[a][lang]).join(", ");
 }
@@ -373,7 +408,7 @@ const TR = {
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanUpcoming: "Suivants",
-    scanExistingLabel: "existant", scanScannedLabel: "sur la facture",
+    scanExistingLabel: "existant", scanScannedLabel: "sur la facture", scanProposedLabel: "nom proposé",
     scanRawLabelPrefix: "Facture :",
     scanChooseNameLabel: "Quel nom garder ?",
     scanRelinkLabel: "Relier à un autre ingrédient / créer nouveau :",
@@ -459,7 +494,7 @@ const TR = {
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanUpcoming: "Siguientes",
-    scanExistingLabel: "existente", scanScannedLabel: "en la factura",
+    scanExistingLabel: "existente", scanScannedLabel: "en la factura", scanProposedLabel: "nombre propuesto",
     scanRawLabelPrefix: "Factura :",
     scanChooseNameLabel: "¿Qué nombre mantener?",
     scanRelinkLabel: "Asociar a otro ingrediente / crear nuevo:",
@@ -986,6 +1021,23 @@ function NumField({ value, onChange, className, allowDecimal = true, ...rest }) 
   );
 }
 
+// Affiche/édite les quantités de recette en g ou mL plutôt qu'en décimales de kg/L
+// (ex : 50 g au lieu de 0.05) — le stockage interne (line.qty, prix au kg/L) ne change pas,
+// seule la conversion d'affichage x1000 est appliquée pour les unités kg et L.
+function displayUnitLabel(unit) {
+  if (unit === "kg") return "g";
+  if (unit === "L") return "mL";
+  return unit;
+}
+
+function QtyField({ qty, unit, onChange, className }) {
+  if (unit !== "kg" && unit !== "L") {
+    return <NumField value={qty} onChange={onChange} className={className} />;
+  }
+  const displayValue = Math.round((qty || 0) * 1000000) / 1000;
+  return <NumField value={displayValue} onChange={(v) => onChange((v || 0) / 1000)} className={className} />;
+}
+
 // Sélecteur d'ingrédient avec recherche (remplace un <select> qui deviendrait interminable).
 // Tape au moins 2 lettres pour filtrer, clique une suggestion pour choisir.
 function IngredientPicker({ ingredients, value, displayName, onChange, className, autoOpen, placeholder }) {
@@ -1109,7 +1161,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             {targetName || "—"}
           </span>
           {needsRename && (
-            <span className="text-[10px] text-white/35 truncate">({t("scanScannedLabel")} : {item.name})</span>
+            <span className="text-[10px] text-white/35 truncate">({t("scanProposedLabel")} : {item.name})</span>
           )}
           {hasWarning && !item.imported && <AlertTriangle size={12} className="shrink-0 ml-auto" style={{ color: TIER_COLORS.mid }} />}
         </div>
@@ -1431,6 +1483,15 @@ export default function App() {
     const ht = priceHT(r.sellPrice || 0);
     return ht > 0 ? ((ht - cpp) / ht) * 100 : null;
   };
+
+  // Classement TOP1/2/3 : uniquement les recettes déjà au-dessus de l'objectif de marge
+  // global (réglage minMargin, même seuil que la couleur verte), classées par marge % décroissante.
+  const topRecipeIds = recipes
+    .map((r) => ({ id: r.id, m: recipeMargin(r) }))
+    .filter((x) => x.m !== null && marginTier(x.m, settings.minMargin) === "high")
+    .sort((a, b) => b.m - a.m)
+    .slice(0, 3)
+    .map((x) => x.id);
 
   const totalCost = active ? recipeCost(active) : 0;
   const costPerPortion = active ? recipeCostPerPortion(active) : 0;
@@ -2933,8 +2994,9 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setAllergenSheetOpen(true)}
-                  className="text-[10px] uppercase tracking-wide text-white/40 hover:text-white underline"
+                  className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/60 hover:text-white px-3 py-1.5 rounded-full border border-white/15 hover:border-white/30 transition-colors"
                 >
+                  <ShieldCheck size={12} />
                   {t("allergenSheetLink")}
                 </button>
                 <button
@@ -2966,7 +3028,17 @@ export default function App() {
                         className="flex-1 min-w-0 flex items-center justify-between gap-3 text-left active:scale-95 transition-transform"
                       >
                         <div className="min-w-0">
-                          <div className="text-white font-medium text-sm truncate">{r.name}</div>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="text-white font-medium text-sm truncate">{r.name}</div>
+                            {topRecipeIds.includes(r.id) && (
+                              <span
+                                className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                                style={{ color: "#C99A55", background: "#C99A5522" }}
+                              >
+                                <Award size={9} /> TOP{topRecipeIds.indexOf(r.id) + 1}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-white/40 text-[11px] font-mono mt-1">
                             {cpp.toFixed(2)}€ &rarr; {(r.sellPrice || 0).toFixed(2)}€
                           </div>
@@ -3088,8 +3160,8 @@ export default function App() {
                         autoOpen={autoOpenIdx === idx}
                         placeholder={lang === "es" ? "Elegir un ingrediente…" : "Choisir un ingrédient…"}
                       />
-                      <NumField value={line.qty} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
-                      <span className="text-black/40 w-6 shrink-0">{ing?.unit}</span>
+                      <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-14 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
+                      <span className="text-black/40 w-6 shrink-0">{displayUnitLabel(ing?.unit)}</span>
                       {activeSupplier(ing)?.priceSource === "estimate" && (
                         <span className="w-1.5 h-1.5 rounded-full shrink-0 price-field" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
                       )}
@@ -3194,7 +3266,10 @@ export default function App() {
               <div className="border-t border-dashed border-black/30 mt-4 pt-3 space-y-3">
                 <div>
                   <div className="text-[10px] uppercase tracking-wide text-black/40 mb-1">{t("notes")}</div>
-                  <textarea value={active.notes || ""} onChange={(e) => updateRecipe({ notes: e.target.value })} placeholder={t("notesPlaceholder")} rows={3} className="w-full bg-black/5 rounded p-2 text-xs outline-none resize-none focus:bg-black/10" />
+                  <textarea value={active.notes || ""} onChange={(e) => updateRecipe({ notes: e.target.value })} placeholder={t("notesPlaceholder")} rows={3} className="w-full bg-black/5 rounded p-2 text-xs outline-none resize-none focus:bg-black/10 print:hidden" />
+                  {active.notes && (
+                    <div className="hidden print:block text-xs p-2 whitespace-pre-wrap">{active.notes}</div>
+                  )}
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -3214,8 +3289,11 @@ export default function App() {
                     value={active.allergens || ""}
                     onChange={(e) => updateRecipe({ allergens: e.target.value, allergensAuto: false })}
                     placeholder={t("allergensPlaceholder")}
-                    className="w-full bg-black/5 rounded p-2 text-xs outline-none focus:bg-black/10"
+                    className="w-full bg-black/5 rounded p-2 text-xs outline-none focus:bg-black/10 print:hidden"
                   />
+                  {active.allergens && (
+                    <div className="hidden print:block text-xs p-2 whitespace-pre-wrap">{active.allergens}</div>
+                  )}
                 </div>
               </div>
             </div>
