@@ -26,7 +26,7 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
   "items": [
     {
       "rawLabel": "le texte EXACT et complet de la ligne tel qu'imprimé, SANS AUCUNE simplification (garde codes, abréviations, mentions de conditionnement)",
-      "name": "nom SIMPLIFIÉ et NORMALISÉ de l'ingrédient en français, ex: 'Crème liquide 35%' au lieu de 'CR. LFF. 35% BQ 1L'",
+      "name": "nom PROPRE de l'ingrédient en français : juste la matière première, sans AUCUN conditionnement ni terme de traitement/état (voir règle NETTOYAGE DU NOM ci-dessous)",
       "packageCount": nombre de colis/unités achetés (le "x2", "x3" imprimé — PAS le poids total),
       "packageContent": nombre représentant le contenu d'UN SEUL colis dans packageContentUnit,
       "packageContentUnit": "kg" ou "L" ou "pièce",
@@ -55,8 +55,15 @@ Recopie le prix unitaire strictement tel qu'il est imprimé (ex: "0,94€/kg" �
 CAS DES TICKETS DE CAISSE SIMPLES (sans détail de poids/conditionnement) :
 Si le document ne montre qu'un nom et un prix total, sans aucune indication de poids, volume ou prix au kilo/litre, pour un produit normalement vendu au poids (ex: "TOMATES 2.30€" sans autre précision) : mets quand même printedUnitPriceHT au prix affiché et printedPriceUnit: "colis", packageContent: 1, packageContentUnit: "pièce", mais mets bien weighable: true. Ne tente JAMAIS d'inventer un poids ou un prix au kilo que tu ne peux pas lire.
 
+NETTOYAGE DU NOM (règle stricte pour le champ "name") :
+Le champ "name" doit contenir UNIQUEMENT le nom propre du produit, jamais son conditionnement ni son état/traitement. Retire systématiquement :
+- Les conditionnements et unités : 2kg, 10kg, 1L, 5L, 75cl, sac, sachet, colis, carton, caisse, plateau, filet, barquette, bidon, brique, PCE, CT, BT, U, x2, x6...
+- Les termes de condition/traitement/état : lavé(e), épluché(e), surgelé(e), frais/FRS, cru(e), congelé(e), calibré(e), entier(ère) quand ce n'est pas distinctif du produit, coupé(e), tranché(e), IQF...
+- Les codes fournisseur, références internes et abréviations de gamme qui n'apportent aucune info utile pour identifier le produit en cuisine.
+Exemples : "CAROTTE LAVEE 10KG" → name: "Carotte" ; "CAROTTE FRS 10KG" → name: "Carotte" ; "POULET FILET SURGELE CT 5KG" → name: "Filet de poulet" (ici "filet" est la découpe, donc distinctif — à garder — mais "surgelé" et "CT 5KG" sont retirés) ; "MOZZA BOULE 125G x12" → name: "Mozzarella".
+Simplifie aussi systématiquement les abréviations fournisseurs en noms clairs et complets (ex: "MOZZA" → "Mozzarella", "CR. LFF." → "Crème liquide"). Le champ rawLabel, lui, reste toujours intact et complet.
+
 Autres règles :
-- Simplifie systématiquement les abréviations fournisseurs en noms clairs et courts pour le champ "name" (mais garde rawLabel intact).
 - Si une ligne entière est trop floue/illisible pour être fiable, IGNORE-la simplement (ne l'inclus pas dans "items") plutôt que de bloquer toute la réponse.
 - Pour un champ isolé illisible sur une ligne par ailleurs lisible, mets null pour ce champ uniquement (jamais de valeur inventée).
 - Les prix sont toujours HT (hors taxes) si la facture les distingue, sinon utilise le prix affiché.

@@ -20,9 +20,13 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variable d'environn
 - Impression : ticket recette avec/sans prix (fiche technique), fiche allergènes de toutes les recettes
 - Bilingue FR/ES
 - Identité visuelle (2026-07-30) : nouveau logo en forme de cachet (toque + flèche de marge, anneau laiton) réutilisé dans l'en-tête, la liste des recettes et la fiche allergènes via le composant `Logo` dans `src/App.jsx`. Fond "ardoise" chaud (#1B1815/#26221C) à la place du gris-bleu générique, police Manrope à la place d'Inter, boutons/cartes principaux avec ombre douce et léger relief au survol. Les couleurs rouge/orange/vert de marge (tiers `TIER_COLORS`) n'ont pas changé — elles ne servent qu'à la marge, jamais à la décoration.
+- Scanner de factures, 3 corrections (2026-07-30) :
+  1. Le prompt IA (`api/scan-invoice.js`) nettoie maintenant strictement le champ `name` : retire conditionnements (10kg, sac, colis, PCE, CT...) et termes de traitement/état (lavé, épluché, surgelé, FRS...), garde uniquement ce qui est distinctif du produit (ex: "filet" pour une découpe). `rawLabel` reste toujours le texte brut intact.
+  2. Matching flou amélioré dans `guessIngredientId` (`src/App.jsx`) : au-delà du pluriel déjà géré, gère aussi les abréviations fournisseur (préfixe commun ≥4 lettres, ex: "MOZZA"/"Mozzarella") et les fautes OCR (distance de Levenshtein 1-2). Un match qui repose sur une approximation (pas une égalité exacte) n'est **jamais** marqué "confiant" — il part toujours en section "À vérifier" avec suggestion, jamais en "Nouveau" auto-importable.
+  3. Mémoire des rapprochements fournisseur → ingrédient, en **localStorage** (pas de backend Supabase — l'app n'en a pas et l'utilisateur a choisi de rester sur le même mécanisme que le reste des données). Nouvelle clé `supplierMappings` : à chaque import validé (`importScanItem`), on retient `texte brut de la ligne → id ingrédient`. Au scan suivant, si ce texte brut est reconnu, l'ingrédient est réutilisé automatiquement (confiant, sans repasser par "À vérifier"), qu'il s'agisse d'un rapprochement accepté, corrigé manuellement, ou d'une création qui a débouché sur un nouvel ingrédient.
 
 ## EN COURS — prochaine étape demandée par l'utilisateur (pas encore codée)
-_Rien en attente pour l'instant._
+_Rien en attente pour l'instant._ Aucun test réel effectué : Node.js indisponible (ni chez l'utilisateur, ni dans l'environnement de dev), donc à valider en conditions réelles une fois déployé sur Vercel (scanner une vraie facture, vérifier que "À vérifier" propose bien les bonnes suggestions et que le 2e scan du même fournisseur saute la vérification).
 
 ## Notes
 - L'utilisateur n'est pas développeur, donne des retours simples et concrets

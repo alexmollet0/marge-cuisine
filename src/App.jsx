@@ -1297,6 +1297,9 @@ export default function App() {
   const [ingredients, setIngredients] = useState(SEED_INGREDIENTS);
   const [recipes, setRecipes] = useState(SEED_RECIPES);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  // Mémoire des rapprochements fournisseur → ingrédient déjà validés lors d'un scan précédent
+  // (clé = texte brut de la ligne facture normalisé, valeur = id de l'ingrédient du garde-manger).
+  const [supplierMappings, setSupplierMappings] = useState([]);
   const [activeId, setActiveId] = useState("r1");
   const [activeTab, setActiveTab] = useState("recipes"); // 'recipes' | 'scanner' | 'pantry'
   const [hidePricesPrint, setHidePricesPrint] = useState(false);
@@ -1340,15 +1343,17 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        let ing = null, rec = null, set = null, lg = null;
+        let ing = null, rec = null, set = null, lg = null, sm = null;
         try { const r = await storage.get("ingredients"); ing = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("recipes"); rec = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("settings"); set = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("lang"); lg = r ? JSON.parse(r.value) : null; } catch (e) {}
+        try { const r = await storage.get("supplierMappings"); sm = r ? JSON.parse(r.value) : null; } catch (e) {}
         if (ing && ing.length) setIngredients(ing);
         if (rec && rec.length) { setRecipes(rec); setActiveId(rec[0].id); }
         if (set) setSettings({ ...DEFAULT_SETTINGS, ...set });
         if (lg) setLang(lg);
+        if (sm && sm.length) setSupplierMappings(sm);
       } catch (e) {
         setLoadErr(true);
       } finally {
@@ -1361,6 +1366,7 @@ export default function App() {
   useDebouncedSave("recipes", recipes, ready);
   useDebouncedSave("settings", settings, ready);
   useDebouncedSave("lang", lang, ready);
+  useDebouncedSave("supplierMappings", supplierMappings, ready);
 
   useEffect(() => {
     if (!ready) return;
@@ -1591,8 +1597,8 @@ export default function App() {
 
   const clearAll = async () => {
     if (!window.confirm("Effacer toutes tes données ? Cette action est irréversible.")) return;
-    setIngredients([]); setRecipes([]); setActiveId(null);
-    try { await storage.delete("ingredients"); await storage.delete("recipes"); } catch (e) {}
+    setIngredients([]); setRecipes([]); setActiveId(null); setSupplierMappings([]);
+    try { await storage.delete("ingredients"); await storage.delete("recipes"); await storage.delete("supplierMappings"); } catch (e) {}
   };
 
   const handlePrint = () => window.print();
@@ -1677,30 +1683,97 @@ export default function App() {
     return filtered.length ? filtered : tokens;
   };
 
+  // Distance de Levenshtein (nombre minimal d'ajout/suppression/substitution pour passer
+  // d'un mot à l'autre) — sert à repérer une faute de frappe/OCR entre deux mots proches.
+  const levenshtein = (a, b) => {
+    if (a === b) return 0;
+    const m = a.length, n = b.length;
+    if (!m) return n;
+    if (!n) return m;
+    const dp = new Array(n + 1);
+    for (let j = 0; j <= n; j++) dp[j] = j;
+    for (let i = 1; i <= m; i++) {
+      let prev = dp[0];
+      dp[0] = i;
+      for (let j = 1; j <= n; j++) {
+        const tmp = dp[j];
+        dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+        prev = tmp;
+      }
+    }
+    return dp[n];
+  };
+
+  // Deux mots "se ressemblent" sans être identiques : soit une abréviation fournisseur
+  // manifeste (préfixe commun assez long, ex: "mozza" / "mozzarella"), soit un écart d'1-2
+  // lettres typique d'une faute de frappe ou d'une erreur de lecture OCR.
+  const tokensSimilar = (a, b) => {
+    const minLen = Math.min(a.length, b.length);
+    if (minLen < 4) return false; // trop court pour être fiable (ex: "ail" / "aile")
+    if (a.startsWith(b) || b.startsWith(a)) return true;
+    const maxDist = a.length >= 7 || b.length >= 7 ? 2 : 1;
+    return levenshtein(a, b) <= maxDist;
+  };
+
   const guessIngredientId = (name) => {
     const tokens = meaningfulTokens(tokenize(name));
     if (!tokens.length) return null;
-    const tokenSet = new Set(tokens);
     let best = null;
     let bestScore = 0;
+    let bestFuzzy = false;
     for (const ing of ingredients) {
       const iTokens = meaningfulTokens(tokenize(ingredientDisplayName(ing)));
       if (!iTokens.length) continue;
-      const iSet = new Set(iTokens);
-      const shared = iTokens.filter((tk) => tokenSet.has(tk)).length;
+      // Chaque mot de l'ingrédient existant ne peut servir qu'une seule fois, même s'il
+      // ressemble à plusieurs mots scannés, pour ne pas gonfler artificiellement le score.
+      const usedI = new Set();
+      let shared = 0;
+      let fuzzy = false;
+      for (const tk of tokens) {
+        let matchIdx = iTokens.findIndex((itk, idx) => !usedI.has(idx) && tk === itk);
+        if (matchIdx === -1) {
+          matchIdx = iTokens.findIndex((itk, idx) => !usedI.has(idx) && tokensSimilar(tk, itk));
+          if (matchIdx !== -1) fuzzy = true;
+        }
+        if (matchIdx !== -1) {
+          usedI.add(matchIdx);
+          shared++;
+        }
+      }
       if (shared === 0) continue; // exige au moins un mot significatif commun, pas juste un adjectif
       // Score = mots partagés ÷ TOTAL de mots distincts des deux côtés (et non le plus petit),
       // pour qu'un nom très court (ex: "Romarin") ne gagne pas à tort une confiance à 100%
       // simplement parce qu'il ne contient qu'un seul mot qui matche un produit composé.
-      const unionSize = new Set([...tokenSet, ...iSet]).size;
+      const unionSize = tokens.length + iTokens.length - shared;
       const score = shared / unionSize;
       if (score > bestScore) {
         bestScore = score;
         best = ing;
+        bestFuzzy = fuzzy;
       }
     }
     if (!best || bestScore < 0.5) return null;
-    return { id: best.id, confident: bestScore >= 0.99 };
+    // Un match qui ne repose que sur une approximation (abréviation, faute de frappe) n'est
+    // jamais "confiant" : il part toujours en vérification, jamais importé automatiquement.
+    return { id: best.id, confident: bestScore >= 0.99 && !bestFuzzy };
+  };
+
+  // Mémoire des rapprochements déjà validés par l'utilisateur lors d'un scan précédent :
+  // si ce texte brut de facture a déjà été relié à un ingrédient, on lui fait confiance
+  // directement, sans repasser par le score de similarité ni la vérification manuelle.
+  const findMappedIngredientId = (rawLabel) => {
+    const key = normalizeStr(rawLabel);
+    if (!key) return null;
+    const found = supplierMappings.find((m) => m.key === key);
+    if (!found) return null;
+    // L'ingrédient appris a pu être supprimé depuis : dans ce cas on oublie l'association.
+    return ingredients.some((i) => i.id === found.ingredientId) ? found.ingredientId : null;
+  };
+
+  const rememberSupplierMapping = (rawLabel, ingredientId) => {
+    const key = normalizeStr(rawLabel);
+    if (!key || !ingredientId) return;
+    setSupplierMappings((maps) => [...maps.filter((m) => m.key !== key), { key, rawLabel, ingredientId, updatedAt: today() }]);
   };
 
   const compressImageFile = (file) =>
@@ -1801,7 +1874,10 @@ export default function App() {
         const { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal, pricingUnknown } = computeItemPricing(it);
         const merged = { ...it, unit: finalUnit, unitPriceHT: pricingUnknown ? 0 : finalUnitPrice };
 
-        const match = guessIngredientId(merged.name);
+        // Priorité à un rapprochement déjà validé manuellement lors d'un scan précédent pour
+        // ce même texte brut fournisseur : on lui fait confiance sans repasser par le score.
+        const learnedId = findMappedIngredientId(merged.rawLabel);
+        const match = learnedId ? { id: learnedId, confident: true } : guessIngredientId(merged.name);
         const matchedId = match ? match.id : null;
         const matchedIng = matchedId ? ingredientById(matchedId) : null;
         const activeSup = matchedIng ? activeSupplier(matchedIng) : null;
@@ -1865,10 +1941,13 @@ export default function App() {
     const finalUnit = item.unit || "kg";
     const finalPrice = item.unitPriceHT || 0;
 
+    let resultingIngredientId;
     if (item.assignTo === "new") {
       const sId = uid();
+      const newId = uid();
+      resultingIngredientId = newId;
       const ni = {
-        id: uid(),
+        id: newId,
         name: item.name,
         unit: finalUnit,
         catalogId: null,
@@ -1881,6 +1960,7 @@ export default function App() {
       setIngredients((ings) => [...ings, ni]);
     } else {
       const ingId = item.assignTo;
+      resultingIngredientId = ingId;
       setIngredients((ings) =>
         ings.map((ing) => {
           if (ing.id !== ingId) return ing;
@@ -1897,6 +1977,9 @@ export default function App() {
         })
       );
     }
+    // L'utilisateur vient de valider (ou corriger) ce rapprochement : on le retient pour que
+    // ce même texte brut fournisseur soit reconnu automatiquement lors d'un prochain scan.
+    rememberSupplierMapping(item.rawLabel, resultingIngredientId);
     updateScanItem(idx, { ...override, imported: true });
   };
 
