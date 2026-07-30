@@ -374,6 +374,7 @@ const TR = {
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanUpcoming: "Suivants",
     scanExistingLabel: "existant", scanScannedLabel: "sur la facture",
+    scanRawLabelPrefix: "Facture :",
     scanChooseNameLabel: "Quel nom garder ?",
     scanRelinkLabel: "Relier à un autre ingrédient / créer nouveau :",
     scanKeepName: "Garder l'existant", scanUseNewName: "Utiliser ce nouveau nom",
@@ -459,6 +460,7 @@ const TR = {
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanUpcoming: "Siguientes",
     scanExistingLabel: "existente", scanScannedLabel: "en la factura",
+    scanRawLabelPrefix: "Factura :",
     scanChooseNameLabel: "¿Qué nombre mantener?",
     scanRelinkLabel: "Asociar a otro ingrediente / crear nuevo:",
     scanKeepName: "Mantener el existente", scanUseNewName: "Usar este nuevo nombre",
@@ -1053,6 +1055,16 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
 
 const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 
+// Retire uniquement le code/référence interne en début de ligne (ex: "F11893 ") pour un
+// aperçu du texte facture lisible au premier coup d'œil, sans toucher au texte brut complet
+// (rawLabel) qui reste intact pour la mémoire des rapprochements et la vérification exacte.
+const lightRawLabel = (raw) => {
+  const s = (raw || "").trim();
+  if (!s) return "";
+  const cleaned = s.replace(/^[A-Z]{0,2}\d{3,8}\s+/i, "").trim();
+  return cleaned || s;
+};
+
 // Carte d'un article scanné : correspondance affichée en grand (plutôt qu'un petit menu discret),
 // bascule de renommage en vrai bouton, et une phrase en clair juste avant d'importer.
 function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredientDisplayName, lang, t, skipMuted, startExpanded }) {
@@ -1100,6 +1112,20 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             <span className="text-[10px] text-white/35 truncate">({t("scanScannedLabel")} : {item.name})</span>
           )}
           {hasWarning && !item.imported && <AlertTriangle size={12} className="shrink-0 ml-auto" style={{ color: TIER_COLORS.mid }} />}
+        </div>
+
+        {/* Texte tel que lu sur la facture (débarrassé seulement du code fournisseur) : visible
+            sans avoir à ouvrir "Modifier", pour vérifier d'un coup d'œil ce qui était vraiment
+            imprimé. Modifiable ici pour corriger une erreur de lecture — n'affecte jamais le nom
+            d'ingrédient ni le matching, uniquement la mémoire des rapprochements de ce texte. */}
+        <div className="flex items-center gap-1 mt-1 min-w-0">
+          <span className="text-[9px] uppercase tracking-wide text-white/25 shrink-0">{t("scanRawLabelPrefix")}</span>
+          <input
+            value={lightRawLabel(item.rawLabel)}
+            disabled={item.imported}
+            onChange={(e) => onUpdate({ rawLabel: e.target.value })}
+            className="flex-1 min-w-0 bg-transparent text-white/45 text-[10px] outline-none focus:text-white/80"
+          />
         </div>
 
         <div className="flex items-center gap-1.5 mt-1.5">
@@ -1676,7 +1702,7 @@ export default function App() {
     "frais", "fraiche", "entier", "entiere", "doux", "jaune", "rouge", "blanc", "blanche",
     "vert", "verte", "sec", "seche", "fermier", "fermiere", "plein", "air", "cuisine",
     "gros", "grosse", "petit", "petite", "nature", "classique", "campagne", "fin", "fine",
-    "noir", "noire", "cru", "crue", "cuit", "cuite",
+    "noir", "noire",
     // mots de liaison, ne comptent jamais comme "mot significatif partagé"
     "de", "du", "la", "le", "les", "des", "un", "une", "et", "au", "aux", "avec", "sans", "pour",
   ]);
@@ -1684,6 +1710,17 @@ export default function App() {
     const filtered = tokens.filter((tk) => !GENERIC_TOKENS.has(tk));
     return filtered.length ? filtered : tokens;
   };
+
+  // À l'inverse des GENERIC_TOKENS (mots sans importance), ceux-ci désignent une vraie
+  // transformation qui change le produit réellement acheté (prix et usage différents) :
+  // "cru" retiré volontairement de GENERIC_TOKENS ci-dessus, on ne mélange plus jamais
+  // "Pomme de terre" et "Pomme de terre frite", ou "Emmental" et "Emmental râpé".
+  const DISTINCTIVE_MODIFIERS = new Set([
+    "rape", "rapee", "frit", "frite", "hache", "hachee", "tranche", "tranchee",
+    "cru", "crue", "cuit", "cuite", "marine", "marinee", "fume", "fumee",
+    "pane", "panee", "moulu", "moulue", "concasse", "concassee", "bloc",
+    "desosse", "desossee", "confit", "confite",
+  ]);
 
   // Distance de Levenshtein (nombre minimal d'ajout/suppression/substitution pour passer
   // d'un mot à l'autre) — sert à repérer une faute de frappe/OCR entre deux mots proches.
@@ -1718,14 +1755,27 @@ export default function App() {
   };
 
   const guessIngredientId = (name) => {
-    const tokens = meaningfulTokens(tokenize(name));
+    const tokensRaw = tokenize(name);
+    const tokens = meaningfulTokens(tokensRaw);
     if (!tokens.length) return null;
+    const scannedMods = new Set(tokensRaw.filter((tk) => DISTINCTIVE_MODIFIERS.has(tk)));
     let best = null;
     let bestScore = 0;
     let bestFuzzy = false;
     for (const ing of ingredients) {
-      const iTokens = meaningfulTokens(tokenize(ingredientDisplayName(ing)));
+      const iTokensRaw = tokenize(ingredientDisplayName(ing));
+      const iTokens = meaningfulTokens(iTokensRaw);
       if (!iTokens.length) continue;
+
+      // Un mot de transformation présent d'un seul côté (râpé vs en bloc, cru vs cuit, frite
+      // vs nature...) signale un produit réellement différent à acheter : on exclut carrément
+      // ce candidat plutôt que de risquer de fusionner deux achats différents.
+      const candidateMods = new Set(iTokensRaw.filter((tk) => DISTINCTIVE_MODIFIERS.has(tk)));
+      if (scannedMods.size || candidateMods.size) {
+        const sameMods = scannedMods.size === candidateMods.size && [...scannedMods].every((m) => candidateMods.has(m));
+        if (!sameMods) continue;
+      }
+
       // Chaque mot de l'ingrédient existant ne peut servir qu'une seule fois, même s'il
       // ressemble à plusieurs mots scannés, pour ne pas gonfler artificiellement le score.
       const usedI = new Set();
@@ -2402,6 +2452,19 @@ export default function App() {
                                   >
                                     {current.item.assignTo === "new" ? t("scanNewIngredient") : t("scanLinkedGuess")}
                                   </span>
+
+                                  {/* Texte facture visible dès le premier coup d'œil (pas besoin d'ouvrir
+                                      "Modifier"), débarrassé seulement du code fournisseur. Modifiable pour
+                                      corriger une erreur de lecture — ça n'affecte jamais le nom d'ingrédient
+                                      ni le matching, uniquement la mémoire des rapprochements pour ce texte. */}
+                                  <div className="flex items-center gap-1 mt-1.5 min-w-0">
+                                    <span className="text-[9px] uppercase tracking-wide text-white/25 shrink-0">{t("scanRawLabelPrefix")}</span>
+                                    <input
+                                      value={lightRawLabel(current.item.rawLabel)}
+                                      onChange={(e) => updateScanItem(current.idx, { rawLabel: e.target.value })}
+                                      className="flex-1 min-w-0 bg-transparent text-white/45 text-[11px] outline-none focus:text-white/80"
+                                    />
+                                  </div>
 
                                   {current.item.assignTo === "new" ? (
                                     <div className="text-white text-lg font-semibold mt-2">{current.item.name}</div>

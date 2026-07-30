@@ -64,11 +64,12 @@ Beaucoup de lignes indiquent la contenance directement dans le nom du produit (e
 Exemples : "LAIT ENTIER UHT 1L" + "36 PCE 1.12€" → packageContent: 1, packageContentUnit: "L", printedPriceUnit: "colis" → prix final 1.12€/L. "EMMENTAL RAPE 1KG" + "6 PCE 8.60€" → packageContent: 1, packageContentUnit: "kg" → prix final 8.60€/kg.
 
 NETTOYAGE DU NOM (règle stricte pour le champ "name") :
-Le champ "name" doit contenir UNIQUEMENT le nom propre du produit, jamais son conditionnement ni son état/traitement. Retire systématiquement :
-- Les conditionnements et unités : 2kg, 10kg, 1L, 5L, 75cl, sac, sachet, colis, carton, caisse, plateau, filet, barquette, bidon, brique, PCE, CT, BT, U, x2, x6...
-- Les termes de condition/traitement/état : lavé(e), épluché(e), surgelé(e), frais/FRS, cru(e), congelé(e), calibré(e), entier(ère) quand ce n'est pas distinctif du produit, coupé(e), tranché(e), IQF...
+Le champ "name" doit contenir le nom du produit tel qu'on l'achèterait, débarrassé du conditionnement et de la logistique — mais en GARDANT tout mot qui décrit une transformation/préparation changeant réellement le produit acheté (prix et usage différents). Retire systématiquement :
+- Les conditionnements et unités : 2kg, 10kg, 1L, 5L, 75cl, sac, sachet, colis, carton, caisse, plateau, barquette, bidon, brique, PCE, CT, BT, U, x2, x6...
+- Les mentions purement logistiques/cosmétiques qui ne changent PAS le produit : lavé(e), épluché(e), calibré(e), IQF, congelé(e)/surgelé(e)/FRS (conservation, sans lien avec le prix ou l'usage en cuisine).
 - Les codes fournisseur, références internes et abréviations de gamme qui n'apportent aucune info utile pour identifier le produit en cuisine.
-Exemples : "CAROTTE LAVEE 10KG" → name: "Carotte" ; "CAROTTE FRS 10KG" → name: "Carotte" ; "POULET FILET SURGELE CT 5KG" → name: "Filet de poulet" (ici "filet" est la découpe, donc distinctif — à garder — mais "surgelé" et "CT 5KG" sont retirés) ; "MOZZA BOULE 125G x12" → name: "Mozzarella".
+NE RETIRE JAMAIS un mot de transformation/préparation qui désigne un produit différent à acheter et à cuisiner : râpé(e), frit(e)/frite(s), haché(e), en dés, tranché(e), moulu(e), en poudre, concassé(e), mariné(e), fumé(e), pané(e), cru(e)/cuit(e), séché(e), confit(e), en bloc, désossé(e), filet (la découpe). Une pomme de terre frite n'est pas une pomme de terre ; un emmental râpé n'est pas un emmental en bloc — ce sont des achats différents pour un chef, garde toujours cette info.
+Exemples : "CAROTTE LAVEE 10KG" → name: "Carotte" ; "CAROTTE FRS 10KG" → name: "Carotte" ; "POULET FILET SURGELE CT 5KG" → name: "Filet de poulet" (la découpe "filet" reste, le conditionnement logistique part) ; "MOZZA BOULE 125G x12" → name: "Mozzarella" ; "EMMENTAL RAPE 1KG" → name: "Emmental râpé" ; "PDT FRITE 10MM SURG" → name: "Pomme de terre frite".
 Simplifie aussi systématiquement les abréviations fournisseurs en noms clairs et complets (ex: "MOZZA" → "Mozzarella", "CR. LFF." → "Crème liquide"). Le champ rawLabel, lui, reste toujours intact et complet.
 
 LIGNES À NE JAMAIS INCLURE DANS "items" (ce ne sont pas des produits achetés) :
@@ -95,6 +96,9 @@ Autres règles :
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 4096,
+        // Extraction structurée et déterministe (pas de rédaction créative) : on réduit la
+        // variabilité d'une lecture à l'autre d'une même facture en fixant la température à 0.
+        temperature: 0,
         messages: [
           {
             role: "user",
