@@ -31,7 +31,8 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
       "packageContent": nombre représentant le contenu d'UN SEUL colis dans packageContentUnit,
       "packageContentUnit": "kg" ou "L" ou "pièce",
       "weighable": true si ce type de produit se vend normalement au poids/volume en cuisine professionnelle (légumes, fruits, viande, poisson, fromage, farine, huile, vin, boissons vendues en bouteille/carton avec un volume indiqué...), false s'il se vend vraiment à l'unité entière et indivisible (œuf, boîte de conserve, plateau, sachet compté à la pièce...),
-      "isFood": true si c'est un ingrédient de cuisine consommable (tout ce qui se mange ou se boit, y compris épices, condiments, boissons), false si c'est un article NON-alimentaire (produit d'entretien, lessive, papier cuisson/toilette, pics à brochette, serviettes jetables, gants, sacs poubelle, vaisselle jetable, éponges, matériel...). En cas de doute réel sur un produit ambigu, mets true (mieux vaut le proposer en vérification que le perdre silencieusement).
+      "isFood": true si c'est un ingrédient de cuisine consommable (tout ce qui se mange ou se boit, y compris épices, condiments, boissons), false si c'est un article NON-alimentaire (produit d'entretien, lessive, papier cuisson/toilette, pics à brochette, serviettes jetables, gants, sacs poubelle, vaisselle jetable, éponges, matériel...) OU une consigne/frais (voir règle CONSIGNES ET FRAIS ci-dessous). En cas de doute réel sur un produit ambigu, mets true (mieux vaut le proposer en vérification que le perdre silencieusement).
+      "isDeposit": true si la ligne est une consigne, un emballage consigné, des frais de port/livraison/transport, ou des frais de service (voir règle CONSIGNES ET FRAIS ci-dessous), false sinon,
       "printedUnitPriceHT": le prix unitaire EXACTEMENT tel qu'imprimé sur le document, sans aucun calcul,
       "printedPriceUnit": "kg" si le prix imprimé est déjà un prix au kilo, "L" si déjà au litre, "colis" s'il s'agit du prix d'un colis/pièce entière,
       "totalPriceHT": le prix total de la ligne tel qu'imprimé
@@ -65,6 +66,12 @@ Le champ "name" doit contenir UNIQUEMENT le nom propre du produit, jamais son co
 - Les codes fournisseur, références internes et abréviations de gamme qui n'apportent aucune info utile pour identifier le produit en cuisine.
 Exemples : "CAROTTE LAVEE 10KG" → name: "Carotte" ; "CAROTTE FRS 10KG" → name: "Carotte" ; "POULET FILET SURGELE CT 5KG" → name: "Filet de poulet" (ici "filet" est la découpe, donc distinctif — à garder — mais "surgelé" et "CT 5KG" sont retirés) ; "MOZZA BOULE 125G x12" → name: "Mozzarella".
 Simplifie aussi systématiquement les abréviations fournisseurs en noms clairs et complets (ex: "MOZZA" → "Mozzarella", "CR. LFF." → "Crème liquide"). Le champ rawLabel, lui, reste toujours intact et complet.
+
+LIGNES À NE JAMAIS INCLURE DANS "items" (ce ne sont pas des produits achetés) :
+Une facture contient souvent des lignes qui ne décrivent aucun produit : remise, escompte, ristourne, récapitulatif de TVA par taux (base HT / montant TVA par tranche), total HT, total TTC, net à payer, acompte, conditions de paiement, mentions légales. Traite ces lignes exactement comme une ligne illisible : NE LES INCLUS JAMAIS dans "items", quel que soit le montant ou le signe affiché à côté (y compris négatif). Ce sont des lignes de récapitulatif ou de règlement, pas des articles.
+
+CONSIGNES ET FRAIS (règle stricte, distincte d'isFood) :
+Une consigne (ex: "CONSIGNE FÛT BIÈRE 30L", "EMBALLAGE CASIER", "CONSIGNE PALETTE"), des frais de port/livraison/transport, ou des frais de service NE SONT JAMAIS un achat d'ingrédient, même si leur libellé contient un mot alimentaire (ex: "bière" dans "CONSIGNE FÛT BIÈRE"). Pour ce type de ligne : isDeposit: true ET isFood: false, systématiquement — ne te laisse jamais influencer par un mot alimentaire présent dans le libellé d'une consigne ou de frais. Ces lignes restent dans "items" (avec leur prix, pour que l'utilisateur puisse les consulter s'il le souhaite), elles sont juste marquées isFood: false / isDeposit: true plutôt que traitées comme un ingrédient de cuisine.
 
 Autres règles :
 - Si une ligne entière est trop floue/illisible pour être fiable, IGNORE-la simplement (ne l'inclus pas dans "items") plutôt que de bloquer toute la réponse.

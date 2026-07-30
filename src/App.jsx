@@ -384,9 +384,9 @@ const TR = {
     scanBackToCard: "Retour", scanMakeNew: "Créer comme nouveau",
     scanSkip: "Ne pas ajouter cet ingrédient", scanSkippedSection: "Ignorés", scanUndoSkip: "Annuler",
     scanDoneSection: "Déjà ajoutés",
-    scanNonFoodExcluded: (n) => `${n} article${n > 1 ? "s" : ""} écarté${n > 1 ? "s" : ""} du garde-manger (non-alimentaire ou prix introuvable — clique pour en récupérer un) :`,
+    scanNonFoodExcluded: (n) => `${n} article${n > 1 ? "s" : ""} écarté${n > 1 ? "s" : ""} du garde-manger (non-alimentaire ou consigne/frais — clique pour en récupérer un) :`,
     scanRestoreNonFood: "Ajouter quand même à la vérification",
-    scanRestoreNoPrice: "Prix introuvable sur la facture — ajouter quand même à la vérification",
+    scanRestoreDeposit: "Consigne / frais (port, service...) — ajouter quand même à la vérification",
     scanPriceLabel: "Prix (modifiable) :",
     estimatedPriceBadge: "estimé", estimatedPriceHint: "Prix de départ estimé, jamais confirmé par un scan ou une saisie manuelle — vérifie-le avec ton vrai fournisseur.",
     estimatedPriceLegend: "Prix estimé, pas encore vérifié avec ton fournisseur",
@@ -469,9 +469,9 @@ const TR = {
     scanBackToCard: "Volver", scanMakeNew: "Crear como nuevo",
     scanSkip: "No añadir este ingrediente", scanSkippedSection: "Omitidos", scanUndoSkip: "Deshacer",
     scanDoneSection: "Ya añadidos",
-    scanNonFoodExcluded: (n) => `${n} artículo${n > 1 ? "s" : ""} excluido${n > 1 ? "s" : ""} de la despensa (no alimentario o precio no encontrado — toca para recuperar uno):`,
+    scanNonFoodExcluded: (n) => `${n} artículo${n > 1 ? "s" : ""} excluido${n > 1 ? "s" : ""} de la despensa (no alimentario o depósito/gastos — toca para recuperar uno):`,
     scanRestoreNonFood: "Añadir de todos modos a la verificación",
-    scanRestoreNoPrice: "Precio no encontrado en la factura — añadir de todos modos a la verificación",
+    scanRestoreDeposit: "Depósito / gastos (envío, servicio...) — añadir de todos modos a la verificación",
     scanPriceLabel: "Precio (editable):",
     estimatedPriceBadge: "estimado", estimatedPriceHint: "Precio de partida estimado, nunca confirmado por un escaneo o entrada manual — verifícalo con tu proveedor real.",
     estimatedPriceLegend: "Precio estimado, aún no verificado con tu proveedor",
@@ -1920,15 +1920,17 @@ export default function App() {
         };
       });
 
-      // Les articles non-alimentaires (produits d'entretien, consommables...) et les lignes dont
-      // le prix est introuvable ou incalculable ne polluent pas le garde-manger : on les met de
-      // côté, mais jamais silencieusement — on les affiche dans un résumé, avec la possibilité
-      // de les récupérer en vérification si besoin.
-      const isExcludable = (it) => it.isFood === false || it.priceUnusable === true;
+      // Seuls les articles non-alimentaires (produits d'entretien, consignes, frais de port...)
+      // sont écartés du garde-manger — jamais silencieusement, on les affiche dans un résumé
+      // avec la possibilité de les récupérer. Un ingrédient alimentaire dont le prix est
+      // introuvable/incalculable reste dans "À vérifier" : il ne doit surtout pas disparaître
+      // silencieusement de la recette, l'utilisateur doit pouvoir saisir le prix lui-même
+      // (priceUnusable l'empêche seulement d'être auto-importé tant que le prix n'est pas fixé).
+      const isExcludable = (it) => it.isFood === false;
       const foodItems = items.filter((it) => !isExcludable(it));
       const excludedItems = items
         .filter(isExcludable)
-        .map((it) => ({ ...it, excludeReason: it.isFood === false ? "nonFood" : "noPrice" }));
+        .map((it) => ({ ...it, excludeReason: it.isDeposit ? "deposit" : "nonFood" }));
 
       // Alerte globale si une grosse majorité des prix scannés semble en forte hausse
       // par rapport aux vrais prix déjà connus — signe probable d'un souci de lecture du document.
@@ -2279,7 +2281,7 @@ export default function App() {
                           onClick={() => restoreExcludedItem(i)}
                           className="text-[10px] px-2 py-1 rounded-full text-white/50 hover:text-white flex items-center gap-1"
                           style={{ background: "rgba(255,255,255,0.06)" }}
-                          title={nf.excludeReason === "noPrice" ? t("scanRestoreNoPrice") : t("scanRestoreNonFood")}
+                          title={nf.excludeReason === "deposit" ? t("scanRestoreDeposit") : t("scanRestoreNonFood")}
                         >
                           {nf.name} <Plus size={10} />
                         </button>
