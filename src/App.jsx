@@ -1837,9 +1837,11 @@ export default function App() {
     // trouvée sur le document (typique d'un simple ticket de caisse, ou d'un colis dont le poids
     // n'est écrit nulle part) : impossible de calculer un vrai prix au kilo fiable. Mieux vaut le
     // dire clairement plutôt que d'inventer un chiffre.
-    // Ne dépend PAS de packageContentUnit : si l'IA a quand même renvoyé un contenu de colis
-    // (même avec une unité "kg"/"L" hallucinée) sans vrai chiffre lisible, on ne doit pas s'y fier.
-    const pricingUnknown = !!it.weighable && printedUnit !== "kg" && printedUnit !== "L" && (!it.packageContent || it.packageContent <= 1);
+    // Seul un packageContent absent (null/0) signale une vraie inconnue — l'IA est instruite de
+    // ne JAMAIS renvoyer un chiffre par défaut quand elle ne sait pas (voir prompt). Un contenu
+    // de 1 est une valeur légitime (ex: "LAIT ENTIER UHT 1L" vendu à la pièce = 1L par pièce),
+    // pas une inconnue déguisée : ne jamais le traiter comme suspect uniquement parce qu'il vaut 1.
+    const pricingUnknown = !!it.weighable && printedUnit !== "kg" && printedUnit !== "L" && !it.packageContent;
 
     const expectedTotal = packageCount * packageContent * finalUnitPrice;
     const printedTotal = it.totalPriceHT || 0;
