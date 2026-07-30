@@ -12,6 +12,7 @@ import {
   Settings as SettingsIcon,
   Search,
   ChevronDown,
+  ChevronUp,
   Camera,
   X,
   Loader2,
@@ -391,7 +392,9 @@ const TR = {
     scanResultTitle: "Résultat du scan", scanSupplier: "Fournisseur",
     scanDate: "Date", scanAssignTo: "Associer à", scanNewIngredient: "🆕 Nouvel ingrédient",
     scanLinkedSure: "Ingrédient existant", scanLinkedGuess: "Suggestion, vérifie",
-    scanRenameHint: (n) => `Renommer l'ingrédient existant en "${n}"`,
+    scanRenameWarning: (n) => `Remplace "${n}" partout où il est utilisé`,
+    scanCreateSeparateLabel: (n) => `Créer "${n}" comme ingrédient séparé`,
+    scanCreateSeparateHint: "L'ingrédient existant reste inchangé",
     scanPriceCorrected: "prix recalculé (total ÷ qté)",
     scanPriceCorrectedHint: "Le prix unitaire lu semblait incohérent avec le total, on l'a recalculé automatiquement.",
     scanPriceSame: "Prix inchangé", scanPriceDecrease: "Prix en baisse",
@@ -408,7 +411,7 @@ const TR = {
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanUpcoming: "Suivants",
-    scanExistingLabel: "existant", scanScannedLabel: "sur la facture", scanProposedLabel: "nom proposé",
+    scanExistingLabel: "existant", scanProposedLabel: "nom proposé",
     scanRawLabelPrefix: "Facture :",
     scanChooseNameLabel: "Quel nom garder ?",
     scanRelinkLabel: "Relier à un autre ingrédient / créer nouveau :",
@@ -417,7 +420,7 @@ const TR = {
     scanPricingUnknownHint: "Ce produit se vend normalement au poids, mais aucune info de poids/prix au kilo n'est visible ici (courant sur un simple ticket de caisse). Choisis l'unité et indique le prix toi-même :",
     scanEnterPriceManually: "Unité et prix HT :",
     scanSearchIngredientPlaceholder: "Rechercher un ingrédient existant…",
-    scanBackToCard: "Retour", scanMakeNew: "Créer comme nouveau",
+    scanBackToCard: "Retour",
     scanSkip: "Ne pas ajouter cet ingrédient", scanSkippedSection: "Ignorés", scanUndoSkip: "Annuler",
     scanDoneSection: "Déjà ajoutés",
     scanNonFoodExcluded: (n) => `${n} article${n > 1 ? "s" : ""} écarté${n > 1 ? "s" : ""} du garde-manger (non-alimentaire ou consigne/frais — clique pour en récupérer un) :`,
@@ -477,7 +480,9 @@ const TR = {
     scanResultTitle: "Resultado del escaneo", scanSupplier: "Proveedor",
     scanDate: "Fecha", scanAssignTo: "Asociar a", scanNewIngredient: "🆕 Nuevo ingrediente",
     scanLinkedSure: "Ingrediente existente", scanLinkedGuess: "Sugerencia, verifica",
-    scanRenameHint: (n) => `Renombrar el ingrediente existente a "${n}"`,
+    scanRenameWarning: (n) => `Reemplaza "${n}" en todos los sitios donde se usa`,
+    scanCreateSeparateLabel: (n) => `Crear "${n}" como ingrediente aparte`,
+    scanCreateSeparateHint: "El ingrediente existente no se modifica",
     scanPriceCorrected: "precio recalculado (total ÷ cant.)",
     scanPriceCorrectedHint: "El precio unitario leído parecía inconsistente con el total, se recalculó automáticamente.",
     scanPriceSame: "Precio sin cambios", scanPriceDecrease: "Precio a la baja",
@@ -494,7 +499,7 @@ const TR = {
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanUpcoming: "Siguientes",
-    scanExistingLabel: "existente", scanScannedLabel: "en la factura", scanProposedLabel: "nombre propuesto",
+    scanExistingLabel: "existente", scanProposedLabel: "nombre propuesto",
     scanRawLabelPrefix: "Factura :",
     scanChooseNameLabel: "¿Qué nombre mantener?",
     scanRelinkLabel: "Asociar a otro ingrediente / crear nuevo:",
@@ -503,7 +508,7 @@ const TR = {
     scanPricingUnknownHint: "Este producto normalmente se vende por peso, pero no hay información de peso/precio por kilo aquí (habitual en un simple ticket de caja). Elige la unidad e indica el precio tú mismo:",
     scanEnterPriceManually: "Unidad y precio sin IVA:",
     scanSearchIngredientPlaceholder: "Buscar un ingrediente existente…",
-    scanBackToCard: "Volver", scanMakeNew: "Crear como nuevo",
+    scanBackToCard: "Volver",
     scanSkip: "No añadir este ingrediente", scanSkippedSection: "Omitidos", scanUndoSkip: "Deshacer",
     scanDoneSection: "Ya añadidos",
     scanNonFoodExcluded: (n) => `${n} artículo${n > 1 ? "s" : ""} excluido${n > 1 ? "s" : ""} de la despensa (no alimentario o depósito/gastos — toca para recuperar uno):`,
@@ -1021,21 +1026,69 @@ function NumField({ value, onChange, className, allowDecimal = true, ...rest }) 
   );
 }
 
-// Affiche/édite les quantités de recette en g ou mL plutôt qu'en décimales de kg/L
-// (ex : 50 g au lieu de 0.05) — le stockage interne (line.qty, prix au kg/L) ne change pas,
-// seule la conversion d'affichage x1000 est appliquée pour les unités kg et L.
-function displayUnitLabel(unit) {
-  if (unit === "kg") return "g";
-  if (unit === "L") return "mL";
-  return unit;
-}
-
+// Affiche/édite les quantités de recette en g/mL (jamais en décimales de kg/L, ex : 50 g
+// plutôt que 0.05), avec deux flèches empilées pour ajuster sans calcul mental — le clavier
+// reste utilisable en plus. Le stockage interne (line.qty, prix au kg/L) ne change pas, seule
+// la conversion d'affichage x1000 est appliquée. L'unité affichée (g/mL vs kg/L) ne se
+// recalcule jamais pendant la frappe (focus), pour ne pas changer l'interprétation du texte
+// en cours de saisie ; elle bascule automatiquement au-delà de 1000 (ex : 1000g -> 1 kg).
 function QtyField({ qty, unit, onChange, className }) {
-  if (unit !== "kg" && unit !== "L") {
-    return <NumField value={qty} onChange={onChange} className={className} />;
-  }
-  const displayValue = Math.round((qty || 0) * 1000000) / 1000;
-  return <NumField value={displayValue} onChange={(v) => onChange((v || 0) / 1000)} className={className} />;
+  const isSmallUnit = unit === "kg" || unit === "L";
+  const focusedRef = useRef(false);
+
+  const [displaySmall, setDisplaySmall] = useState(isSmallUnit && (qty || 0) < 1);
+  useEffect(() => {
+    if (focusedRef.current) return;
+    setDisplaySmall(isSmallUnit && (qty || 0) < 1);
+  }, [qty, isSmallUnit]);
+
+  const factor = isSmallUnit && displaySmall ? 1000 : 1;
+  const displayUnit = isSmallUnit ? (displaySmall ? (unit === "kg" ? "g" : "mL") : unit) : unit;
+  const step = isSmallUnit ? (displaySmall ? 25 : 0.1) : unit === "pièce" ? 1 : 0.1;
+  const rawValue = Math.round((qty || 0) * factor * 1000) / 1000;
+
+  const [local, setLocal] = useState(rawValue === 0 ? "" : String(rawValue));
+  useEffect(() => {
+    if (focusedRef.current) return;
+    setLocal(rawValue === 0 ? "" : String(rawValue));
+  }, [rawValue]);
+
+  const commit = (displayVal) => onChange(Math.max(0, displayVal) / factor);
+
+  const handleChange = (e) => {
+    let v = e.target.value.replace(",", ".").replace(/[^0-9.]/g, "");
+    const firstDot = v.indexOf(".");
+    if (firstDot !== -1) v = v.slice(0, firstDot + 1) + v.slice(firstDot + 1).replace(/\./g, "");
+    if (/^0[0-9]/.test(v)) v = v.replace(/^0+/, "");
+    setLocal(v);
+    const num = v === "" || v === "." ? 0 : parseFloat(v);
+    commit(isNaN(num) ? 0 : num);
+  };
+
+  const bump = (dir) => commit(Math.round((rawValue + dir * step) * 1000) / 1000);
+
+  return (
+    <div className="flex items-center gap-0.5 shrink-0">
+      <input
+        type="text"
+        inputMode="decimal"
+        value={local}
+        onChange={handleChange}
+        onFocus={(e) => { focusedRef.current = true; e.target.select(); }}
+        onBlur={() => { focusedRef.current = false; setLocal(rawValue === 0 ? "" : String(rawValue)); }}
+        className={className}
+      />
+      <div className="flex flex-col print:hidden">
+        <button type="button" onClick={() => bump(1)} className="text-black/30 hover:text-black/70 leading-none" style={{ padding: "0 1px" }}>
+          <ChevronUp size={10} />
+        </button>
+        <button type="button" onClick={() => bump(-1)} className="text-black/30 hover:text-black/70 leading-none" style={{ padding: "0 1px" }}>
+          <ChevronDown size={10} />
+        </button>
+      </div>
+      <span className="text-black/40 text-[11px] shrink-0">{displayUnit}</span>
+    </div>
+  );
 }
 
 // Sélecteur d'ingrédient avec recherche (remplace un <select> qui deviendrait interminable).
@@ -1106,6 +1159,9 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
 }
 
 const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
+// Couleurs du badge de classement des recettes (TOP1/2/3), volontairement distinctes des
+// TIER_COLORS ci-dessus qui ne servent qu'à la marge — or / argent / bronze, un rang = une couleur.
+const TOP_BADGE_COLORS = ["#D4AF37", "#B4B8BC", "#C97F3F"];
 
 // Retire uniquement le code/référence interne en début de ligne (ex: "F11893 ") pour un
 // aperçu du texte facture lisible au premier coup d'œil, sans toucher au texte brut complet
@@ -1117,12 +1173,81 @@ const lightRawLabel = (raw) => {
   return cleaned || s;
 };
 
+// Choix explicite entre garder le nom existant, renommer l'ingrédient existant, ou créer un
+// ingrédient séparé. Un seul bouton "Valider" ensuite applique toujours ce qui a été choisi ici
+// — plus jamais de bouton "Valider" qui renomme silencieusement un ingrédient existant alors que
+// l'intention était d'en créer un nouveau (les 3 issues possibles sont visibles au même endroit).
+// `guessedIng` est résolu via `item.guessedMatchId`, qui reste stable même si l'utilisateur
+// bascule sur "créer séparément" puis revient en arrière.
+function ScanNameChoice({ item, guessedIng, ingredientDisplayName, onUpdate, t }) {
+  if (!guessedIng) return null;
+  const matchedName = ingredientDisplayName(guessedIng);
+  const proposedName = item.name;
+  const showRename = !!proposedName && proposedName !== matchedName;
+  const selected = item.assignTo === "new" ? "new" : item.renameOnImport ? "rename" : "keep";
+
+  const Option = ({ id, label, hint, hintColor, onClick }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-start gap-2 rounded-lg px-2.5 py-2 text-left"
+      style={{
+        background: selected === id ? "#10B98122" : "rgba(255,255,255,0.05)",
+        border: `1px solid ${selected === id ? "#10B981" : "rgba(255,255,255,0.12)"}`,
+      }}
+    >
+      <span
+        className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center mt-0.5"
+        style={{ border: `2px solid ${selected === id ? "#10B981" : "rgba(255,255,255,0.3)"}` }}
+      >
+        {selected === id && <span className="w-2 h-2 rounded-full" style={{ background: "#10B981" }} />}
+      </span>
+      <span className="min-w-0">
+        <span className={`block text-xs font-medium ${selected === id ? "text-white" : "text-white/60"}`}>{label}</span>
+        {hint && (
+          <span className="block text-[10px] mt-0.5" style={{ color: hintColor || "rgba(255,255,255,0.3)" }}>
+            {hint}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[9px] uppercase tracking-wide text-white/35">{t("scanChooseNameLabel")}</div>
+      <Option
+        id="keep"
+        label={matchedName}
+        hint={t("scanExistingLabel")}
+        onClick={() => onUpdate({ assignTo: item.guessedMatchId, renameOnImport: false })}
+      />
+      {showRename && (
+        <Option
+          id="rename"
+          label={proposedName}
+          hint={t("scanRenameWarning")(matchedName)}
+          hintColor={TIER_COLORS.mid}
+          onClick={() => onUpdate({ assignTo: item.guessedMatchId, renameOnImport: true })}
+        />
+      )}
+      <Option
+        id="new"
+        label={t("scanCreateSeparateLabel")(proposedName || "?")}
+        hint={t("scanCreateSeparateHint")}
+        onClick={() => onUpdate({ assignTo: "new", renameOnImport: false })}
+      />
+    </div>
+  );
+}
+
 // Carte d'un article scanné : correspondance affichée en grand (plutôt qu'un petit menu discret),
 // bascule de renommage en vrai bouton, et une phrase en clair juste avant d'importer.
 function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredientDisplayName, lang, t, skipMuted, startExpanded }) {
   const [expanded, setExpanded] = useState(!!startExpanded);
   const [editingPrice, setEditingPrice] = useState(false);
   const matchedIng = item.assignTo !== "new" ? ingredients.find((i) => i.id === item.assignTo) : null;
+  const guessedIng = item.guessedMatchId ? ingredients.find((i) => i.id === item.guessedMatchId) : null;
   const needsRename = item.assignTo !== "new" && item.name && matchedIng && ingredientDisplayName(matchedIng) !== item.name;
   const matchColor = item.assignTo === "new" ? "#3B82F6" : item.matchConfident ? "#10B981" : TIER_COLORS.mid;
 
@@ -1264,27 +1389,11 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             </div>
           )}
 
-          {needsRename && (
-            <div>
-              <div className="text-[9px] uppercase tracking-wide text-white/35 mb-1">{t("scanChooseNameLabel")}</div>
-              <button
-                type="button"
-                onClick={() => onUpdate({ renameOnImport: !item.renameOnImport })}
-                className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-left"
-                style={{ background: item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.06)", color: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.55)" }}
-              >
-                <span
-                  className="w-4 h-4 rounded shrink-0 flex items-center justify-center"
-                  style={{ background: item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.15)" }}
-                >
-                  {item.renameOnImport && <Check size={12} color="#000" />}
-                </span>
-                {t("scanRenameHint")(item.name)}
-              </button>
-            </div>
+          {guessedIng && (
+            <ScanNameChoice item={item} guessedIng={guessedIng} ingredientDisplayName={ingredientDisplayName} onUpdate={onUpdate} t={t} />
           )}
 
-          <div className={needsRename ? "border-t border-white/5 pt-2" : ""}>
+          <div className={guessedIng ? "border-t border-white/5 pt-2" : ""}>
             <div className="text-[9px] uppercase tracking-wide text-white/35 mb-1">{t("scanRelinkLabel")}</div>
             <div className="flex items-center gap-1.5">
               <select
@@ -1301,7 +1410,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
                 ingredients={ingredients}
                 value={item.assignTo !== "new" ? item.assignTo : null}
                 displayName={ingredientDisplayName}
-                onChange={(id) => onUpdate({ assignTo: id, matchConfident: true, renameOnImport: false })}
+                onChange={(id) => onUpdate({ assignTo: id, guessedMatchId: id, matchConfident: true, renameOnImport: false })}
                 placeholder={t("scanSearchIngredientPlaceholder")}
                 className="flex-1 min-w-0 bg-black/30 text-white text-xs rounded-lg px-2.5 py-2"
               />
@@ -2016,6 +2125,10 @@ export default function App() {
         return {
           ...merged,
           assignTo: matchedId || "new",
+          // Référence stable vers l'ingrédient existant repéré (par l'IA ou la mémoire des
+          // rapprochements), conservée même si l'utilisateur choisit "new" ensuite — permet de
+          // toujours proposer "garder / renommer / créer séparément" sans perdre la suggestion.
+          guessedMatchId: matchedId || null,
           matchConfident: match ? match.confident : false,
           // Par défaut on garde toujours le nom existant : renommer doit être un choix
           // explicite de l'utilisateur, jamais une conséquence silencieuse d'un scan.
@@ -2449,6 +2562,7 @@ export default function App() {
                       const upcoming = review.slice(1, 3);
                       const isExpanded = expandedReviewIdx === current.idx;
                       const matchedIng = current.item.assignTo !== "new" ? ingredientById(current.item.assignTo) : null;
+                      const guessedIng = current.item.guessedMatchId ? ingredientById(current.item.guessedMatchId) : null;
                       const needsRename = current.item.assignTo !== "new" && current.item.name && matchedIng && ingredientDisplayName(matchedIng) !== current.item.name;
                       return (
                         <div>
@@ -2527,52 +2641,18 @@ export default function App() {
                                     />
                                   </div>
 
-                                  {current.item.assignTo === "new" ? (
-                                    <div className="text-white text-lg font-semibold mt-2">{current.item.name}</div>
-                                  ) : needsRename ? (
-                                    <div className="mt-2 space-y-1.5">
-                                      <div className="text-white/40 text-[10px] uppercase tracking-wide">{t("scanChooseNameLabel")}</div>
-                                      <button
-                                        onClick={() => updateScanItem(current.idx, { renameOnImport: false })}
-                                        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left"
-                                        style={{
-                                          background: !current.item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.05)",
-                                          border: `1px solid ${!current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.12)"}`,
-                                        }}
-                                      >
-                                        <span
-                                          className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center"
-                                          style={{ border: `2px solid ${!current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.3)"}` }}
-                                        >
-                                          {!current.item.renameOnImport && <span className="w-2 h-2 rounded-full" style={{ background: "#10B981" }} />}
-                                        </span>
-                                        <span className={`text-sm font-medium ${!current.item.renameOnImport ? "text-white" : "text-white/50"}`}>
-                                          {ingredientDisplayName(matchedIng)}
-                                        </span>
-                                        <span className="text-[9px] text-white/30 ml-auto shrink-0">{t("scanExistingLabel")}</span>
-                                      </button>
-                                      <button
-                                        onClick={() => updateScanItem(current.idx, { renameOnImport: true })}
-                                        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left"
-                                        style={{
-                                          background: current.item.renameOnImport ? "#10B98122" : "rgba(255,255,255,0.05)",
-                                          border: `1px solid ${current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.12)"}`,
-                                        }}
-                                      >
-                                        <span
-                                          className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center"
-                                          style={{ border: `2px solid ${current.item.renameOnImport ? "#10B981" : "rgba(255,255,255,0.3)"}` }}
-                                        >
-                                          {current.item.renameOnImport && <span className="w-2 h-2 rounded-full" style={{ background: "#10B981" }} />}
-                                        </span>
-                                        <span className={`text-sm font-medium ${current.item.renameOnImport ? "text-white" : "text-white/50"}`}>
-                                          {current.item.name}
-                                        </span>
-                                        <span className="text-[9px] text-white/30 ml-auto shrink-0">{t("scanScannedLabel")}</span>
-                                      </button>
+                                  {guessedIng ? (
+                                    <div className="mt-2">
+                                      <ScanNameChoice
+                                        item={current.item}
+                                        guessedIng={guessedIng}
+                                        ingredientDisplayName={ingredientDisplayName}
+                                        onUpdate={(patch) => updateScanItem(current.idx, patch)}
+                                        t={t}
+                                      />
                                     </div>
                                   ) : (
-                                    <div className="text-white text-lg font-semibold mt-2">{ingredientDisplayName(matchedIng)}</div>
+                                    <div className="text-white text-lg font-semibold mt-2">{current.item.name}</div>
                                   )}
 
                                   <div className="flex items-center gap-2 mt-2 rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.06)" }}>
@@ -2644,15 +2724,6 @@ export default function App() {
                                     >
                                       {t("scanSkip")}
                                     </button>
-                                    {current.item.assignTo !== "new" && (
-                                      <button
-                                        onClick={() => importScanItem(current.idx, { assignTo: "new", renameOnImport: false })}
-                                        className="flex-1 text-[10px] uppercase tracking-wide py-2.5 rounded-full font-semibold border"
-                                        style={{ borderColor: "rgba(59,130,246,0.5)", color: "#3B82F6" }}
-                                      >
-                                        {t("scanMakeNew")}
-                                      </button>
-                                    )}
                                     <button
                                       onClick={() => importScanItem(current.idx)}
                                       className="flex-1 text-[10px] uppercase tracking-wide py-2.5 rounded-full font-semibold"
@@ -3033,7 +3104,10 @@ export default function App() {
                             {topRecipeIds.includes(r.id) && (
                               <span
                                 className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
-                                style={{ color: "#C99A55", background: "#C99A5522" }}
+                                style={{
+                                  color: TOP_BADGE_COLORS[topRecipeIds.indexOf(r.id)],
+                                  background: `${TOP_BADGE_COLORS[topRecipeIds.indexOf(r.id)]}22`,
+                                }}
                               >
                                 <Award size={9} /> TOP{topRecipeIds.indexOf(r.id) + 1}
                               </span>
@@ -3160,8 +3234,7 @@ export default function App() {
                         autoOpen={autoOpenIdx === idx}
                         placeholder={lang === "es" ? "Elegir un ingrediente…" : "Choisir un ingrédient…"}
                       />
-                      <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-14 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
-                      <span className="text-black/40 w-6 shrink-0">{displayUnitLabel(ing?.unit)}</span>
+                      <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
                       {activeSupplier(ing)?.priceSource === "estimate" && (
                         <span className="w-1.5 h-1.5 rounded-full shrink-0 price-field" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
                       )}
