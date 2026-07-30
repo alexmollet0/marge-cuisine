@@ -416,9 +416,11 @@ const TR = {
     scanChooseNameLabel: "Quel nom garder ?",
     scanRelinkLabel: "Relier à un autre ingrédient / créer nouveau :",
     scanKeepName: "Garder l'existant", scanUseNewName: "Utiliser ce nouveau nom",
-    scanPricingUnknown: "Prix au kilo non indiqué sur ce document",
-    scanPricingUnknownHint: "Ce produit se vend normalement au poids, mais aucune info de poids/prix au kilo n'est visible ici (courant sur un simple ticket de caisse). Choisis l'unité et indique le prix toi-même :",
-    scanEnterPriceManually: "Unité et prix HT :",
+    scanPricingUnknown: "Prix par pièce/sachet détecté",
+    scanPricingUnknownHint: "Ce produit se vend au poids/volume, mais le poids ou volume d'une pièce n'est pas indiqué sur ce document. Indique-le ci-dessous pour calculer le prix au kilo/litre automatiquement :",
+    scanCalcSourcePrice: "Prix lu sur la facture",
+    scanCalcContentLabel: "Poids ou volume d'une pièce",
+    scanCalcResult: (price, unit) => `= ${price} €/${unit}`,
     scanSearchIngredientPlaceholder: "Rechercher un ingrédient existant…",
     scanBackToCard: "Retour",
     scanSkip: "Ne pas ajouter cet ingrédient", scanSkippedSection: "Ignorés", scanUndoSkip: "Annuler",
@@ -504,9 +506,11 @@ const TR = {
     scanChooseNameLabel: "¿Qué nombre mantener?",
     scanRelinkLabel: "Asociar a otro ingrediente / crear nuevo:",
     scanKeepName: "Mantener el existente", scanUseNewName: "Usar este nuevo nombre",
-    scanPricingUnknown: "Precio por kilo no indicado en este documento",
-    scanPricingUnknownHint: "Este producto normalmente se vende por peso, pero no hay información de peso/precio por kilo aquí (habitual en un simple ticket de caja). Elige la unidad e indica el precio tú mismo:",
-    scanEnterPriceManually: "Unidad y precio sin IVA:",
+    scanPricingUnknown: "Precio por pieza/bolsa detectado",
+    scanPricingUnknownHint: "Este producto se vende por peso/volumen, pero el peso o volumen de una pieza no está indicado en este documento. Indícalo abajo para calcular el precio por kilo/litro automáticamente:",
+    scanCalcSourcePrice: "Precio leído en la factura",
+    scanCalcContentLabel: "Peso o volumen de una pieza",
+    scanCalcResult: (price, unit) => `= ${price} €/${unit}`,
     scanSearchIngredientPlaceholder: "Buscar un ingrediente existente…",
     scanBackToCard: "Volver",
     scanSkip: "No añadir este ingrediente", scanSkippedSection: "Omitidos", scanUndoSkip: "Deshacer",
@@ -1241,6 +1245,77 @@ function ScanNameChoice({ item, guessedIng, ingredientDisplayName, onUpdate, t }
   );
 }
 
+// Convertit une contenance (poids ou volume d'une pièce) vers l'unité de base utilisée pour
+// le prix au kg/L — kg et g se ramènent au kg, L et cl se ramènent au L.
+const CALC_CONTENT_UNITS = {
+  kg: { base: "kg", factor: 1 },
+  g: { base: "kg", factor: 0.001 },
+  L: { base: "L", factor: 1 },
+  cl: { base: "L", factor: 0.01 },
+};
+
+// Calculateur guidé pour les lignes "prix par pièce/sachet/colis" sans poids ni volume indiqué
+// (ex: "3 PCE x 28.90€" sans préciser si le sachet fait 800g ou 1kg) — évite d'imposer un calcul
+// mental à l'utilisateur : il indique juste la contenance d'une pièce, le prix au kg/L en découle
+// automatiquement et remplace le prix à 0€ imposé par défaut tant que rien n'est calculable.
+function PricingCalculator({ item, onUpdate, t }) {
+  const content = item.calcContent ?? 1;
+  const contentUnit = item.calcContentUnit || "kg";
+  const sourcePrice = item.printedUnitPriceHT || 0;
+  const { base, factor } = CALC_CONTENT_UNITS[contentUnit];
+  const baseContent = content * factor;
+  const computedPrice = baseContent > 0 ? sourcePrice / baseContent : 0;
+
+  const recompute = (patch) => {
+    const next = { calcContent: content, calcContentUnit: contentUnit, printedUnitPriceHT: sourcePrice, ...patch };
+    const { base: nextBase, factor: nextFactor } = CALC_CONTENT_UNITS[next.calcContentUnit];
+    const nextBaseContent = next.calcContent * nextFactor;
+    const nextPrice = nextBaseContent > 0 ? next.printedUnitPriceHT / nextBaseContent : 0;
+    onUpdate({ ...next, unit: nextBase, unitPriceHT: nextPrice });
+  };
+
+  return (
+    <div className="rounded-lg p-2.5 text-[11px] space-y-2" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+      <div className="flex items-center gap-1.5 font-semibold">
+        <AlertTriangle size={12} className="shrink-0" /> {t("scanPricingUnknown")}
+      </div>
+      <div className="text-white/60">{t("scanPricingUnknownHint")}</div>
+
+      <div className="flex items-center gap-1.5">
+        <span className="text-white/50 shrink-0">{t("scanCalcSourcePrice")}</span>
+        <NumField
+          value={sourcePrice}
+          onChange={(v) => recompute({ printedUnitPriceHT: v })}
+          className="w-16 bg-black/20 rounded px-1.5 py-1 text-right outline-none font-mono text-white"
+        />
+        <span className="text-white/50">€</span>
+      </div>
+
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-white/50 shrink-0">{t("scanCalcContentLabel")}</span>
+        <NumField
+          value={content}
+          onChange={(v) => recompute({ calcContent: v })}
+          className="w-16 bg-black/20 rounded px-1.5 py-1 text-right outline-none font-mono text-white"
+        />
+        <select
+          value={contentUnit}
+          onChange={(e) => recompute({ calcContentUnit: e.target.value })}
+          className="bg-black/20 rounded px-1.5 py-1 outline-none text-white"
+          style={{ colorScheme: "dark" }}
+        >
+          <option value="kg">kg</option>
+          <option value="g">g</option>
+          <option value="L">L</option>
+          <option value="cl">cl</option>
+        </select>
+      </div>
+
+      <div className="text-white font-semibold text-sm">{t("scanCalcResult")(computedPrice.toFixed(2), base)}</div>
+    </div>
+  );
+}
+
 // Carte d'un article scanné : correspondance affichée en grand (plutôt qu'un petit menu discret),
 // bascule de renommage en vrai bouton, et une phrase en clair juste avant d'importer.
 function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredientDisplayName, lang, t, skipMuted, startExpanded }) {
@@ -1370,14 +1445,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             </div>
           )}
 
-          {item.pricingUnknown && (
-            <div className="rounded-lg p-2 text-[11px]" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
-              <div className="flex items-center gap-1.5 font-semibold">
-                <AlertTriangle size={12} className="shrink-0" /> {t("scanPricingUnknown")}
-              </div>
-              <div className="mt-1 text-white/60">{t("scanPricingUnknownHint")}</div>
-            </div>
-          )}
+          {item.pricingUnknown && <PricingCalculator item={item} onUpdate={onUpdate} t={t} />}
 
           {item.priceInconsistent && (
             <div className="flex items-center gap-1.5 text-[10px] rounded px-2 py-1" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
@@ -2134,6 +2202,12 @@ export default function App() {
           // explicite de l'utilisateur, jamais une conséquence silencieuse d'un scan.
           renameOnImport: false,
           imported: false,
+          // Passé à true quand la ligne a été validée dans la pile "à vérifier" : elle rejoint
+          // alors la liste "sûr" SANS être écrite dans le garde-manger — l'écriture réelle
+          // n'arrive qu'au clic sur la coche de la liste. Ça permet de revenir en arrière et
+          // corriger un choix (garder/renommer/créer séparément, prix...) après coup, sans avoir
+          // à "annuler" un import déjà appliqué à un ingrédient.
+          reviewed: false,
           currentPrice,
           currentPriceIsReal,
           priceInconsistent,
@@ -2228,8 +2302,18 @@ export default function App() {
   // "Importer tout" ne traite QUE les lignes sans aucun signal d'alerte — tout le reste
   // (prix incohérent, conditionnement ambigu, grosse variation, correspondance incertaine)
   // doit être validé ligne par ligne, en connaissance de cause.
+  // "new" ne suffit PAS à lui seul : si une suggestion existait (guessedMatchId), l'utilisateur
+  // est peut-être seulement en train de choisir "créer séparément" dans le picker sans avoir
+  // encore validé — la ligne doit rester dans "à vérifier" jusqu'au clic explicite sur Valider.
   const isSafeScanItem = (item) =>
-    !item.priceInconsistent && !item.bigChange && !item.priceUnusable && (item.assignTo === "new" || item.matchConfident);
+    !item.priceInconsistent && !item.bigChange && !item.priceUnusable &&
+    (item.matchConfident || (item.assignTo === "new" && !item.guessedMatchId));
+
+  // Une ligne rejoint la section "sûr" (éditable, coche pour importer) si elle est intrinsèquement
+  // sûre, OU si l'utilisateur vient de la valider dans la pile "à vérifier" (`reviewed`) — dans ce
+  // second cas rien n'est encore écrit dans le garde-manger, donc revenir en arrière et corriger
+  // reste toujours possible tant que la coche n'a pas été cliquée.
+  const isReadyToImport = (item) => isSafeScanItem(item) || item.reviewed;
 
   const skipScanItem = (idx) => updateScanItem(idx, { skipped: true });
   const unskipScanItem = (idx) => updateScanItem(idx, { skipped: false });
@@ -2249,7 +2333,7 @@ export default function App() {
 
   const importAllScanItems = () => {
     scanResult.items.forEach((item, idx) => {
-      if (isSafeScanItem(item)) importScanItem(idx);
+      if (isReadyToImport(item)) importScanItem(idx);
     });
   };
 
@@ -2524,8 +2608,8 @@ export default function App() {
                     const pending = withIdx.filter(({ item }) => !item.imported && !item.skipped);
                     const done = withIdx.filter(({ item }) => item.imported);
                     const skipped = withIdx.filter(({ item }) => item.skipped && !item.imported);
-                    const review = pending.filter(({ item }) => !isSafeScanItem(item));
-                    const safe = pending.filter(({ item }) => isSafeScanItem(item));
+                    const review = pending.filter(({ item }) => !isReadyToImport(item));
+                    const safe = pending.filter(({ item }) => isReadyToImport(item));
                     const renderCard = ({ item, idx }) => (
                       <ScanItemCard
                         key={idx}
@@ -2673,30 +2757,8 @@ export default function App() {
                                   </div>
 
                                   {current.item.pricingUnknown && (
-                                    <div className="mt-3 rounded-lg p-2.5 text-[11px]" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
-                                      <div className="flex items-center gap-1.5 font-semibold">
-                                        <AlertTriangle size={12} className="shrink-0" /> {t("scanPricingUnknown")}
-                                      </div>
-                                      <div className="mt-1 text-white/60">{t("scanPricingUnknownHint")}</div>
-                                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                                        <span className="text-white/50">{t("scanEnterPriceManually")}</span>
-                                        <select
-                                          value={current.item.unit || "kg"}
-                                          onChange={(e) => updateScanItem(current.idx, { unit: e.target.value })}
-                                          className="bg-black/20 rounded px-1.5 py-1 outline-none text-white"
-                                          style={{ colorScheme: "dark" }}
-                                        >
-                                          <option value="kg">kg</option>
-                                          <option value="L">L</option>
-                                          <option value="pièce">pièce</option>
-                                        </select>
-                                        <NumField
-                                          value={current.item.unitPriceHT || 0}
-                                          onChange={(v) => updateScanItem(current.idx, { unitPriceHT: v })}
-                                          className="w-16 bg-black/20 rounded px-1.5 py-1 text-right outline-none font-mono text-white"
-                                        />
-                                        <span>€</span>
-                                      </div>
+                                    <div className="mt-3">
+                                      <PricingCalculator item={current.item} onUpdate={(patch) => updateScanItem(current.idx, patch)} t={t} />
                                     </div>
                                   )}
 
@@ -2725,7 +2787,7 @@ export default function App() {
                                       {t("scanSkip")}
                                     </button>
                                     <button
-                                      onClick={() => importScanItem(current.idx)}
+                                      onClick={() => updateScanItem(current.idx, { reviewed: true })}
                                       className="flex-1 text-[10px] uppercase tracking-wide py-2.5 rounded-full font-semibold"
                                       style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
                                     >
