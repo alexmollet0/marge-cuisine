@@ -384,8 +384,9 @@ const TR = {
     scanBackToCard: "Retour", scanMakeNew: "Créer comme nouveau",
     scanSkip: "Ne pas ajouter cet ingrédient", scanSkippedSection: "Ignorés", scanUndoSkip: "Annuler",
     scanDoneSection: "Déjà ajoutés",
-    scanNonFoodExcluded: (n) => `${n} article${n > 1 ? "s" : ""} non-alimentaire${n > 1 ? "s" : ""} écarté${n > 1 ? "s" : ""} du garde-manger (clique pour en récupérer un) :`,
+    scanNonFoodExcluded: (n) => `${n} article${n > 1 ? "s" : ""} écarté${n > 1 ? "s" : ""} du garde-manger (non-alimentaire ou prix introuvable — clique pour en récupérer un) :`,
     scanRestoreNonFood: "Ajouter quand même à la vérification",
+    scanRestoreNoPrice: "Prix introuvable sur la facture — ajouter quand même à la vérification",
     scanPriceLabel: "Prix (modifiable) :",
     estimatedPriceBadge: "estimé", estimatedPriceHint: "Prix de départ estimé, jamais confirmé par un scan ou une saisie manuelle — vérifie-le avec ton vrai fournisseur.",
     estimatedPriceLegend: "Prix estimé, pas encore vérifié avec ton fournisseur",
@@ -468,8 +469,9 @@ const TR = {
     scanBackToCard: "Volver", scanMakeNew: "Crear como nuevo",
     scanSkip: "No añadir este ingrediente", scanSkippedSection: "Omitidos", scanUndoSkip: "Deshacer",
     scanDoneSection: "Ya añadidos",
-    scanNonFoodExcluded: (n) => `${n} artículo${n > 1 ? "s" : ""} no alimentario${n > 1 ? "s" : ""} excluido${n > 1 ? "s" : ""} de la despensa (toca para recuperar uno):`,
+    scanNonFoodExcluded: (n) => `${n} artículo${n > 1 ? "s" : ""} excluido${n > 1 ? "s" : ""} de la despensa (no alimentario o precio no encontrado — toca para recuperar uno):`,
     scanRestoreNonFood: "Añadir de todos modos a la verificación",
+    scanRestoreNoPrice: "Precio no encontrado en la factura — añadir de todos modos a la verificación",
     scanPriceLabel: "Precio (editable):",
     estimatedPriceBadge: "estimado", estimatedPriceHint: "Precio de partida estimado, nunca confirmado por un escaneo o entrada manual — verifícalo con tu proveedor real.",
     estimatedPriceLegend: "Precio estimado, aún no verificado con tu proveedor",
@@ -1832,9 +1834,12 @@ export default function App() {
     }
 
     // Produit normalement vendu au poids (légume, viande...) mais AUCUNE info de poids/volume
-    // trouvée sur le document (typique d'un simple ticket de caisse) : impossible de calculer
-    // un vrai prix au kilo fiable. Mieux vaut le dire clairement plutôt que d'inventer un chiffre.
-    const pricingUnknown = !!it.weighable && printedUnit !== "kg" && printedUnit !== "L" && (!it.packageContent || it.packageContent <= 1) && packageContentUnit === "pièce";
+    // trouvée sur le document (typique d'un simple ticket de caisse, ou d'un colis dont le poids
+    // n'est écrit nulle part) : impossible de calculer un vrai prix au kilo fiable. Mieux vaut le
+    // dire clairement plutôt que d'inventer un chiffre.
+    // Ne dépend PAS de packageContentUnit : si l'IA a quand même renvoyé un contenu de colis
+    // (même avec une unité "kg"/"L" hallucinée) sans vrai chiffre lisible, on ne doit pas s'y fier.
+    const pricingUnknown = !!it.weighable && printedUnit !== "kg" && printedUnit !== "L" && (!it.packageContent || it.packageContent <= 1);
 
     const expectedTotal = packageCount * packageContent * finalUnitPrice;
     const printedTotal = it.totalPriceHT || 0;
@@ -1891,6 +1896,10 @@ export default function App() {
             ? Math.abs(merged.unitPriceHT - currentPrice) / currentPrice > 0.4
             : false;
 
+        // Aucun prix exploitable au final (rien d'imprimé, ou impossible à ramener à un vrai
+        // prix au kg/L/pièce) : on ne doit jamais laisser passer ça en "Sûr" à 0€.
+        const priceUnusable = pricingUnknown || !(merged.unitPriceHT > 0);
+
         return {
           ...merged,
           assignTo: matchedId || "new",
@@ -1904,24 +1913,29 @@ export default function App() {
           priceInconsistent,
           expectedTotal,
           pricingUnknown,
+          priceUnusable,
           bigChange,
           priceUp: currentPrice !== null && merged.unitPriceHT > currentPrice * 1.02,
           priceDown: currentPrice !== null && merged.unitPriceHT < currentPrice * 0.98,
         };
       });
 
-      // Les articles non-alimentaires (produits d'entretien, consommables...) ne polluent pas
-      // le garde-manger : on les met de côté, mais jamais silencieusement — on les affiche
-      // quand même dans un résumé, avec la possibilité de les récupérer si besoin.
-      const foodItems = items.filter((it) => it.isFood !== false);
-      const nonFoodItems = items.filter((it) => it.isFood === false);
+      // Les articles non-alimentaires (produits d'entretien, consommables...) et les lignes dont
+      // le prix est introuvable ou incalculable ne polluent pas le garde-manger : on les met de
+      // côté, mais jamais silencieusement — on les affiche dans un résumé, avec la possibilité
+      // de les récupérer en vérification si besoin.
+      const isExcludable = (it) => it.isFood === false || it.priceUnusable === true;
+      const foodItems = items.filter((it) => !isExcludable(it));
+      const excludedItems = items
+        .filter(isExcludable)
+        .map((it) => ({ ...it, excludeReason: it.isFood === false ? "nonFood" : "noPrice" }));
 
       // Alerte globale si une grosse majorité des prix scannés semble en forte hausse
       // par rapport aux vrais prix déjà connus — signe probable d'un souci de lecture du document.
       const comparable = foodItems.filter((i) => i.currentPrice !== null && i.currentPriceIsReal);
       const manyUp = comparable.length >= 3 && comparable.filter((i) => i.priceUp).length / comparable.length > 0.6;
 
-      setScanResult({ supplier: data.supplier || null, date: data.date || null, items: foodItems, nonFoodItems, manyUp });
+      setScanResult({ supplier: data.supplier || null, date: data.date || null, items: foodItems, excludedItems, manyUp });
     } catch (err) {
       setScanErr(err.message || "Erreur inconnue");
     } finally {
@@ -1987,20 +2001,20 @@ export default function App() {
   // (prix incohérent, conditionnement ambigu, grosse variation, correspondance incertaine)
   // doit être validé ligne par ligne, en connaissance de cause.
   const isSafeScanItem = (item) =>
-    !item.priceInconsistent && !item.bigChange && !item.pricingUnknown && (item.assignTo === "new" || item.matchConfident);
+    !item.priceInconsistent && !item.bigChange && !item.priceUnusable && (item.assignTo === "new" || item.matchConfident);
 
   const skipScanItem = (idx) => updateScanItem(idx, { skipped: true });
   const unskipScanItem = (idx) => updateScanItem(idx, { skipped: false });
 
-  const restoreNonFoodItem = (idx) => {
+  const restoreExcludedItem = (idx) => {
     setScanResult((r) => {
       if (!r) return r;
-      const item = r.nonFoodItems[idx];
+      const item = r.excludedItems[idx];
       if (!item) return r;
       return {
         ...r,
         items: [...r.items, item],
-        nonFoodItems: r.nonFoodItems.filter((_, i) => i !== idx),
+        excludedItems: r.excludedItems.filter((_, i) => i !== idx),
       };
     });
   };
@@ -2255,17 +2269,17 @@ export default function App() {
                   </div>
                 )}
 
-                {scanResult.nonFoodItems && scanResult.nonFoodItems.length > 0 && (
+                {scanResult.excludedItems && scanResult.excludedItems.length > 0 && (
                   <div className="rounded-lg p-2.5 mb-3 text-[11px]" style={{ background: "#26221C", border: "1px solid rgba(255,255,255,0.1)" }}>
-                    <div className="text-white/50">{t("scanNonFoodExcluded")(scanResult.nonFoodItems.length)}</div>
+                    <div className="text-white/50">{t("scanNonFoodExcluded")(scanResult.excludedItems.length)}</div>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {scanResult.nonFoodItems.map((nf, i) => (
+                      {scanResult.excludedItems.map((nf, i) => (
                         <button
                           key={i}
-                          onClick={() => restoreNonFoodItem(i)}
+                          onClick={() => restoreExcludedItem(i)}
                           className="text-[10px] px-2 py-1 rounded-full text-white/50 hover:text-white flex items-center gap-1"
                           style={{ background: "rgba(255,255,255,0.06)" }}
-                          title={t("scanRestoreNonFood")}
+                          title={nf.excludeReason === "noPrice" ? t("scanRestoreNoPrice") : t("scanRestoreNonFood")}
                         >
                           {nf.name} <Plus size={10} />
                         </button>

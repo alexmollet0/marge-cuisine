@@ -49,6 +49,9 @@ Chaque ligne de facture décrit un conditionnement entre parenthèses ou dans le
 - Si aucun conditionnement n'est précisé (produit vraiment vendu à l'unité simple, ex: 1 avocat) → packageContent: 1, packageContentUnit: "pièce"
 Ne confonds JAMAIS packageCount (combien de colis on achète, le "x2") avec packageContent (combien contient UN colis, ex: 10kg) — ce sont deux nombres différents sur la même ligne.
 
+RÈGLE UNIVERSELLE — QUAND LE POIDS/VOLUME DU COLIS N'EST ÉCRIT NULLE PART :
+Certaines lignes donnent un prix par colis/carton/sac pour un produit normalement vendu au poids, SANS qu'aucun chiffre de poids ou volume n'apparaisse dans le libellé (ex: "PDT FRITE 10MM SURG — 8 COLIS — 17.40€" : "10MM" est une taille de découpe, pas un poids). Dans ce cas, tu DOIS impérativement renvoyer packageContent: null (jamais une estimation ou une valeur par défaut comme 1) — quel que soit le fournisseur, la mise en page ou le type de produit. C'est un principe général qui s'applique à TOUTE facture, pas seulement à cet exemple : si tu ne peux pas lire noir sur blanc le poids/volume réel d'UN colis, ne l'invente jamais.
+
 COMMENT REMPLIR printedUnitPriceHT / printedPriceUnit :
 Recopie le prix unitaire strictement tel qu'il est imprimé (ex: "0,94€/kg" → printedUnitPriceHT: 0.94, printedPriceUnit: "kg" ; "34,15€/U" → printedUnitPriceHT: 34.15, printedPriceUnit: "colis"). NE FAIS AUCUNE CONVERSION toi-même, ne divise rien — la conversion sera faite ensuite par un programme, pas par toi. Ton seul travail ici est de recopier fidèlement les nombres imprimés dans les bons champs.
 
