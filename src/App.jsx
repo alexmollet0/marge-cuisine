@@ -3,7 +3,6 @@ import { storage } from "./storage.js";
 import {
   Plus,
   Trash2,
-  ChefHat,
   AlertTriangle,
   Check,
   Copy,
@@ -26,6 +25,24 @@ import {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const today = () => new Date().toISOString().slice(0, 10);
+
+// Cachet "Marge en cuisine" : toque + flèche de marge, dans un anneau laiton.
+// Reprend le motif du tampon déjà utilisé sur le ticket recette.
+function Logo({ size = 22, variant = "dark" }) {
+  const ink = variant === "paper" ? "#2B2620" : "#1B1815";
+  const plate = variant === "paper" ? "#F3EBDA" : "#26221C";
+  const brand = variant === "paper" ? "#3F8F52" : "#10B981";
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" style={{ flexShrink: 0, display: "block" }}>
+      <circle cx="50" cy="50" r="47" fill={plate} stroke="#C99A55" strokeWidth="3" />
+      <circle cx="50" cy="50" r="40" fill={ink} />
+      <path d="M32 66 h36 a2 2 0 0 1 2 2 v3 a2 2 0 0 1 -2 2 h-36 a2 2 0 0 1 -2 -2 v-3 a2 2 0 0 1 2 -2 Z" fill={brand} />
+      <path d="M34 66 c-8 -2 -13 -9 -12 -17 c1 -8 8 -12 12 -9 c1 -10 8 -16 16 -16 s15 6 16 16 c4 -3 11 1 12 9 c1 8 -4 15 -12 17 Z" fill={brand} />
+      <path d="M42 40 l0 15" stroke={ink} strokeWidth="3.4" strokeLinecap="round" />
+      <path d="M42 40 l-5.5 5.5 M42 40 l5.5 5.5" stroke={ink} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
 
 const CRITICAL_MARGIN = 70;
 
@@ -1002,7 +1019,7 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
         {current ? displayName(current) : <span className="opacity-40">{placeholder || "…"}</span>}
       </button>
       {open && (
-        <div className="absolute z-30 top-full left-0 mt-1 w-56 max-w-[80vw] rounded-xl overflow-hidden shadow-xl border border-white/10" style={{ background: "#1F1F25" }}>
+        <div className="absolute z-30 top-full left-0 mt-1 w-56 max-w-[80vw] rounded-xl overflow-hidden shadow-xl border border-white/10" style={{ background: "#26221C" }}>
           <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-white/10">
             <Search size={12} className="text-white/40 shrink-0" />
             <input
@@ -1053,7 +1070,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
   return (
     <div
       className={`rounded-xl border ${item.imported ? "opacity-40" : ""}`}
-      style={{ background: "#18181B", borderColor: item.bigChange ? TIER_COLORS.low : hasWarning || (!item.matchConfident && item.assignTo !== "new") ? `${TIER_COLORS.mid}80` : "rgba(255,255,255,0.1)" }}
+      style={{ background: "#1B1815", borderColor: item.bigChange ? TIER_COLORS.low : hasWarning || (!item.matchConfident && item.assignTo !== "new") ? `${TIER_COLORS.mid}80` : "rgba(255,255,255,0.1)" }}
     >
       {/* Ligne compacte : toujours visible, sans clic — le nom qui sera vraiment utilisé saute aux yeux */}
       <div className="px-2.5 py-2">
@@ -1985,17 +2002,17 @@ export default function App() {
   const hasOrangeZone = effectiveGreenTarget > CRITICAL_MARGIN;
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: "#18181B", maxWidth: "100vw" }}>
+    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: "#1B1815", maxWidth: "100vw" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
         * { box-sizing: border-box; }
         .font-display { font-family: 'Oswald', sans-serif; }
-        .font-body { font-family: 'Inter', sans-serif; }
+        .font-body { font-family: 'Manrope', sans-serif; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-        .ticket { background: #F2ECDD; color: #2B2620; position: relative; box-shadow: 0 12px 30px rgba(0,0,0,0.35); max-width: 100%; }
+        .ticket { background: #F3EBDA; color: #2B2620; position: relative; box-shadow: 0 12px 30px rgba(0,0,0,0.35); max-width: 100%; }
         .ticket::before, .ticket::after {
           content: ""; position: absolute; left: 0; right: 0; height: 14px;
-          background-image: radial-gradient(circle at 10px 7px, #18181B 6px, transparent 7px);
+          background-image: radial-gradient(circle at 10px 7px, #1B1815 6px, transparent 7px);
           background-size: 20px 14px; background-repeat: repeat-x;
         }
         .ticket::before { top: -7px; }
@@ -2037,9 +2054,9 @@ export default function App() {
         }
       `}</style>
 
-      <header className="border-b border-white/10 px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-2 print:hidden" style={{ background: "#1F1F25" }}>
+      <header className="px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-2 print:hidden" style={{ background: "#26221C", borderBottom: "1px solid rgba(201,154,85,0.25)" }}>
         <div className="flex items-center gap-2">
-          <ChefHat size={22} color="#10B981" />
+          <Logo size={26} variant="dark" />
           <h1 className="font-display text-white text-base sm:text-lg tracking-wide uppercase">{t("appTitle")}</h1>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 font-body text-xs text-white/50 flex-wrap">
@@ -2047,7 +2064,7 @@ export default function App() {
             <span className="text-amber-400">{t("dataUnavailable")}</span>
           ) : (
             <span className={`flex items-center gap-1 transition-opacity ${savedPulse ? "opacity-100" : "opacity-0"}`}>
-              <Check size={14} color="#7CB342" /> {t("saved")}
+              <Check size={14} color="#10B981" /> {t("saved")}
             </span>
           )}
           <button onClick={() => setShowSettings(true)} className="text-white/60 hover:text-[#10B981]" title={t("settings")}>
@@ -2062,7 +2079,7 @@ export default function App() {
 
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setShowSettings(false)}>
-          <div className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10" style={{ background: "#1F1F25" }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10" style={{ background: "#26221C" }} onClick={(e) => e.stopPropagation()}>
             <h3 className="font-display text-white uppercase tracking-wide text-sm mb-4">{t("settings")}</h3>
             <label className="text-xs text-white/60 block mb-1">{t("defaultVat")}</label>
             <select
@@ -2111,7 +2128,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeScan}>
           <div
             className="rounded-2xl p-5 w-full max-w-xl max-h-[85vh] overflow-y-auto font-body border border-white/10"
-            style={{ background: "#1F1F25" }}
+            style={{ background: "#26221C" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -2156,7 +2173,7 @@ export default function App() {
                 )}
 
                 {scanResult.nonFoodItems && scanResult.nonFoodItems.length > 0 && (
-                  <div className="rounded-lg p-2.5 mb-3 text-[11px]" style={{ background: "#1F1F25", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <div className="rounded-lg p-2.5 mb-3 text-[11px]" style={{ background: "#26221C", border: "1px solid rgba(255,255,255,0.1)" }}>
                     <div className="text-white/50">{t("scanNonFoodExcluded")(scanResult.nonFoodItems.length)}</div>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {scanResult.nonFoodItems.map((nf, i) => (
@@ -2209,7 +2226,7 @@ export default function App() {
                             <button
                               onClick={() => setReviewStackOpen(false)}
                               className="text-xs uppercase tracking-wide px-4 py-2 rounded-full font-semibold"
-                              style={{ background: "#10B981", color: "#fff" }}
+                              style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
                             >
                               {t("scanContinue")}
                             </button>
@@ -2239,7 +2256,7 @@ export default function App() {
                                   key={i}
                                   className="absolute inset-x-0 rounded-xl border border-white/10 px-4 py-3 pointer-events-none"
                                   style={{
-                                    background: "#1F1F25",
+                                    background: "#26221C",
                                     top: `${(i + 1) * 10}px`,
                                     transform: `scale(${1 - (i + 1) * 0.04})`,
                                     opacity: 0.55 - i * 0.2,
@@ -2273,7 +2290,7 @@ export default function App() {
                               ) : (
                                 <div
                                   className="rounded-xl border p-4"
-                                  style={{ background: "#18181B", borderColor: current.item.bigChange ? TIER_COLORS.low : `${TIER_COLORS.mid}80` }}
+                                  style={{ background: "#1B1815", borderColor: current.item.bigChange ? TIER_COLORS.low : `${TIER_COLORS.mid}80` }}
                                 >
                                   <span
                                     className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
@@ -2414,7 +2431,7 @@ export default function App() {
                                     <button
                                       onClick={() => importScanItem(current.idx)}
                                       className="flex-1 text-[10px] uppercase tracking-wide py-2.5 rounded-full font-semibold"
-                                      style={{ background: "#10B981", color: "#fff" }}
+                                      style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
                                     >
                                       {t("scanValidate")}
                                     </button>
@@ -2466,7 +2483,7 @@ export default function App() {
                             </div>
                             <div className="space-y-1">
                               {skipped.map(({ item, idx }) => (
-                                <div key={idx} className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 opacity-50" style={{ background: "#18181B" }}>
+                                <div key={idx} className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 opacity-50" style={{ background: "#1B1815" }}>
                                   <span className="text-white/60 text-xs truncate">{item.name}</span>
                                   <button onClick={() => unskipScanItem(idx)} className="text-[10px] text-white/40 hover:text-[#10B981] underline shrink-0">
                                     {t("scanUndoSkip")}
@@ -2493,7 +2510,7 @@ export default function App() {
                   <button
                     onClick={importAllScanItems}
                     className="mt-4 w-full text-xs font-display uppercase tracking-wide py-2 rounded"
-                    style={{ background: "#10B981", color: "#fff" }}
+                    style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
                   >
                     {t("scanImportAll")}
                   </button>
@@ -2508,7 +2525,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8" onClick={() => setAllergenSheetOpen(false)}>
           <div
             className="rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto font-body border border-white/10"
-            style={{ background: "#1F1F25" }}
+            style={{ background: "#26221C" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -2518,9 +2535,9 @@ export default function App() {
               </button>
             </div>
 
-            <div className="allergen-sheet rounded-sm p-5" style={{ background: "#F2ECDD", color: "#2B2620" }}>
+            <div className="allergen-sheet rounded-sm p-5" style={{ background: "#F3EBDA", color: "#2B2620" }}>
               <div className="flex items-center gap-1.5 mb-3">
-                <ChefHat size={16} color="#3F8F52" />
+                <Logo size={16} variant="paper" />
                 <span className="font-display uppercase tracking-widest text-[10px]" style={{ color: "#3F8F52" }}>{t("appTitle")}</span>
               </div>
               <h1 className="font-display text-lg uppercase tracking-wide mb-0.5">{t("allergenSheetTitle")}</h1>
@@ -2550,7 +2567,7 @@ export default function App() {
             <button
               onClick={() => window.print()}
               className="w-full mt-5 text-xs font-display uppercase tracking-wide py-2.5 rounded-full font-semibold flex items-center justify-center gap-1.5"
-              style={{ background: "#10B981", color: "#fff" }}
+              style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
             >
               <Printer size={13} /> {t("print")}
             </button>
@@ -2562,7 +2579,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeAddWizard}>
           <div
             className="rounded-2xl p-5 w-full max-w-sm font-body border border-white/10 overflow-hidden"
-            style={{ background: "#1F1F25" }}
+            style={{ background: "#26221C" }}
             onClick={(e) => e.stopPropagation()}
           >
             {wizardStep !== "success" && (
@@ -2588,7 +2605,7 @@ export default function App() {
             {wizardStep === 1 && (
               <div key="step1" style={{ animation: "wizardStepIn 0.25s ease" }}>
                 <h3 className="font-display text-white uppercase tracking-wide text-sm mb-3">{t("wizardStep1Title")}</h3>
-                <div className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 border border-white/10 mb-2" style={{ background: "#18181B" }}>
+                <div className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 border border-white/10 mb-2" style={{ background: "#1B1815" }}>
                   <Search size={13} className="text-white/40 shrink-0" />
                   <input
                     autoFocus
@@ -2603,7 +2620,7 @@ export default function App() {
                   <p className="text-white/30 text-xs px-1 py-3">{t("wizardSearchHint")}</p>
                 )}
                 {wizardQuery.trim() && (
-                  <div className="max-h-64 overflow-y-auto rounded-xl border border-white/10" style={{ background: "#18181B" }}>
+                  <div className="max-h-64 overflow-y-auto rounded-xl border border-white/10" style={{ background: "#1B1815" }}>
                     {wizardExistingSuggestions.length > 0 && (
                       <>
                         <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[#10B981]/80">{t("wizardExistingSection")}</div>
@@ -2652,7 +2669,7 @@ export default function App() {
               <div key="step2" style={{ animation: "wizardStepIn 0.25s ease" }}>
                 <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("wizardStep2Title")}</h3>
                 <p className="text-white/40 text-xs mb-4 truncate">{wizardData.name}</p>
-                <div className="flex items-center gap-2 rounded-xl px-3 py-3 border border-white/10 mb-3" style={{ background: "#18181B" }}>
+                <div className="flex items-center gap-2 rounded-xl px-3 py-3 border border-white/10 mb-3" style={{ background: "#1B1815" }}>
                   <NumField
                     value={wizardData.price}
                     onChange={(v) => setWizardData((d) => ({ ...d, price: v }))}
@@ -2668,7 +2685,7 @@ export default function App() {
                       className="rounded-xl py-3 text-sm font-bold border-2 transition"
                       style={{
                         borderColor: wizardData.unit === u ? "#10B981" : "rgba(255,255,255,0.12)",
-                        background: wizardData.unit === u ? "#10B98122" : "#18181B",
+                        background: wizardData.unit === u ? "#10B98122" : "#1B1815",
                         color: wizardData.unit === u ? "#10B981" : "rgba(255,255,255,0.6)",
                       }}
                     >
@@ -2683,7 +2700,7 @@ export default function App() {
                   <button
                     onClick={() => (wizardEditId ? finalizeEditWizard() : setWizardStep(3))}
                     className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold"
-                    style={{ background: "#10B981", color: "#fff" }}
+                    style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
                   >
                     {wizardEditId ? t("wizardSave") : t("wizardNext")}
                   </button>
@@ -2702,7 +2719,7 @@ export default function App() {
                       className="rounded-xl py-3 px-2 text-xs font-semibold border-2 transition"
                       style={{
                         borderColor: wizardData.category === c.id ? "#10B981" : "rgba(255,255,255,0.12)",
-                        background: wizardData.category === c.id ? "#10B98122" : "#18181B",
+                        background: wizardData.category === c.id ? "#10B98122" : "#1B1815",
                         color: wizardData.category === c.id ? "#10B981" : "rgba(255,255,255,0.6)",
                       }}
                     >
@@ -2714,7 +2731,7 @@ export default function App() {
                   <button onClick={() => setWizardStep(2)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70">
                     {t("wizardBack")}
                   </button>
-                  <button onClick={finalizeWizard} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold" style={{ background: "#10B981", color: "#fff" }}>
+                  <button onClick={finalizeWizard} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold" style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}>
                     {t("wizardCreate")}
                   </button>
                 </div>
@@ -2742,7 +2759,7 @@ export default function App() {
         {activeTab === "recipes" && recipeSubView === "list" && (
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <ChefHat size={18} color="#10B981" />
+              <Logo size={18} variant="dark" />
               <span className="font-display text-white/50 text-[11px] uppercase tracking-widest">{t("appTitle")}</span>
             </div>
             <h1 className="font-display text-white text-xl mb-5">{t("greeting")}</h1>
@@ -2759,7 +2776,7 @@ export default function App() {
                 <button
                   onClick={addRecipe}
                   className="flex items-center gap-1 text-xs font-display uppercase tracking-wide px-3 py-1.5 rounded-full active:scale-95 transition-transform"
-                  style={{ background: "#10B981", color: "#fff" }}
+                  style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
                 >
                   <Plus size={14} /> {t("newRecipe")}
                 </button>
@@ -2777,8 +2794,8 @@ export default function App() {
                   return (
                     <div
                       key={r.id}
-                      className="rounded-2xl px-4 py-3.5 flex items-center gap-2 font-body transition hover:brightness-110 border border-white/10"
-                      style={{ background: "#1F1F25" }}
+                      className="rounded-2xl px-4 py-3.5 flex items-center gap-2 font-body transition hover:brightness-110 hover:-translate-y-0.5 hover:shadow-lg border border-white/10"
+                      style={{ background: "#26221C" }}
                     >
                       <button
                         onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); }}
@@ -2843,7 +2860,7 @@ export default function App() {
                   {printMenuOpen && (
                     <div
                       className="absolute right-0 top-full mt-1.5 w-56 rounded-xl overflow-hidden shadow-xl border border-white/10 z-30"
-                      style={{ background: "#1F1F25" }}
+                      style={{ background: "#26221C" }}
                     >
                       <button
                         onClick={() => { setPrintMenuOpen(false); handlePrint(); }}
@@ -2960,7 +2977,7 @@ export default function App() {
                       <button
                         onClick={() => updateRecipe({ sellPrice: Math.round(suggestedTTC * 2) / 2 })}
                         className="text-[10px] uppercase tracking-wide px-3 py-1 rounded-full font-semibold"
-                        style={{ background: "#10B981", color: "#fff" }}
+                        style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
                       >
                         {t("use")}
                       </button>
@@ -3053,9 +3070,9 @@ export default function App() {
           <div className="max-w-md mx-auto pt-6">
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanFile} />
             <input ref={fileInputLibraryRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleScanFile} />
-            <div className="rounded-2xl p-8 flex flex-col items-center gap-3 text-center font-body border border-white/10" style={{ background: "#1F1F25" }}>
+            <div className="rounded-2xl p-8 flex flex-col items-center gap-3 text-center font-body border border-white/10" style={{ background: "#26221C" }}>
               <svg viewBox="0 0 120 120" width="104" height="104" className="mb-1">
-                <rect x="30" y="14" width="60" height="86" rx="4" fill="#F2ECDD" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
+                <rect x="30" y="14" width="60" height="86" rx="4" fill="#F3EBDA" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
                 {[26, 34, 42, 50, 58, 66, 74].map((y, i) => (
                   <rect key={i} x="38" y={y} width={i % 3 === 0 ? 30 : 44} height="3" rx="1.5" fill="#2B262022" />
                 ))}
@@ -3065,7 +3082,7 @@ export default function App() {
                 </g>
                 <g style={{ animation: "scanFlash 2.2s ease-in-out infinite" }}>
                   <circle cx="94" cy="100" r="17" fill="#10B981" />
-                  <rect x="86" y="93" width="16" height="12" rx="2.5" fill="#0b0b0b" />
+                  <rect x="86" y="93" width="16" height="12" rx="2.5" fill="#1B1815" />
                   <circle cx="94" cy="99" r="3.4" fill="#10B981" />
                 </g>
               </svg>
@@ -3074,7 +3091,7 @@ export default function App() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="mt-3 w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                style={{ background: "#10B981", color: "#fff" }}
+                style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
               >
                 <Camera size={15} /> {t("scanTakePhoto")}
               </button>
@@ -3093,7 +3110,7 @@ export default function App() {
           <div>
             <h2 className="font-display text-white/90 uppercase text-sm tracking-widest mb-3">{t("pantry")}</h2>
 
-            <div className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 mb-2 border border-white/10" style={{ background: "#1F1F25" }}>
+            <div className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 mb-2 border border-white/10" style={{ background: "#26221C" }}>
               <Search size={13} className="text-white/40 shrink-0" />
               <input
                 value={pantryQuery}
@@ -3126,7 +3143,7 @@ export default function App() {
               ))}
             </div>
 
-            <div className="rounded-xl overflow-hidden font-body border border-white/10" style={{ background: "#1F1F25" }}>
+            <div className="rounded-xl overflow-hidden font-body border border-white/10" style={{ background: "#26221C" }}>
               {(() => {
                 const displayGroups = pantryCategory === "recent" ? recentGrouped || [] : pantryGrouped;
                 if (displayGroups.length === 0) {
@@ -3142,7 +3159,7 @@ export default function App() {
                 }
                 return displayGroups.map(({ label, items }) => (
                   <div key={label}>
-                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/40" style={{ background: "#18181B" }}>
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/40" style={{ background: "#1B1815" }}>
                       {label}
                     </div>
                     {items.map((ing) => {
@@ -3181,7 +3198,7 @@ export default function App() {
                         </div>
 
                         {isOpen && (
-                          <div className="px-3 pb-3" style={{ background: "#18181B" }}>
+                          <div className="px-3 pb-3" style={{ background: "#1B1815" }}>
                             <input
                               value={ingredientDisplayName(ing)}
                               onChange={(e) => updateIngredientName(ing.id, e.target.value)}
@@ -3251,8 +3268,8 @@ export default function App() {
 
       {/* ---------------- NAVIGATION PAR ONGLETS (bas d'écran) ---------------- */}
       <nav
-        className="fixed bottom-0 inset-x-0 z-40 flex items-stretch border-t border-white/10 backdrop-blur-lg print:hidden"
-        style={{ background: "rgba(31,31,37,0.75)", paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="fixed bottom-0 inset-x-0 z-40 flex items-stretch backdrop-blur-lg print:hidden"
+        style={{ background: "rgba(38,34,28,0.8)", borderTop: "1px solid rgba(201,154,85,0.2)", paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {[
           { id: "recipes", label: t("recipes"), icon: Receipt },
