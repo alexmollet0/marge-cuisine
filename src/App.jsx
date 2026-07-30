@@ -376,8 +376,11 @@ const TR = {
     coefLabel: "Coef.",
     printRecipeSheet: "Imprimer la fiche recette", printMenuLabel: "Imprimer",
     exampleRecipeBadge: "Recette exemple",
-    wizardStep1Title: "Quel produit ?", wizardStep2Title: "Quel prix ?", wizardStep3Title: "Quelle unité ?", wizardStep4Title: "Quelle catégorie ?",
-    wizardBack: "Précédent", wizardNext: "Suivant", wizardCreate: "Créer l'ingrédient", wizardSuccess: "Ajouté au garde-manger !",
+    wizardStep1Title: "Modifier ou créer un ingrédient", wizardStep2Title: "Prix et unité", wizardStep3Title: "Quelle catégorie ?",
+    wizardBack: "Précédent", wizardNext: "Suivant", wizardSave: "Enregistrer", wizardCreate: "Créer l'ingrédient",
+    wizardSuccess: "Ajouté au garde-manger !", wizardUpdated: "Prix mis à jour !",
+    wizardExistingSection: "Ingrédients existants — modifier le prix", wizardCatalogSection: "Suggestions",
+    wizardSearchHint: "Tape le nom d'un ingrédient pour le chercher ou en créer un nouveau.",
     recentIngredients: "Récents", noRecentIngredients: "Aucun ingrédient scanné ou modifié récemment.",
     recentToday: "Aujourd'hui", recentWeek: "Cette semaine", recentMonth: "Ce mois-ci",
     deleteRecipeConfirm: (name) => `Supprimer définitivement la recette "${name}" ?`,
@@ -457,8 +460,11 @@ const TR = {
     coefLabel: "Coef.",
     printRecipeSheet: "Imprimir la ficha de receta", printMenuLabel: "Imprimir",
     exampleRecipeBadge: "Receta de ejemplo",
-    wizardStep1Title: "¿Qué producto?", wizardStep2Title: "¿Qué precio?", wizardStep3Title: "¿Qué unidad?", wizardStep4Title: "¿Qué categoría?",
-    wizardBack: "Atrás", wizardNext: "Siguiente", wizardCreate: "Crear el ingrediente", wizardSuccess: "¡Añadido a la despensa!",
+    wizardStep1Title: "Modificar o crear un ingrediente", wizardStep2Title: "Precio y unidad", wizardStep3Title: "¿Qué categoría?",
+    wizardBack: "Atrás", wizardNext: "Siguiente", wizardSave: "Guardar", wizardCreate: "Crear el ingrediente",
+    wizardSuccess: "¡Añadido a la despensa!", wizardUpdated: "¡Precio actualizado!",
+    wizardExistingSection: "Ingredientes existentes — modificar el precio", wizardCatalogSection: "Sugerencias",
+    wizardSearchHint: "Escribe el nombre de un ingrediente para buscarlo o crear uno nuevo.",
     recentIngredients: "Recientes", noRecentIngredients: "Ningún ingrediente escaneado o modificado recientemente.",
     recentToday: "Hoy", recentWeek: "Esta semana", recentMonth: "Este mes",
     deleteRecipeConfirm: (name) => `¿Eliminar definitivamente la receta "${name}"?`,
@@ -1292,9 +1298,10 @@ export default function App() {
   const [autoOpenIdx, setAutoOpenIdx] = useState(null);
 
   const [addWizardOpen, setAddWizardOpen] = useState(false);
-  const [wizardStep, setWizardStep] = useState(1); // 1 nom, 2 prix, 3 unité, 4 catégorie, "success"
+  const [wizardStep, setWizardStep] = useState(1); // 1 nom/recherche, 2 prix+unité, 3 catégorie (création only), "success"
   const [wizardQuery, setWizardQuery] = useState("");
   const [wizardData, setWizardData] = useState({ name: "", catalogId: null, unit: "kg", category: "autres", price: 0 });
+  const [wizardEditId, setWizardEditId] = useState(null); // id de l'ingrédient existant en cours de modification, sinon null (création)
 
   const [scanOpen, setScanOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -1448,19 +1455,49 @@ export default function App() {
   const openAddWizard = () => {
     setWizardData({ name: "", catalogId: null, unit: "kg", category: "autres", price: 0 });
     setWizardQuery("");
+    setWizardEditId(null);
     setWizardStep(1);
+    setAddWizardOpen(true);
+  };
+  const openEditWizard = (ing) => {
+    const sup = activeSupplier(ing);
+    setWizardData({
+      name: ingredientDisplayName(ing),
+      catalogId: ing.catalogId,
+      unit: ing.unit,
+      category: ing.category || "autres",
+      price: sup?.price || 0,
+    });
+    setWizardQuery("");
+    setWizardEditId(ing.id);
+    setWizardStep(2);
     setAddWizardOpen(true);
   };
   const closeAddWizard = () => {
     setAddWizardOpen(false);
     setWizardStep(1);
+    setWizardEditId(null);
   };
   const pickWizardCatalog = (c) => {
     setWizardData({ name: c[lang], catalogId: c.id, unit: normUnit(c.unit), category: c.cat, price: 0 });
+    setWizardEditId(null);
     setWizardStep(2);
   };
   const pickWizardCustom = (name) => {
     setWizardData((d) => ({ ...d, name: name || t("newIngredient"), catalogId: null }));
+    setWizardEditId(null);
+    setWizardStep(2);
+  };
+  const pickWizardExisting = (ing) => {
+    const sup = activeSupplier(ing);
+    setWizardData({
+      name: ingredientDisplayName(ing),
+      catalogId: ing.catalogId,
+      unit: ing.unit,
+      category: ing.category || "autres",
+      price: sup?.price || 0,
+    });
+    setWizardEditId(ing.id);
     setWizardStep(2);
   };
   const finalizeWizard = () => {
@@ -1477,6 +1514,27 @@ export default function App() {
       lastUpdated: today(),
     };
     setIngredients((ings) => [...ings, ni]);
+    setWizardStep("success");
+    setTimeout(() => closeAddWizard(), 1300);
+  };
+  const finalizeEditWizard = () => {
+    setIngredients((ings) => ings.map((i) => {
+      if (i.id !== wizardEditId) return i;
+      const currentSup = i.suppliers.find((s) => s.id === i.selectedSupplierId) || i.suppliers[0];
+      let suppliers, selectedSupplierId, history = i.history || [];
+      if (currentSup) {
+        if (wizardData.price !== currentSup.price) {
+          history = [...history, { date: today(), price: wizardData.price, supplierName: currentSup.name }].slice(-15);
+        }
+        suppliers = i.suppliers.map((s) => (s.id === currentSup.id ? { ...s, price: wizardData.price, priceSource: "manual" } : s));
+        selectedSupplierId = i.selectedSupplierId;
+      } else {
+        const sId = uid();
+        suppliers = [{ id: sId, name: t("supplier"), price: wizardData.price, priceSource: "manual" }];
+        selectedSupplierId = sId;
+      }
+      return { ...i, unit: wizardData.unit, suppliers, selectedSupplierId, history, lastUpdated: today() };
+    }));
     setWizardStep("success");
     setTimeout(() => closeAddWizard(), 1300);
   };
@@ -1864,9 +1922,17 @@ export default function App() {
   const tier = marginTier(margin, settings.minMargin);
   const marginLow = tier === "low";
 
-  const wizardSuggestions = wizardQuery.trim()
-    ? CATALOG.filter((c) => c[lang].toLowerCase().includes(wizardQuery.trim().toLowerCase())).slice(0, 6)
-    : CATALOG.slice(0, 6);
+  const wizardExistingSuggestions = wizardQuery.trim()
+    ? ingredients
+        .filter((i) => ingredientDisplayName(i).toLowerCase().includes(wizardQuery.trim().toLowerCase()))
+        .slice(0, 5)
+    : [];
+  const wizardExistingCatalogIds = new Set(ingredients.map((i) => i.catalogId).filter(Boolean));
+  const wizardCatalogSuggestions = wizardQuery.trim()
+    ? CATALOG.filter(
+        (c) => !wizardExistingCatalogIds.has(c.id) && c[lang].toLowerCase().includes(wizardQuery.trim().toLowerCase())
+      ).slice(0, 5)
+    : [];
 
   const pantryFiltered = ingredients.filter((i) => {
     const q = pantryQuery.trim().toLowerCase();
@@ -2502,13 +2568,16 @@ export default function App() {
             {wizardStep !== "success" && (
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4].map((s) => (
-                    <span
-                      key={s}
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: s <= wizardStep ? "#10B981" : "rgba(255,255,255,0.15)" }}
-                    />
-                  ))}
+                  {[...Array(wizardEditId ? 2 : 3)].map((_, idx) => {
+                    const s = idx + 1;
+                    return (
+                      <span
+                        key={s}
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: s <= wizardStep ? "#10B981" : "rgba(255,255,255,0.15)" }}
+                      />
+                    );
+                  })}
                 </div>
                 <button onClick={closeAddWizard} className="text-white/50 hover:text-white">
                   <X size={18} />
@@ -2530,26 +2599,52 @@ export default function App() {
                     onKeyDown={(e) => { if (e.key === "Enter" && wizardQuery.trim()) pickWizardCustom(wizardQuery.trim()); }}
                   />
                 </div>
-                <div className="max-h-52 overflow-y-auto rounded-xl border border-white/10" style={{ background: "#18181B" }}>
-                  {wizardSuggestions.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => pickWizardCatalog(c)}
-                      className="w-full text-left px-3 py-2.5 text-sm text-white/80 hover:bg-white/10 flex items-center justify-between border-b border-white/5 last:border-0"
-                    >
-                      <span>{c[lang]}</span>
-                      <span className="text-[10px] text-white/30">{normUnit(c.unit)}</span>
-                    </button>
-                  ))}
-                  {wizardQuery.trim() && (
+                {!wizardQuery.trim() && (
+                  <p className="text-white/30 text-xs px-1 py-3">{t("wizardSearchHint")}</p>
+                )}
+                {wizardQuery.trim() && (
+                  <div className="max-h-64 overflow-y-auto rounded-xl border border-white/10" style={{ background: "#18181B" }}>
+                    {wizardExistingSuggestions.length > 0 && (
+                      <>
+                        <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[#10B981]/80">{t("wizardExistingSection")}</div>
+                        {wizardExistingSuggestions.map((ing) => {
+                          const sup = activeSupplier(ing);
+                          return (
+                            <button
+                              key={ing.id}
+                              onClick={() => pickWizardExisting(ing)}
+                              className="w-full text-left px-3 py-2.5 text-sm text-white/80 hover:bg-white/10 flex items-center justify-between border-b border-white/5 last:border-0"
+                            >
+                              <span className="truncate">{ingredientDisplayName(ing)}</span>
+                              <span className="text-[10px] text-white/40 shrink-0 ml-2">{(sup?.price || 0).toFixed(2)}€ / {ing.unit}</span>
+                            </button>
+                          );
+                        })}
+                      </>
+                    )}
+                    {wizardCatalogSuggestions.length > 0 && (
+                      <>
+                        <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-white/30 border-t border-white/5">{t("wizardCatalogSection")}</div>
+                        {wizardCatalogSuggestions.map((c) => (
+                          <button
+                            key={c.id}
+                            onClick={() => pickWizardCatalog(c)}
+                            className="w-full text-left px-3 py-2.5 text-sm text-white/80 hover:bg-white/10 flex items-center justify-between border-b border-white/5 last:border-0"
+                          >
+                            <span>{c[lang]}</span>
+                            <span className="text-[10px] text-white/30">{normUnit(c.unit)}</span>
+                          </button>
+                        ))}
+                      </>
+                    )}
                     <button
                       onClick={() => pickWizardCustom(wizardQuery.trim())}
                       className="w-full text-left px-3 py-2.5 text-xs text-[#10B981] hover:bg-white/10 border-t border-white/10"
                     >
                       {t("createCustom")(wizardQuery.trim())}
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2557,7 +2652,7 @@ export default function App() {
               <div key="step2" style={{ animation: "wizardStepIn 0.25s ease" }}>
                 <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("wizardStep2Title")}</h3>
                 <p className="text-white/40 text-xs mb-4 truncate">{wizardData.name}</p>
-                <div className="flex items-center gap-2 rounded-xl px-3 py-3 border border-white/10 mb-4" style={{ background: "#18181B" }}>
+                <div className="flex items-center gap-2 rounded-xl px-3 py-3 border border-white/10 mb-3" style={{ background: "#18181B" }}>
                   <NumField
                     value={wizardData.price}
                     onChange={(v) => setWizardData((d) => ({ ...d, price: v }))}
@@ -2565,26 +2660,12 @@ export default function App() {
                   />
                   <span className="text-white/40 text-sm shrink-0">€ / {wizardData.unit}</span>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setWizardStep(1)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70">
-                    {t("wizardBack")}
-                  </button>
-                  <button onClick={() => setWizardStep(3)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold" style={{ background: "#10B981", color: "#fff" }}>
-                    {t("wizardNext")}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {wizardStep === 3 && (
-              <div key="step3" style={{ animation: "wizardStepIn 0.25s ease" }}>
-                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-3">{t("wizardStep3Title")}</h3>
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   {["kg", "L", "pièce"].map((u) => (
                     <button
                       key={u}
                       onClick={() => setWizardData((d) => ({ ...d, unit: u }))}
-                      className="rounded-xl py-4 text-sm font-bold border-2 transition"
+                      className="rounded-xl py-3 text-sm font-bold border-2 transition"
                       style={{
                         borderColor: wizardData.unit === u ? "#10B981" : "rgba(255,255,255,0.12)",
                         background: wizardData.unit === u ? "#10B98122" : "#18181B",
@@ -2596,19 +2677,23 @@ export default function App() {
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setWizardStep(2)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70">
+                  <button onClick={() => setWizardStep(1)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70">
                     {t("wizardBack")}
                   </button>
-                  <button onClick={() => setWizardStep(4)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold" style={{ background: "#10B981", color: "#fff" }}>
-                    {t("wizardNext")}
+                  <button
+                    onClick={() => (wizardEditId ? finalizeEditWizard() : setWizardStep(3))}
+                    className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold"
+                    style={{ background: "#10B981", color: "#fff" }}
+                  >
+                    {wizardEditId ? t("wizardSave") : t("wizardNext")}
                   </button>
                 </div>
               </div>
             )}
 
-            {wizardStep === 4 && (
-              <div key="step4" style={{ animation: "wizardStepIn 0.25s ease" }}>
-                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-3">{t("wizardStep4Title")}</h3>
+            {wizardStep === 3 && !wizardEditId && (
+              <div key="step3" style={{ animation: "wizardStepIn 0.25s ease" }}>
+                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-3">{t("wizardStep3Title")}</h3>
                 <div className="grid grid-cols-2 gap-2 mb-4 max-h-56 overflow-y-auto">
                   {CATEGORIES.map((c) => (
                     <button
@@ -2626,7 +2711,7 @@ export default function App() {
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setWizardStep(3)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70">
+                  <button onClick={() => setWizardStep(2)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70">
                     {t("wizardBack")}
                   </button>
                   <button onClick={finalizeWizard} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold" style={{ background: "#10B981", color: "#fff" }}>
@@ -2645,7 +2730,7 @@ export default function App() {
                   <Check size={30} color="#fff" />
                 </div>
                 <div className="text-white text-sm font-semibold truncate max-w-full">{wizardData.name}</div>
-                <div className="text-white/40 text-xs mt-1">{t("wizardSuccess")}</div>
+                <div className="text-white/40 text-xs mt-1">{wizardEditId ? t("wizardUpdated") : t("wizardSuccess")}</div>
               </div>
             )}
           </div>
@@ -3065,24 +3150,35 @@ export default function App() {
                     const isOpen = expandedIngId === ing.id;
                     return (
                       <div key={ing.id} className="border-t border-white/5">
-                        <button
-                          onClick={() => setExpandedIngId(isOpen ? null : ing.id)}
-                          className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
-                        >
-                          <span className="flex-1 min-w-0 text-white text-sm truncate">{ingredientDisplayName(ing)}</span>
-                          {sup?.priceSource === "estimate" && (
-                            <span
-                              className="shrink-0 text-[8px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
-                              style={{ color: TIER_COLORS.mid, background: `${TIER_COLORS.mid}22` }}
-                              title={t("estimatedPriceHint")}
-                            >
-                              {t("estimatedPriceBadge")}
-                            </span>
-                          )}
-                          <span className="text-white/40 text-[11px] shrink-0">{ing.unit}</span>
-                          <span className="text-white/80 text-xs font-mono shrink-0 w-16 text-right">{(sup?.price || 0).toFixed(2)}€</span>
-                          <ChevronDown size={14} className={`text-white/30 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                        </button>
+                        <div className="w-full flex items-center gap-2 px-3 py-2.5">
+                          <button
+                            onClick={() => setExpandedIngId(isOpen ? null : ing.id)}
+                            className="flex-1 min-w-0 flex items-center gap-2 text-left"
+                          >
+                            <span className="flex-1 min-w-0 text-white text-sm truncate">{ingredientDisplayName(ing)}</span>
+                            {sup?.priceSource === "estimate" && (
+                              <span
+                                className="shrink-0 text-[8px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
+                                style={{ color: TIER_COLORS.mid, background: `${TIER_COLORS.mid}22` }}
+                                title={t("estimatedPriceHint")}
+                              >
+                                {t("estimatedPriceBadge")}
+                              </span>
+                            )}
+                            <span className="text-white/40 text-[11px] shrink-0">{ing.unit}</span>
+                            <span className="text-white/80 text-xs font-mono shrink-0 w-16 text-right">{(sup?.price || 0).toFixed(2)}€</span>
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openEditWizard(ing); }}
+                            className="shrink-0 text-white/30 hover:text-[#10B981] p-1"
+                            title={t("scanModify")}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button onClick={() => setExpandedIngId(isOpen ? null : ing.id)} className="shrink-0 text-white/30 p-1">
+                            <ChevronDown size={14} className={`transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                          </button>
+                        </div>
 
                         {isOpen && (
                           <div className="px-3 pb-3" style={{ background: "#18181B" }}>
