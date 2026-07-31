@@ -365,6 +365,7 @@ const TR = {
   fr: {
     appTitle: "Marge en cuisine", saved: "Enregistré", loading: "Chargement…", greeting: "Bonjour Chef",
     dataUnavailable: "Données locales indisponibles", resetData: "Réinitialiser mes données",
+    resetDataConfirm: "Effacer toutes tes données ? Cette action est irréversible.",
     pantry: "Garde-manger", newIngredient: "Nouvel ingrédient", addIngredient: "Ajouter un ingrédient",
     searchPlaceholder: "Rechercher un ingrédient…", pantryFilterPlaceholder: "Filtrer le garde-manger…",
     allCategories: "Tous", createCustom: (q) => `Créer "${q}"`, noMatch: "Aucun résultat dans le catalogue",
@@ -466,10 +467,13 @@ const TR = {
     recipeTargetReached: "Objectif de cette recette atteint",
     marginLegendWithOrange: (green, crit) => `Vert ≥ ${green}% · Orange entre ${crit}–${green}% · Rouge < ${crit}%`,
     marginLegendNoOrange: (crit) => `Vert ≥ ${crit}% · Rouge < ${crit}% (pas de zone orange avec ce seuil)`,
+    deleteRecipeButton: "Supprimer cette recette",
+    deleteLabel: "Supprimer", deleteIngredientButton: "Supprimer l'ingrédient",
   },
   es: {
     appTitle: "Margen en cocina", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef",
     dataUnavailable: "Datos locales no disponibles", resetData: "Restablecer mis datos",
+    resetDataConfirm: "¿Borrar todos tus datos? Esta acción es irreversible.",
     pantry: "Despensa", newIngredient: "Nuevo ingrediente", addIngredient: "Añadir ingrediente",
     searchPlaceholder: "Buscar un ingrediente…", pantryFilterPlaceholder: "Filtrar la despensa…",
     allCategories: "Todos", createCustom: (q) => `Crear "${q}"`, noMatch: "Sin resultados en el catálogo",
@@ -571,10 +575,13 @@ const TR = {
     recipeTargetReached: "Objetivo de esta receta alcanzado",
     marginLegendWithOrange: (green, crit) => `Verde ≥ ${green}% · Naranja entre ${crit}–${green}% · Rojo < ${crit}%`,
     marginLegendNoOrange: (crit) => `Verde ≥ ${crit}% · Rojo < ${crit}% (sin zona naranja con este umbral)`,
+    deleteRecipeButton: "Eliminar esta receta",
+    deleteLabel: "Eliminar", deleteIngredientButton: "Eliminar ingrediente",
   },
   en: {
     appTitle: "Kitchen Margin", saved: "Saved", loading: "Loading…", greeting: "Hello Chef",
     dataUnavailable: "Local data unavailable", resetData: "Reset my data",
+    resetDataConfirm: "Erase all your data? This action is irreversible.",
     pantry: "Pantry", newIngredient: "New ingredient", addIngredient: "Add ingredient",
     searchPlaceholder: "Search an ingredient…", pantryFilterPlaceholder: "Filter the pantry…",
     allCategories: "All", createCustom: (q) => `Create "${q}"`, noMatch: "No results in the catalog",
@@ -676,6 +683,8 @@ const TR = {
     recipeTargetReached: "This recipe's target reached",
     marginLegendWithOrange: (green, crit) => `Green ≥ ${green}% · Orange between ${crit}–${green}% · Red < ${crit}%`,
     marginLegendNoOrange: (crit) => `Green ≥ ${crit}% · Red < ${crit}% (no orange zone with this threshold)`,
+    deleteRecipeButton: "Delete this recipe",
+    deleteLabel: "Delete", deleteIngredientButton: "Delete ingredient",
   },
 };
 
@@ -2008,7 +2017,7 @@ export default function App() {
   const selectSupplier = (ingId, supId) => updateIngredientField(ingId, "selectedSupplierId", supId);
 
   const clearAll = async () => {
-    if (!window.confirm("Effacer toutes tes données ? Cette action est irréversible.")) return;
+    if (!window.confirm(t("resetDataConfirm"))) return;
     setIngredients([]); setRecipes([]); setActiveId(null); setSupplierMappings([]);
     try { await storage.delete("ingredients"); await storage.delete("recipes"); await storage.delete("supplierMappings"); } catch (e) {}
   };
@@ -3460,7 +3469,7 @@ export default function App() {
                       <button
                         onClick={() => confirmDeleteRecipe(r.id, r.name)}
                         className="shrink-0 p-2 text-white/25 hover:text-[#EF4444]"
-                        title={t("duplicate") === "Dupliquer" ? "Supprimer" : "Eliminar"}
+                        title={t("deleteLabel")}
                       >
                         <Trash2 size={15} />
                       </button>
@@ -3704,7 +3713,7 @@ export default function App() {
               onClick={() => deleteRecipe(active.id)}
               className="mt-4 w-full text-center text-[11px] text-white/25 hover:text-[#B23A2E] print:hidden"
             >
-              <Trash2 size={11} className="inline mr-1 -mt-0.5" /> {t("duplicate") === "Dupliquer" ? "Supprimer cette recette" : "Eliminar esta receta"}
+              <Trash2 size={11} className="inline mr-1 -mt-0.5" /> {t("deleteRecipeButton")}
             </button>
           </div>
         )}
@@ -3896,7 +3905,7 @@ export default function App() {
                             )}
 
                             <button onClick={() => deleteIngredient(ing.id)} className="text-[10px] uppercase tracking-wide text-white/30 hover:text-[#B23A2E] flex items-center gap-1">
-                              <Trash2 size={11} /> {t("duplicate") === "Dupliquer" ? "Supprimer l'ingrédient" : "Eliminar ingrediente"}
+                              <Trash2 size={11} /> {t("deleteIngredientButton")}
                             </button>
                           </div>
                         )}
