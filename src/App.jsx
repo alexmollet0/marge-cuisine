@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useId } from "react";
 import { storage } from "./storage.js";
 import {
   Plus,
@@ -29,19 +29,22 @@ import {
 const uid = () => Math.random().toString(36).slice(2, 10);
 const today = () => new Date().toISOString().slice(0, 10);
 
-// Cachet "Chefup" : hirondelle en plein vol ascendant, queue fourchue rappelant
-// une fourchette. Reprend l'anneau laiton déjà utilisé sur le ticket recette.
-function Logo({ size = 22, variant = "dark" }) {
-  const plate = variant === "paper" ? "#F3EBDA" : "#26221C";
-  const ink = variant === "paper" ? "#2B2620" : "#1B1815";
-  const brand = variant === "paper" ? "#3F8F52" : "#10B981";
+// Logo Chefup : hirondelle en plein vol ascendant, queue fourchue rappelant une
+// fourchette, remplie du dégradé de marque violet -> cyan. Icône libre (sans anneau
+// ni disque), pour rester lisible aussi bien sur le fond ardoise que sur le papier.
+function Logo({ size = 22 }) {
+  const gradId = useId();
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" style={{ flexShrink: 0, display: "block" }}>
-      <circle cx="50" cy="50" r="47" fill={plate} stroke="#C99A55" strokeWidth="3" />
-      <circle cx="50" cy="50" r="40" fill={ink} />
+      <defs>
+        <linearGradient id={`chefup-grad-${gradId}`} x1="5%" y1="100%" x2="95%" y2="5%">
+          <stop offset="0%" stopColor="#7C3AED" />
+          <stop offset="100%" stopColor="#22D3EE" />
+        </linearGradient>
+      </defs>
       <path
         d="M 76 28 C 71 27 65 29 60 33 C 55 23 44 16 32 15 C 39 24 46 30 53 36 C 47 39 39 40 31 39 C 36 45 45 47 53 45 C 50 50 46 54 41 57 L 34 58 L 8 66 L 28 64 L 14 90 L 39 66 C 44 68 50 67 54 63 C 57 66 61 68 66 69 C 63 60 62 51 64 43 C 70 43 75 39 78 34 C 80 31 79 29 76 28 Z"
-        fill={brand}
+        fill={`url(#chefup-grad-${gradId})`}
       />
     </svg>
   );
@@ -1293,7 +1296,7 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
               <button
                 key={i.id}
                 onMouseDown={(e) => { e.preventDefault(); onChange(i.id); setOpen(false); }}
-                className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-white/10 ${i.id === value ? "text-[#10B981]" : "text-white/80"}`}
+                className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-white/10 ${i.id === value ? "text-[#8B5CF6]" : "text-white/80"}`}
               >
                 {displayName(i)}
               </button>
@@ -1309,6 +1312,14 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
 const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 // Couleurs du badge de classement des recettes (TOP1/2/3), volontairement distinctes des
 // TIER_COLORS ci-dessus qui ne servent qu'à la marge — or / argent / bronze, un rang = une couleur.
+// Couleur de marque Chefup (2026-07-31), dégradé violet -> cyan, à ne jamais confondre avec
+// TIER_COLORS/les indicateurs de statut (confiant/importé/prix en baisse = vert, à surveiller
+// = orange, problème = rouge) qui restent inchangés — seul le chrome interactif générique
+// (boutons, focus, sélection, onglets) passe à cette nouvelle couleur.
+const BRAND_SOLID = "#8B5CF6";
+const BRAND_SOLID_PAPER = "#6D28D9";
+const BRAND_GRADIENT = "linear-gradient(135deg, #7C3AED 0%, #22D3EE 100%)";
+const BRAND_SHADOW = "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(124,58,237,0.35)";
 const TOP_BADGE_COLORS = ["#D4AF37", "#B4B8BC", "#C97F3F"];
 
 // Retire uniquement le code/référence interne en début de ligne (ex: "F11893 ") pour un
@@ -1340,15 +1351,15 @@ function ScanNameChoice({ item, guessedIng, ingredientDisplayName, onUpdate, t }
       onClick={onClick}
       className="w-full flex items-start gap-2 rounded-lg px-2.5 py-2 text-left"
       style={{
-        background: selected === id ? "#10B98122" : "rgba(255,255,255,0.05)",
-        border: `1px solid ${selected === id ? "#10B981" : "rgba(255,255,255,0.12)"}`,
+        background: selected === id ? `${BRAND_SOLID}22` : "rgba(255,255,255,0.05)",
+        border: `1px solid ${selected === id ? BRAND_SOLID : "rgba(255,255,255,0.12)"}`,
       }}
     >
       <span
         className="w-4 h-4 rounded-full shrink-0 flex items-center justify-center mt-0.5"
-        style={{ border: `2px solid ${selected === id ? "#10B981" : "rgba(255,255,255,0.3)"}` }}
+        style={{ border: `2px solid ${selected === id ? BRAND_SOLID : "rgba(255,255,255,0.3)"}` }}
       >
-        {selected === id && <span className="w-2 h-2 rounded-full" style={{ background: "#10B981" }} />}
+        {selected === id && <span className="w-2 h-2 rounded-full" style={{ background: BRAND_SOLID }} />}
       </span>
       <span className="min-w-0">
         <span className={`block text-xs font-medium ${selected === id ? "text-white" : "text-white/60"}`}>{label}</span>
@@ -2729,7 +2740,7 @@ export default function App() {
 
       <header className="px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-2 print:hidden" style={{ background: "#26221C", borderBottom: "1px solid rgba(201,154,85,0.25)" }}>
         <div className="flex items-center gap-2">
-          <Logo size={26} variant="dark" />
+          <Logo size={26} />
           <h1 className="font-display text-white text-base sm:text-lg tracking-wide uppercase">{t("appTitle")}</h1>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 font-body text-xs text-white/50 flex-wrap">
@@ -2740,7 +2751,7 @@ export default function App() {
               <Check size={14} color="#10B981" /> {t("saved")}
             </span>
           )}
-          <button onClick={() => setShowSettings(true)} className="text-white/60 hover:text-[#10B981]" title={t("settings")}>
+          <button onClick={() => setShowSettings(true)} className="text-white/60 hover:text-[#8B5CF6]" title={t("settings")}>
             <SettingsIcon size={16} />
           </button>
           <div className="flex items-center gap-1">
@@ -2784,7 +2795,7 @@ export default function App() {
                 : t("marginLegendNoOrange")(CRITICAL_MARGIN)}
             </p>
 
-            <button onClick={() => setShowSettings(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#10B981] hover:text-[#10B981]">
+            <button onClick={() => setShowSettings(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]">
               {t("close")}
             </button>
             <button onClick={clearAll} className="w-full text-center mt-3 text-[11px] text-white/30 hover:text-[#B23A2E] underline">
@@ -2810,7 +2821,7 @@ export default function App() {
 
             {scanning && (
               <div className="flex flex-col items-center justify-center py-10 text-white/60 text-sm gap-3">
-                <Loader2 size={26} className="animate-spin" style={{ color: "#10B981" }} />
+                <Loader2 size={26} className="animate-spin" style={{ color: BRAND_SOLID }} />
                 {t("scanning")}
               </div>
             )}
@@ -2820,7 +2831,7 @@ export default function App() {
                 <div className="text-[#B23A2E] text-sm mb-3">{t("scanError")} : {scanErr}</div>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-xs uppercase tracking-wide px-3 py-1.5 rounded border border-white/20 text-white/70 hover:border-[#10B981] hover:text-[#10B981]"
+                  className="text-xs uppercase tracking-wide px-3 py-1.5 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
                 >
                   {t("scanRetry")}
                 </button>
@@ -2905,7 +2916,7 @@ export default function App() {
                             <button
                               onClick={() => setReviewStackOpen(false)}
                               className="text-xs uppercase tracking-wide px-4 py-2 rounded-full font-semibold"
-                              style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
+                              style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                             >
                               {t("scanContinue")}
                             </button>
@@ -3013,7 +3024,7 @@ export default function App() {
                                     <NumField
                                       value={current.item.unitPriceHT || 0}
                                       onChange={(v) => updateScanItem(current.idx, { unitPriceHT: v })}
-                                      className="flex-1 min-w-0 bg-transparent text-white text-base font-semibold text-right outline-none border-b border-white/15 focus:border-[#10B981]"
+                                      className="flex-1 min-w-0 bg-transparent text-white text-base font-semibold text-right outline-none border-b border-white/15 focus:border-[#8B5CF6]"
                                     />
                                     <span className="text-white/50 text-sm shrink-0">€/{current.item.unit}</span>
                                     <button
@@ -3065,7 +3076,7 @@ export default function App() {
                                     <button
                                       onClick={() => updateScanItem(current.idx, { reviewed: true })}
                                       className="flex-1 text-[10px] uppercase tracking-wide py-2.5 rounded-full font-semibold"
-                                      style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
+                                      style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                                     >
                                       {t("scanValidate")}
                                     </button>
@@ -3119,7 +3130,7 @@ export default function App() {
                               {skipped.map(({ item, idx }) => (
                                 <div key={idx} className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 opacity-50" style={{ background: "#1B1815" }}>
                                   <span className="text-white/60 text-xs truncate">{item.name}</span>
-                                  <button onClick={() => unskipScanItem(idx)} className="text-[10px] text-white/40 hover:text-[#10B981] underline shrink-0">
+                                  <button onClick={() => unskipScanItem(idx)} className="text-[10px] text-white/40 hover:text-[#8B5CF6] underline shrink-0">
                                     {t("scanUndoSkip")}
                                   </button>
                                 </div>
@@ -3144,7 +3155,7 @@ export default function App() {
                   <button
                     onClick={importAllScanItems}
                     className="mt-4 w-full text-xs font-display uppercase tracking-wide py-2 rounded"
-                    style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
+                    style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                   >
                     {t("scanImportAll")}
                   </button>
@@ -3171,8 +3182,8 @@ export default function App() {
 
             <div className="allergen-sheet rounded-sm p-5" style={{ background: "#F3EBDA", color: "#2B2620" }}>
               <div className="flex items-center gap-1.5 mb-3">
-                <Logo size={16} variant="paper" />
-                <span className="font-display uppercase tracking-widest text-[10px]" style={{ color: "#3F8F52" }}>{t("appTitle")}</span>
+                <Logo size={16} />
+                <span className="font-display uppercase tracking-widest text-[10px]" style={{ color: BRAND_SOLID_PAPER }}>{t("appTitle")}</span>
               </div>
               <h1 className="font-display text-lg uppercase tracking-wide mb-0.5">{t("allergenSheetTitle")}</h1>
               <p className="text-xs opacity-50 mb-4">{today()}</p>
@@ -3201,7 +3212,7 @@ export default function App() {
             <button
               onClick={() => window.print()}
               className="w-full mt-5 text-xs font-display uppercase tracking-wide py-2.5 rounded-full font-semibold flex items-center justify-center gap-1.5"
-              style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
+              style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
             >
               <Printer size={13} /> {t("print")}
             </button>
@@ -3225,7 +3236,7 @@ export default function App() {
                       <span
                         key={s}
                         className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: s <= wizardStep ? "#10B981" : "rgba(255,255,255,0.15)" }}
+                        style={{ background: s <= wizardStep ? BRAND_SOLID : "rgba(255,255,255,0.15)" }}
                       />
                     );
                   })}
@@ -3257,7 +3268,7 @@ export default function App() {
                   <div className="max-h-64 overflow-y-auto rounded-xl border border-white/10" style={{ background: "#1B1815" }}>
                     {wizardExistingSuggestions.length > 0 && (
                       <>
-                        <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[#10B981]/80">{t("wizardExistingSection")}</div>
+                        <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[#8B5CF6]/80">{t("wizardExistingSection")}</div>
                         {wizardExistingSuggestions.map((ing) => {
                           const sup = activeSupplier(ing);
                           return (
@@ -3290,7 +3301,7 @@ export default function App() {
                     )}
                     <button
                       onClick={() => pickWizardCustom(wizardQuery.trim())}
-                      className="w-full text-left px-3 py-2.5 text-xs text-[#10B981] hover:bg-white/10 border-t border-white/10"
+                      className="w-full text-left px-3 py-2.5 text-xs text-[#8B5CF6] hover:bg-white/10 border-t border-white/10"
                     >
                       {t("createCustom")(wizardQuery.trim())}
                     </button>
@@ -3318,9 +3329,9 @@ export default function App() {
                       onClick={() => setWizardData((d) => ({ ...d, unit: u }))}
                       className="rounded-xl py-3 text-sm font-bold border-2 transition"
                       style={{
-                        borderColor: wizardData.unit === u ? "#10B981" : "rgba(255,255,255,0.12)",
-                        background: wizardData.unit === u ? "#10B98122" : "#1B1815",
-                        color: wizardData.unit === u ? "#10B981" : "rgba(255,255,255,0.6)",
+                        borderColor: wizardData.unit === u ? BRAND_SOLID : "rgba(255,255,255,0.12)",
+                        background: wizardData.unit === u ? `${BRAND_SOLID}22` : "#1B1815",
+                        color: wizardData.unit === u ? BRAND_SOLID : "rgba(255,255,255,0.6)",
                       }}
                     >
                       {u}
@@ -3334,7 +3345,7 @@ export default function App() {
                   <button
                     onClick={() => (wizardEditId ? finalizeEditWizard() : setWizardStep(3))}
                     className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold"
-                    style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
+                    style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                   >
                     {wizardEditId ? t("wizardSave") : t("wizardNext")}
                   </button>
@@ -3352,9 +3363,9 @@ export default function App() {
                       onClick={() => setWizardData((d) => ({ ...d, category: c.id }))}
                       className="rounded-xl py-3 px-2 text-xs font-semibold border-2 transition"
                       style={{
-                        borderColor: wizardData.category === c.id ? "#10B981" : "rgba(255,255,255,0.12)",
-                        background: wizardData.category === c.id ? "#10B98122" : "#1B1815",
-                        color: wizardData.category === c.id ? "#10B981" : "rgba(255,255,255,0.6)",
+                        borderColor: wizardData.category === c.id ? BRAND_SOLID : "rgba(255,255,255,0.12)",
+                        background: wizardData.category === c.id ? `${BRAND_SOLID}22` : "#1B1815",
+                        color: wizardData.category === c.id ? BRAND_SOLID : "rgba(255,255,255,0.6)",
                       }}
                     >
                       {c[lang]}
@@ -3365,7 +3376,7 @@ export default function App() {
                   <button onClick={() => setWizardStep(2)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70">
                     {t("wizardBack")}
                   </button>
-                  <button onClick={finalizeWizard} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold" style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}>
+                  <button onClick={finalizeWizard} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold" style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}>
                     {t("wizardCreate")}
                   </button>
                 </div>
@@ -3376,7 +3387,7 @@ export default function App() {
               <div key="success" className="flex flex-col items-center py-6" style={{ animation: "wizardStepIn 0.3s ease" }}>
                 <div
                   className="w-16 h-16 rounded-full flex items-center justify-center mb-3"
-                  style={{ background: "#10B981", animation: "successPop 0.4s ease" }}
+                  style={{ background: BRAND_GRADIENT, animation: "successPop 0.4s ease" }}
                 >
                   <Check size={30} color="#fff" />
                 </div>
@@ -3393,7 +3404,7 @@ export default function App() {
         {activeTab === "recipes" && recipeSubView === "list" && (
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <Logo size={18} variant="dark" />
+              <Logo size={18} />
               <span className="font-display text-white/50 text-[11px] uppercase tracking-widest">{t("appTitle")}</span>
             </div>
             <h1 className="font-display text-white text-xl mb-5">{t("greeting")}</h1>
@@ -3411,7 +3422,7 @@ export default function App() {
                 <button
                   onClick={addRecipe}
                   className="flex items-center gap-1 text-xs font-display uppercase tracking-wide px-3 py-1.5 rounded-full active:scale-95 transition-transform"
-                  style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
+                  style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                 >
                   <Plus size={14} /> {t("newRecipe")}
                 </button>
@@ -3495,7 +3506,7 @@ export default function App() {
                 <ArrowLeft size={14} /> {t("recipes")}
               </button>
               <div className="flex items-center gap-2.5">
-                <button onClick={() => duplicateRecipe(active)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#10B981] font-display uppercase tracking-wide">
+                <button onClick={() => duplicateRecipe(active)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#8B5CF6] font-display uppercase tracking-wide">
                   <Copy size={13} /> {t("duplicate")}
                 </button>
                 <div className="relative">
@@ -3624,7 +3635,7 @@ export default function App() {
                       <button
                         onClick={() => updateRecipe({ sellPrice: Math.round(suggestedTTC * 2) / 2 })}
                         className="text-[10px] uppercase tracking-wide px-3 py-1 rounded-full font-semibold"
-                        style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
+                        style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                       >
                         {t("use")}
                       </button>
@@ -3729,14 +3740,14 @@ export default function App() {
                 {[26, 34, 42, 50, 58, 66, 74].map((y, i) => (
                   <rect key={i} x="38" y={y} width={i % 3 === 0 ? 30 : 44} height="3" rx="1.5" fill="#2B262022" />
                 ))}
-                <rect x="38" y="84" width="44" height="4" rx="2" fill="#10B98155" />
+                <rect x="38" y="84" width="44" height="4" rx="2" fill="#8B5CF655" />
                 <g style={{ transformOrigin: "60px 57px", animation: "scanPulse 2.2s ease-in-out infinite" }}>
-                  <rect x="26" y="53" width="68" height="3" rx="1.5" fill="#10B981" opacity="0.9" />
+                  <rect x="26" y="53" width="68" height="3" rx="1.5" fill="#8B5CF6" opacity="0.9" />
                 </g>
                 <g style={{ animation: "scanFlash 2.2s ease-in-out infinite" }}>
-                  <circle cx="94" cy="100" r="17" fill="#10B981" />
+                  <circle cx="94" cy="100" r="17" fill="#8B5CF6" />
                   <rect x="86" y="93" width="16" height="12" rx="2.5" fill="#1B1815" />
-                  <circle cx="94" cy="99" r="3.4" fill="#10B981" />
+                  <circle cx="94" cy="99" r="3.4" fill="#8B5CF6" />
                 </g>
               </svg>
               <h2 className="font-display text-white uppercase tracking-wide text-sm mt-1">{t("scanInvoice")}</h2>
@@ -3744,7 +3755,7 @@ export default function App() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="mt-3 w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                style={{ background: "#10B981", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(16,185,129,0.28)" }}
+                style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
               >
                 <Camera size={15} /> {t("scanTakePhoto")}
               </button>
@@ -3786,7 +3797,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setPantryCategory((c) => (c === "all" ? "none" : "all"))}
-                className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === "all" ? "bg-[#10B981] text-white border-[#10B981]" : "text-white/50 border-white/15 hover:border-white/40"}`}
+                className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === "all" ? "bg-[#8B5CF6] text-white border-[#8B5CF6]" : "text-white/50 border-white/15 hover:border-white/40"}`}
               >
                 {t("allCategories")}
               </button>
@@ -3794,7 +3805,7 @@ export default function App() {
                 <button
                   key={c.id}
                   onClick={() => setPantryCategory((cur) => (cur === c.id ? "none" : c.id))}
-                  className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === c.id ? "bg-[#10B981] text-white border-[#10B981]" : "text-white/50 border-white/15 hover:border-white/40"}`}
+                  className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === c.id ? "bg-[#8B5CF6] text-white border-[#8B5CF6]" : "text-white/50 border-white/15 hover:border-white/40"}`}
                 >
                   {c[lang]}
                 </button>
@@ -3845,7 +3856,7 @@ export default function App() {
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); openEditWizard(ing); }}
-                            className="shrink-0 text-white/30 hover:text-[#10B981] p-1"
+                            className="shrink-0 text-white/30 hover:text-[#8B5CF6] p-1"
                             title={t("scanModify")}
                           >
                             <Pencil size={13} />
@@ -3860,7 +3871,7 @@ export default function App() {
                             <input
                               value={ingredientDisplayName(ing)}
                               onChange={(e) => updateIngredientName(ing.id, e.target.value)}
-                              className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#10B981] pb-1 pt-2 mb-2"
+                              className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#8B5CF6] pb-1 pt-2 mb-2"
                             />
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-[10px] uppercase tracking-wide text-white/40">Unité</span>
@@ -3883,16 +3894,16 @@ export default function App() {
                                   <input
                                     value={s.name}
                                     onChange={(e) => updateSupplier(ing.id, s.id, "name", e.target.value)}
-                                    className="flex-1 bg-transparent outline-none border-b border-white/10 focus:border-[#10B981] min-w-0"
+                                    className="flex-1 bg-transparent outline-none border-b border-white/10 focus:border-[#8B5CF6] min-w-0"
                                   />
-                                  <NumField value={s.price} onChange={(v) => updateSupplier(ing.id, s.id, "price", v)} className="w-14 shrink-0 bg-transparent font-mono outline-none border-b border-white/10 focus:border-[#10B981] text-right" />
+                                  <NumField value={s.price} onChange={(v) => updateSupplier(ing.id, s.id, "price", v)} className="w-14 shrink-0 bg-transparent font-mono outline-none border-b border-white/10 focus:border-[#8B5CF6] text-right" />
                                   <span className="shrink-0">€</span>
                                   {ing.suppliers.length > 1 && (
                                     <button onClick={() => removeSupplier(ing.id, s.id)} className="text-white/25 hover:text-red-400 shrink-0"><Trash2 size={11} /></button>
                                   )}
                                 </div>
                               ))}
-                              <button onClick={() => addSupplier(ing.id)} className="text-[10px] uppercase tracking-wide text-white/40 hover:text-[#10B981] flex items-center gap-1">
+                              <button onClick={() => addSupplier(ing.id)} className="text-[10px] uppercase tracking-wide text-white/40 hover:text-[#8B5CF6] flex items-center gap-1">
                                 <Plus size={10} /> {t("supplier")}
                               </button>
                             </div>
@@ -3917,7 +3928,7 @@ export default function App() {
               })()}
             </div>
 
-            <button onClick={openAddWizard} className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-xl border border-dashed border-white/25 text-white/60 hover:text-[#10B981] hover:border-[#10B981] active:scale-95 transition">
+            <button onClick={openAddWizard} className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-xl border border-dashed border-white/25 text-white/60 hover:text-[#8B5CF6] hover:border-[#8B5CF6] active:scale-95 transition">
               <Plus size={14} /> {t("addIngredient")}
             </button>
           </div>
@@ -3942,8 +3953,8 @@ export default function App() {
               onClick={() => { setActiveTab(tabDef.id); if (tabDef.id === "recipes") setRecipeSubView("list"); }}
               className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:scale-90 transition-transform"
             >
-              <TabIcon size={20} color={isActive ? "#10B981" : "rgba(255,255,255,0.4)"} />
-              <span className={`text-[10px] font-display uppercase tracking-wide ${isActive ? "text-[#10B981]" : "text-white/40"}`}>{tabDef.label}</span>
+              <TabIcon size={20} color={isActive ? BRAND_SOLID : "rgba(255,255,255,0.4)"} />
+              <span className={`text-[10px] font-display uppercase tracking-wide ${isActive ? "text-[#8B5CF6]" : "text-white/40"}`}>{tabDef.label}</span>
             </button>
           );
         })}
