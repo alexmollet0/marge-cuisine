@@ -25,6 +25,7 @@ import {
   ArrowLeft,
   ShieldCheck,
   Award,
+  Percent,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -466,7 +467,7 @@ const TR = {
     scanPriceInconsistent: "Écart avec le total imprimé, vérifie",
     scanExpectedTotal: "attendu", scanPrintedTotal: "imprimé :",
     scanLowConfidence: "Lecture incertaine (document flou/dense) — compare avec le papier avant de valider",
-    scanConfirmBigChange: "Confirmer ce changement important",
+    scanConfirmUncertain: "Confirmer malgré le doute",
     scanManyUpWarning: "Plusieurs prix semblent en forte hausse par rapport à tes prix connus — vérifie que le document est bien net avant d'importer.",
     scanLowConfidenceBanner: "Photo un peu floue : vérifie bien les lignes en orange avant d'importer.",
     scanReviewSection: "À vérifier avant d'importer", scanSafeSection: "Prêtes à importer",
@@ -499,8 +500,9 @@ const TR = {
     estimatedPriceLegend: "Prix estimé, pas encore vérifié avec ton fournisseur",
     lossPercentLabel: "Rendement / Perte (%)",
     lossLineBadge: (pct) => `Perte ${pct}%`,
-    addLossLink: "+ perte de préparation",
-    lossHint: "Perte estimée à la découpe ou à la préparation (ex : 20% sur du poisson brut, du parage de viande, de l'épluchage de légumes). Le coût réel de la recette en tient compte automatiquement.",
+    declareLossesButton: "Pertes à la découpe / épluchage",
+    declareLossesTitle: "Pertes de préparation",
+    declareLossesHint: "Renseigne ici le % perdu à la découpe, au parage ou à l'épluchage pour chaque ingrédient de cette recette (ex : 20% sur du poisson brut). Le coût réel de la recette en tient compte automatiquement, et ça s'applique partout où l'ingrédient est utilisé, pas seulement dans cette recette.",
     priceVariationHint: "Variation par rapport à la dernière mise à jour de prix de cet ingrédient",
     suggestionTitle: "Piste d'optimisation :",
     suggestionProtein: "Cette marge est sous ton objectif. Pistes : réajuster légèrement le grammage de la protéine, ou augmenter le prix de vente.",
@@ -584,7 +586,7 @@ const TR = {
     scanPriceInconsistent: "Diferencia con el total impreso, verifica",
     scanExpectedTotal: "esperado", scanPrintedTotal: "impreso:",
     scanLowConfidence: "Lectura incierta (documento borroso/denso) — compara con el papel antes de validar",
-    scanConfirmBigChange: "Confirmar este cambio importante",
+    scanConfirmUncertain: "Confirmar a pesar de la duda",
     scanManyUpWarning: "Varios precios parecen estar muy al alza respecto a tus precios conocidos — verifica que el documento esté bien nítido antes de importar.",
     scanLowConfidenceBanner: "Foto un poco borrosa: revisa bien las líneas en naranja antes de importar.",
     scanReviewSection: "A verificar antes de importar", scanSafeSection: "Listas para importar",
@@ -617,8 +619,9 @@ const TR = {
     estimatedPriceLegend: "Precio estimado, aún no verificado con tu proveedor",
     lossPercentLabel: "Rendimiento / Merma (%)",
     lossLineBadge: (pct) => `Merma ${pct}%`,
-    addLossLink: "+ merma de preparación",
-    lossHint: "Merma estimada al cortar o preparar (ej: 20% en pescado crudo, despiece de carne, pelado de verduras). El coste real de la receta lo tiene en cuenta automáticamente.",
+    declareLossesButton: "Mermas de corte / pelado",
+    declareLossesTitle: "Mermas de preparación",
+    declareLossesHint: "Indica aquí el % que se pierde al cortar, despiezar o pelar cada ingrediente de esta receta (ej: 20% en pescado crudo). El coste real de la receta lo tiene en cuenta automáticamente, y se aplica en todas las recetas que usan este ingrediente, no solo en esta.",
     priceVariationHint: "Variación respecto a la última actualización de precio de este ingrediente",
     suggestionTitle: "Idea de optimización:",
     suggestionProtein: "Este margen está por debajo de tu objetivo. Ideas: reajustar ligeramente el gramaje de la proteína, o subir el precio de venta.",
@@ -702,7 +705,7 @@ const TR = {
     scanPriceInconsistent: "Mismatch with the printed total, please check",
     scanExpectedTotal: "expected", scanPrintedTotal: "printed:",
     scanLowConfidence: "Uncertain reading (blurry/dense document) — compare with the paper before validating",
-    scanConfirmBigChange: "Confirm this significant change",
+    scanConfirmUncertain: "Confirm despite the uncertainty",
     scanManyUpWarning: "Several prices seem sharply up compared to your known prices — check that the document is sharp before importing.",
     scanLowConfidenceBanner: "Photo a bit blurry: check the orange lines carefully before importing.",
     scanReviewSection: "To check before importing", scanSafeSection: "Ready to import",
@@ -735,8 +738,9 @@ const TR = {
     estimatedPriceLegend: "Estimated price, not yet verified with your supplier",
     lossPercentLabel: "Yield / Loss (%)",
     lossLineBadge: (pct) => `Loss ${pct}%`,
-    addLossLink: "+ prep loss",
-    lossHint: "Estimated loss from trimming or prep (e.g. 20% on raw fish, meat trimming, vegetable peeling). The recipe's real cost accounts for it automatically.",
+    declareLossesButton: "Trim / peeling losses",
+    declareLossesTitle: "Prep losses",
+    declareLossesHint: "Enter the % lost when trimming, cutting or peeling each ingredient in this recipe (e.g. 20% on raw fish). The recipe's real cost accounts for it automatically, and it applies everywhere this ingredient is used, not just in this recipe.",
     priceVariationHint: "Change since the last price update for this ingredient",
     suggestionTitle: "Optimization idea:",
     suggestionProtein: "This margin is below your target. Ideas: slightly reduce the protein portion, or raise the sell price.",
@@ -1620,6 +1624,11 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
       ? t("scanSummaryNew")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit)
       : t("scanSummaryUpdate")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit);
   const hasWarning = item.pricingUnknown || item.priceInconsistent || item.lowConfidence;
+  // Un vrai souci d'identité/prix (nom incertain, prix incohérent/illisible, confiance IA
+  // faible) justifie un bouton d'alerte — une simple grosse variation de prix (bigChange) non :
+  // le chef veut pouvoir valider normalement et juste voir la flèche/pourcentage d'info
+  // affichée plus bas, pas se faire arrêter par un symbole danger pour un prix qui monte.
+  const hasIdentityIssue = hasWarning || (!item.matchConfident && item.assignTo !== "new");
   const priceChangePct =
     item.currentPrice !== null && item.currentPrice && (item.priceUp || item.priceDown || item.bigChange)
       ? Math.round((Math.abs((item.unitPriceHT || 0) - item.currentPrice) / item.currentPrice) * 100)
@@ -1628,7 +1637,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
   return (
     <div
       className={`rounded-xl border ${item.imported ? "opacity-40" : ""}`}
-      style={{ background: "#1B1815", borderColor: item.bigChange ? TIER_COLORS.low : hasWarning || (!item.matchConfident && item.assignTo !== "new") ? `${TIER_COLORS.mid}80` : "rgba(255,255,255,0.1)" }}
+      style={{ background: "#1B1815", borderColor: hasIdentityIssue ? `${TIER_COLORS.mid}80` : "rgba(255,255,255,0.1)" }}
     >
       {/* Ligne compacte : toujours visible, sans clic — le nom qui sera vraiment utilisé saute aux yeux */}
       <div className="px-2.5 py-2">
@@ -1717,10 +1726,10 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
               <button
                 onClick={onImport}
                 className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: item.bigChange ? TIER_COLORS.low : "#10B981" }}
-                title={item.bigChange ? t("scanConfirmBigChange") : t("scanImport")}
+                style={{ background: hasIdentityIssue ? TIER_COLORS.mid : "#10B981" }}
+                title={hasIdentityIssue ? t("scanConfirmUncertain") : t("scanImport")}
               >
-                {item.bigChange ? <AlertTriangle size={14} color="#fff" /> : <Check size={14} color="#fff" />}
+                {hasIdentityIssue ? <AlertTriangle size={14} color="#fff" /> : <Check size={14} color="#fff" />}
               </button>
             </>
           )}
@@ -1862,7 +1871,7 @@ export default function App() {
   const [pantryCategory, setPantryCategory] = useState("none");
   const [expandedIngId, setExpandedIngId] = useState(null);
   const [autoOpenIdx, setAutoOpenIdx] = useState(null);
-  const [lossEditIdx, setLossEditIdx] = useState(null);
+  const [lossModalOpen, setLossModalOpen] = useState(false);
 
   const [addWizardOpen, setAddWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1); // 1 nom/recherche, 2 prix+unité, 3 catégorie (création only), "success"
@@ -2932,6 +2941,42 @@ export default function App() {
         </div>
       )}
 
+      {lossModalOpen && active && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setLossModalOpen(false)}>
+          <div
+            className="rounded-2xl p-5 w-full max-w-sm max-h-[80vh] flex flex-col font-body border border-white/10"
+            style={{ background: "#26221C" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("declareLossesTitle")}</h3>
+            <p className="text-white/50 text-xs mb-4 leading-relaxed">{t("declareLossesHint")}</p>
+            <div className="space-y-1.5 overflow-y-auto pr-0.5">
+              {Array.from(new Map(active.lines.map((l) => [l.ingredientId, l])).keys())
+                .map((ingId) => ingredientById(ingId))
+                .filter(Boolean)
+                .map((ing) => (
+                  <div key={ing.id} className="flex items-center gap-2 text-xs rounded-lg px-3 py-2" style={{ background: "#1B1815" }}>
+                    <span className="flex-1 min-w-0 text-white truncate">{ingredientDisplayName(ing)}</span>
+                    <NumField
+                      value={ing.lossPercent || 0}
+                      onChange={(v) => updateIngredientField(ing.id, "lossPercent", Math.min(Math.max(v, 0), 95))}
+                      allowDecimal={false}
+                      className="w-12 bg-black/30 text-white text-right outline-none rounded px-1.5 py-1"
+                    />
+                    <span className="text-white/40 shrink-0">%</span>
+                  </div>
+                ))}
+            </div>
+            <button
+              onClick={() => setLossModalOpen(false)}
+              className="w-full mt-4 text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] shrink-0"
+            >
+              {t("close")}
+            </button>
+          </div>
+        </div>
+      )}
+
       {scanOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeScan}>
           <div
@@ -3108,7 +3153,7 @@ export default function App() {
                               ) : (
                                 <div
                                   className="rounded-xl border p-4"
-                                  style={{ background: "#1B1815", borderColor: current.item.bigChange ? TIER_COLORS.low : `${TIER_COLORS.mid}80` }}
+                                  style={{ background: "#1B1815", borderColor: `${TIER_COLORS.mid}80` }}
                                 >
                                   <span
                                     className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
@@ -3571,7 +3616,7 @@ export default function App() {
                       style={{ background: "#26221C" }}
                     >
                       <button
-                        onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossEditIdx(null); }}
+                        onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossModalOpen(false); }}
                         className="flex-1 min-w-0 flex items-center justify-between gap-3 text-left active:scale-95 transition-transform"
                       >
                         <div className="min-w-0">
@@ -3633,6 +3678,9 @@ export default function App() {
                 <ArrowLeft size={14} /> {t("recipes")}
               </button>
               <div className="flex items-center gap-2.5">
+                <button onClick={() => setLossModalOpen(true)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#8B5CF6] font-display uppercase tracking-wide">
+                  <Percent size={13} /> {t("declareLossesButton")}
+                </button>
                 <button onClick={() => duplicateRecipe(active)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#8B5CF6] font-display uppercase tracking-wide">
                   <Copy size={13} /> {t("duplicate")}
                 </button>
@@ -3701,7 +3749,6 @@ export default function App() {
                   const ing = ingredientById(line.ingredientId);
                   const variation = ing ? priceVariation(ing) : null;
                   const loss = ing?.lossPercent || 0;
-                  const editingLoss = lossEditIdx === idx;
                   return (
                     <div key={idx}>
                       <div className="flex items-center gap-2 text-xs">
@@ -3721,7 +3768,7 @@ export default function App() {
                         <span className="w-14 shrink-0 text-right price-field">{lineCost(line).toFixed(2)}€</span>
                         <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0"><Trash2 size={12} /></button>
                       </div>
-                      {ing && (variation || loss > 0 || editingLoss) && (
+                      {ing && (variation || loss > 0) && (
                         <div className="flex items-center gap-2 text-[10px] text-black/50 pl-0.5 -mt-0.5 mb-1.5">
                           {variation && (
                             <span
@@ -3733,33 +3780,7 @@ export default function App() {
                               {variation.pct}%
                             </span>
                           )}
-                          {!editingLoss && loss > 0 && (
-                            <button type="button" onClick={() => setLossEditIdx(idx)} className="underline decoration-dotted hover:text-black print:no-underline">
-                              {t("lossLineBadge")(loss)}
-                            </button>
-                          )}
-                          {!editingLoss && loss === 0 && (
-                            <button type="button" onClick={() => setLossEditIdx(idx)} className="text-black/30 hover:text-black print:hidden">
-                              {t("addLossLink")}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      {ing && editingLoss && (
-                        <div className="print:hidden flex items-start gap-2 text-[10px] text-black/60 bg-black/5 rounded-lg px-2.5 py-2 mb-1.5">
-                          <div className="flex items-center gap-1 shrink-0">
-                            <NumField
-                              value={loss}
-                              onChange={(v) => updateIngredientField(ing.id, "lossPercent", Math.min(Math.max(v, 0), 95))}
-                              allowDecimal={false}
-                              className="w-10 bg-white/60 text-right outline-none rounded px-1 py-0.5"
-                            />
-                            <span>%</span>
-                          </div>
-                          <p className="flex-1 leading-snug">{t("lossHint")}</p>
-                          <button type="button" onClick={() => setLossEditIdx(null)} className="shrink-0 text-black/40 hover:text-black">
-                            <X size={12} />
-                          </button>
+                          {loss > 0 && <span>{t("lossLineBadge")(loss)}</span>}
                         </div>
                       )}
                     </div>
