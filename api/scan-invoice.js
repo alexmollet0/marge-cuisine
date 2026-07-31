@@ -25,7 +25,7 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
   "date": "AAAA-MM-JJ ou null",
   "items": [
     {
-      "rawLabel": "le texte EXACT et complet de la ligne tel qu'imprimé, SANS AUCUNE simplification (garde codes, abréviations, mentions de conditionnement)",
+      "rawLabel": "le texte EXACT et complet de LA LIGNE ENTIÈRE tel qu'imprimé, SANS AUCUNE simplification (garde codes, abréviations, mentions de conditionnement). ATTENTION : sur la plupart des factures, la désignation, la quantité, le conditionnement/format et le prix sont dans des COLONNES SÉPARÉES sur la même ligne visuelle — rawLabel doit recopier TOUTES ces colonnes mises bout à bout (ex: \"CARTON DE VIN 6X75CL — 32,40 €\"), jamais seulement le texte de la colonne désignation. C'est essentiel : un texte de conditionnement absent de rawLabel empêche tout recalcul fiable en aval.",
       "name": "nom PROPRE de l'ingrédient en français : juste la matière première, sans AUCUN conditionnement ni terme de traitement/état (voir règle NETTOYAGE DU NOM ci-dessous)",
       "packageCount": nombre de colis/unités achetés (le "x2", "x3" imprimé — PAS le poids total),
       "packageContent": nombre représentant le contenu d'UN SEUL colis dans packageContentUnit,
@@ -49,6 +49,18 @@ Chaque ligne de facture décrit un conditionnement entre parenthèses ou dans le
 - "Caisse 20pcs" (pain) → packageContent: 20, packageContentUnit: "pièce"
 - Si aucun conditionnement n'est précisé (produit vraiment vendu à l'unité simple, ex: 1 avocat) → packageContent: 1, packageContentUnit: "pièce"
 Ne confonds JAMAIS packageCount (combien de colis on achète, le "x2") avec packageContent (combien contient UN colis, ex: 10kg) — ce sont deux nombres différents sur la même ligne.
+
+ATTENTION PARTICULIÈRE — MULTIPACK EN GRAMMES (ex: "12x125g", "Boîte 12x125g", "6x50g") :
+Même calcul en deux étapes que pour les volumes, mais en grammes puis conversion en kg : "12x125g" → 12 x 125g = 1500g = 1,5kg. Le résultat en kg (après division par 1000) est packageContent, jamais le nombre de grammes d'une seule pièce, jamais le nombre de pièces seul.
+
+RÈGLE STRICTE — UNE LIGNE VISUELLE = UN SEUL OBJET JSON :
+Sur les factures à colonnes séparées (désignation | qté | conditionnement/format | PU | montant), la colonne "conditionnement/format" (ex: "Sac 10kg", "12 PCE", "Bolsa 800g", "Barril 30L") n'est JAMAIS un produit à part entière, même si son texte ressemble à un nom ("Bolsa", "Boîte", "Barril") — c'est une propriété de la ligne à laquelle elle appartient, toujours à fusionner dans le MÊME objet JSON que la désignation juste à côté. Ne crée jamais un item séparé pour une cellule de format/quantité/prix isolée.
+
+RÈGLE STRICTE — NE JAMAIS RÉUTILISER UN CHIFFRE D'UNE AUTRE LIGNE :
+Sur un tableau dense avec beaucoup de lignes qui se ressemblent (même mise en page, colonnes étroites, photo de mauvaise qualité), reste rigoureux : packageCount, printedUnitPriceHT et totalPriceHT d'une ligne doivent TOUJOURS provenir de cette ligne précise, jamais de la ligne au-dessus ou en-dessous même si les valeurs semblent proches ou plausibles. Avant de répondre, vérifie mentalement que le nombre de lignes dans "items" correspond bien au nombre de lignes de produits visibles sur le document, et que chaque prix reste aligné horizontalement avec le nom du produit dont il provient.
+
+RÈGLE STRICTE — UN PRIX LISIBLE NE DOIT JAMAIS ÊTRE OMIS À CAUSE D'UN POIDS INCONNU :
+packageContent (inconnu) et printedUnitPriceHT/totalPriceHT (le prix imprimé) sont deux informations indépendantes. Si le poids/volume d'un colis n'est écrit nulle part (packageContent: null, voir règle ci-dessous), cela ne veut PAS dire que le prix est illisible : recopie quand même printedUnitPriceHT et totalPriceHT si ces chiffres sont visibles sur la ligne. Ne mets null pour ces prix que s'ils sont eux-mêmes vraiment illisibles.
 
 ATTENTION PARTICULIÈRE — MULTIPACK "N x VOLUME" (ex: "6x75cl", "Carton 6x75cl", "1.5L x6") :
 C'est le calcul où tu te trompes le plus souvent, fais-le lentement en deux étapes séparées, sans sauter d'étape :
@@ -86,7 +98,8 @@ Une facture contient souvent des lignes qui ne décrivent aucun produit : remise
 Important : "ne pas inclure" veut dire ABSENTE du tableau "items", pas présente avec des champs à null. Si tu hésites à exclure une ligne de ce type, rappelle-toi qu'un objet avec "name": null n'a aucune utilité et ne doit jamais apparaître dans "items" — retire-la complètement plutôt que de l'y laisser avec des valeurs vides.
 
 CONSIGNES ET FRAIS (règle stricte, distincte d'isFood) :
-Une consigne (ex: "CONSIGNE FÛT BIÈRE 30L", "EMBALLAGE CASIER", "CONSIGNE PALETTE"), des frais de port/livraison/transport, ou des frais de service NE SONT JAMAIS un achat d'ingrédient, même si leur libellé contient un mot alimentaire (ex: "bière" dans "CONSIGNE FÛT BIÈRE"). Pour ce type de ligne : isDeposit: true ET isFood: false, systématiquement — ne te laisse jamais influencer par un mot alimentaire présent dans le libellé d'une consigne ou de frais. Ces lignes restent dans "items" (avec leur prix, pour que l'utilisateur puisse les consulter s'il le souhaite), elles sont juste marquées isFood: false / isDeposit: true plutôt que traitées comme un ingrédient de cuisine.
+Une consigne (ex: "CONSIGNE FÛT BIÈRE 30L", "EMBALLAGE CASIER", "CONSIGNE PALETTE", et leurs équivalents espagnols "ENVASE RETORNABLE", "FIANZA", "CASCO"), des frais de port/livraison/transport, ou des frais de service NE SONT JAMAIS un achat d'ingrédient, même si leur libellé contient un mot alimentaire (ex: "bière" dans "CONSIGNE FÛT BIÈRE"). Pour ce type de ligne : isDeposit: true ET isFood: false, systématiquement — ne te laisse jamais influencer par un mot alimentaire présent dans le libellé d'une consigne ou de frais. Ces lignes restent dans "items" (avec leur prix TOUJOURS recopié s'il est lisible, pour que l'utilisateur puisse les consulter s'il le souhaite), elles sont juste marquées isFood: false / isDeposit: true plutôt que traitées comme un ingrédient de cuisine.
+IMPORTANT — isDeposit N'EST JAMAIS UNE REMISE : une remise, un escompte, une ristourne ou une réduction commerciale (même à montant négatif) N'EST PAS une consigne. Ces lignes suivent la règle "LIGNES À NE JAMAIS INCLURE" ci-dessus : elles sont omises complètement de "items", jamais marquées isDeposit: true. Ne mélange jamais les deux catégories.
 
 Autres règles :
 - Si une ligne entière est trop floue/illisible pour être fiable, IGNORE-la simplement (ne l'inclus pas dans "items") plutôt que de bloquer toute la réponse.

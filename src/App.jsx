@@ -2109,9 +2109,14 @@ export default function App() {
   // trompe régulièrement sur deux cas précis : le calcul d'un multipack "NxVOLUME" (ex:
   // "Carton 6x75cl" → l'IA a renvoyé 6 ou 0.75 au lieu de 4.5 dans plusieurs tests) et la
   // conversion grammes→kg (ex: "Bloc 500g" → l'IA a renvoyé 500 avec l'unité "kg" au lieu de 0.5,
-  // soit une erreur de prix x1000). Ce filet ne s'applique qu'aux contenus en kg ou L, jamais
-  // "pièce" — un motif reconnu écrase toujours la valeur de l'IA (plus fiable qu'elle sur ces
-  // deux cas précis d'après les tests), sinon on garde sa valeur telle quelle.
+  // soit une erreur de prix x1000). Une campagne de tests "extrêmes" (2026-07-31, factures
+  // dégradées/multi-colonnes) a montré un troisième cas du même type : le multipack en grammes
+  // "Nxg" (ex: "12x125g" → doit donner 1,5kg, pas 125g ni 12). Ce filet ne s'applique qu'aux
+  // contenus en kg ou L, jamais "pièce" — un motif reconnu écrase toujours la valeur de l'IA (plus
+  // fiable qu'elle sur ces cas précis d'après les tests), sinon on garde sa valeur telle quelle.
+  // IMPORTANT : ce filet dépend entièrement de `rawLabel` contenant bien le texte de conditionnement
+  // (voir prompt `api/scan-invoice.js`, champ rawLabel) — si l'IA ne recopie que la colonne
+  // désignation sans la colonne format/conditionnement, ce filet ne peut rien détecter.
   const extractDeterministicContent = (text, contentUnit) => {
     if (!text || (contentUnit !== "kg" && contentUnit !== "L")) return null;
     if (contentUnit === "L") {
@@ -2131,6 +2136,12 @@ export default function App() {
       if (mlMatch) return parseFloat(mlMatch[1].replace(",", ".")) / 1000;
     }
     if (contentUnit === "kg") {
+      const multipackG = text.match(/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*g(?:r|rs|rammes?)?\b/i);
+      if (multipackG) {
+        const count = parseInt(multipackG[1], 10);
+        const sizeG = parseFloat(multipackG[2].replace(",", "."));
+        return Math.round(count * sizeG) / 1000;
+      }
       const kgMatch = text.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
       if (kgMatch) return parseFloat(kgMatch[1].replace(",", "."));
       const gMatch = text.match(/(\d+(?:[.,]\d+)?)\s*g(?:r|rs|rammes?)?\b/i);
