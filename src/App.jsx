@@ -453,6 +453,8 @@ const TR = {
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
     scanTab: "Scanner", scanTabHint: "Prends en photo ta facture Métro, Promocash, Transgourmet ou tout autre fournisseur — l'IA s'occupe du reste.",
     scanTakePhoto: "Prendre une photo", scanUploadFile: "Choisir une photo ou un fichier",
+    scanTipTitle: "💡 Astuce pour un scan optimal :",
+    scanTipBody: "Pour une précision maximale, privilégie l'import du fichier PDF original de ton fournisseur (METRO, Transgourmet, etc.). Si tu prends une photo, pose la facture bien à plat sous une bonne lumière. Attention : le flou, les ombres, les pliures et les reflets altèrent la précision de l'IA.",
   },
   es: {
     appTitle: "Margen en cocina", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef",
@@ -545,6 +547,8 @@ const TR = {
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
     scanTab: "Escanear", scanTabHint: "Haz una foto de tu factura de Makro, Gros Mercat o cualquier otro proveedor — la IA se encarga del resto.",
     scanTakePhoto: "Tomar una foto", scanUploadFile: "Elegir una foto o un archivo",
+    scanTipTitle: "💡 Consejo para un escaneo óptimo:",
+    scanTipBody: "Para una precisión máxima, prioriza la importación del archivo PDF original de tu proveedor (METRO, Transgourmet, etc.). Si haces una foto, coloca la factura bien plana bajo una buena luz. Atención: el desenfoque, las sombras, los pliegues y los reflejos reducen la precisión de la IA.",
   },
 };
 
@@ -3628,6 +3632,11 @@ export default function App() {
               >
                 <Upload size={15} /> {t("scanUploadFile")}
               </button>
+            </div>
+
+            <div className="rounded-2xl p-4 mt-3 text-xs leading-relaxed border border-white/10" style={{ background: "#26221C" }}>
+              <p className="text-white/70 font-semibold mb-1">{t("scanTipTitle")}</p>
+              <p className="text-white/45">{t("scanTipBody")}</p>
             </div>
           </div>
         )}
