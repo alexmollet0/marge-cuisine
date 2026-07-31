@@ -1274,6 +1274,16 @@ function PricingCalculator({ item, onUpdate, t }) {
     onUpdate({ ...next, unit: nextBase, unitPriceHT: nextPrice });
   };
 
+  // Le prix affiché par le calculateur (même la valeur par défaut, avant toute modification de
+  // l'utilisateur) doit toujours être celui utilisé pour l'import — sinon "Valider" garde le
+  // 0.00€ initial tant que l'utilisateur n'a pas lui-même touché un champ du calculateur.
+  useEffect(() => {
+    if (item.unitPriceHT !== computedPrice || item.unit !== base) {
+      onUpdate({ calcContent: content, calcContentUnit: contentUnit, unit: base, unitPriceHT: computedPrice });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computedPrice, base]);
+
   return (
     <div className="rounded-lg p-2.5 text-[11px] space-y-2" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
       <div className="flex items-center gap-1.5 font-semibold">
