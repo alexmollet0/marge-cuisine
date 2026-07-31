@@ -35,10 +35,18 @@ Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte av
       "isDeposit": true si la ligne est une consigne, un emballage consigné, des frais de port/livraison/transport, ou des frais de service (voir règle CONSIGNES ET FRAIS ci-dessous), false sinon,
       "printedUnitPriceHT": le prix unitaire EXACTEMENT tel qu'imprimé sur le document, sans aucun calcul,
       "printedPriceUnit": "kg" si le prix imprimé est déjà un prix au kilo, "L" si déjà au litre, "colis" s'il s'agit du prix d'un colis/pièce entière,
-      "totalPriceHT": le prix total de la ligne tel qu'imprimé
+      "totalPriceHT": le prix total de la ligne tel qu'imprimé,
+      "lowConfidence": true si tu as le moindre doute sur un des chiffres de CETTE ligne (packageCount, printedUnitPriceHT, totalPriceHT, packageContent) — voir règle SIGNAL DE CONFIANCE ci-dessous —, false si tu es sûr d'avoir lu chaque chiffre bien aligné avec cette ligne précise
     }
   ]
 }
+
+RÈGLE — SIGNAL DE CONFIANCE PAR LIGNE (lowConfidence) :
+Sur un document flou, peu contrasté, incliné, ou avec un tableau dense où plusieurs lignes se ressemblent, il est facile de mal aligner un chiffre avec la mauvaise ligne, même sans s'en rendre compte. Avant de répondre, pour CHAQUE ligne, pose-toi honnêtement la question : "suis-je certain que ce prix/cette quantité appartient à CETTE ligne précise, et pas à la ligne juste au-dessus ou en-dessous ?" Mets lowConfidence: true si l'un des cas suivants s'applique à cette ligne :
+- le chiffre est flou, à la limite du lisible, ou tu as dû deviner entre deux lectures possibles (ex: "3" ou "8", "50" ou "80") ;
+- la ligne fait partie d'un tableau dense avec plusieurs lignes très similaires en mise en page, où une confusion avec la ligne voisine est plausible ;
+- tu as dû reconstituer un chiffre à partir d'un fragment coupé par un pli, une ombre, ou le bord de l'image.
+Mets lowConfidence: false uniquement quand les chiffres de cette ligne sont nets, isolés, sans ambiguïté possible. Ce champ ne remplace pas ta rigueur habituelle (recopie toujours ta MEILLEURE lecture, ne mets jamais null par facilité) : c'est un signal honnête en plus, pas un prétexte pour moins bien lire.
 
 COMMENT REMPLIR packageContent / packageContentUnit (le point le plus important, lis bien) :
 Chaque ligne de facture décrit un conditionnement entre parenthèses ou dans le libellé : "Sac 10kg", "Caisse 4kg", "Bidon 5L", "Plateau de 30", "Carton 6x75cl", "Plaque 2kg", "Filet 5kg", "Brick 1L", "Caisse 20pcs"...

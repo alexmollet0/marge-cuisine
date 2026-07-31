@@ -401,6 +401,7 @@ const TR = {
     scanBulkPackaging: "Conditionnement groupé — vérifie",
     scanPriceInconsistent: "Écart avec le total imprimé, vérifie",
     scanExpectedTotal: "attendu", scanPrintedTotal: "imprimé :",
+    scanLowConfidence: "Lecture incertaine (document flou/dense) — compare avec le papier avant de valider",
     scanConfirmBigChange: "Confirmer ce changement important",
     scanManyUpWarning: "Plusieurs prix semblent en forte hausse par rapport à tes prix connus — vérifie que le document est bien net avant d'importer.",
     scanReviewSection: "À vérifier avant d'importer", scanSafeSection: "Prêtes à importer",
@@ -491,6 +492,7 @@ const TR = {
     scanBulkPackaging: "Embalaje agrupado — verifica",
     scanPriceInconsistent: "Diferencia con el total impreso, verifica",
     scanExpectedTotal: "esperado", scanPrintedTotal: "impreso:",
+    scanLowConfidence: "Lectura incierta (documento borroso/denso) — compara con el papel antes de validar",
     scanConfirmBigChange: "Confirmar este cambio importante",
     scanManyUpWarning: "Varios precios parecen estar muy al alza respecto a tus precios conocidos — verifica que el documento esté bien nítido antes de importar.",
     scanReviewSection: "A verificar antes de importar", scanSafeSection: "Listas para importar",
@@ -1341,7 +1343,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
     item.assignTo === "new"
       ? t("scanSummaryNew")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit)
       : t("scanSummaryUpdate")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit);
-  const hasWarning = item.pricingUnknown || item.priceInconsistent;
+  const hasWarning = item.pricingUnknown || item.priceInconsistent || item.lowConfidence;
 
   return (
     <div
@@ -1464,6 +1466,13 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
                 {t("scanPriceInconsistent")}
                 {item.expectedTotal !== null ? ` (${t("scanExpectedTotal")} ≈ ${item.expectedTotal.toFixed(2)}€, ${t("scanPrintedTotal")} ${(item.totalPriceHT || 0).toFixed(2)}€)` : ""}
               </span>
+            </div>
+          )}
+
+          {item.lowConfidence && (
+            <div className="flex items-center gap-1.5 text-[10px] rounded px-2 py-1" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+              <AlertTriangle size={11} className="shrink-0" />
+              <span>{t("scanLowConfidence")}</span>
             </div>
           )}
 
@@ -2232,7 +2241,11 @@ export default function App() {
         .filter((it) => it.name && it.name.trim())
         .map((it) => {
         const { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal, pricingUnknown } = computeItemPricing(it);
-        const merged = { ...it, unit: finalUnit, unitPriceHT: pricingUnknown ? 0 : finalUnitPrice };
+        // Signal de confiance déclaré par l'IA elle-même ligne par ligne (voir prompt, règle
+        // SIGNAL DE CONFIANCE) : une ligne lue sur un document flou/dense où un chiffre pourrait
+        // appartenir à la mauvaise ligne ne doit jamais être traitée comme automatiquement sûre.
+        const lowConfidence = !!it.lowConfidence;
+        const merged = { ...it, unit: finalUnit, unitPriceHT: pricingUnknown ? 0 : finalUnitPrice, lowConfidence };
 
         // Priorité à un rapprochement déjà validé manuellement lors d'un scan précédent pour
         // ce même texte brut fournisseur : on lui fait confiance sans repasser par le score.
@@ -2371,7 +2384,7 @@ export default function App() {
   // est peut-être seulement en train de choisir "créer séparément" dans le picker sans avoir
   // encore validé — la ligne doit rester dans "à vérifier" jusqu'au clic explicite sur Valider.
   const isSafeScanItem = (item) =>
-    !item.priceInconsistent && !item.bigChange && !item.priceUnusable &&
+    !item.priceInconsistent && !item.bigChange && !item.priceUnusable && !item.lowConfidence &&
     (item.matchConfident || (item.assignTo === "new" && !item.guessedMatchId));
 
   // Une ligne rejoint la section "sûr" (éditable, coche pour importer) si elle est intrinsèquement
@@ -2830,6 +2843,12 @@ export default function App() {
                                   {current.item.priceInconsistent && (
                                     <div className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1.5 mt-3" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
                                       <AlertTriangle size={11} className="shrink-0" /> {t("scanPriceInconsistent")}
+                                    </div>
+                                  )}
+
+                                  {current.item.lowConfidence && (
+                                    <div className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1.5 mt-3" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+                                      <AlertTriangle size={11} className="shrink-0" /> {t("scanLowConfidence")}
                                     </div>
                                   )}
 
