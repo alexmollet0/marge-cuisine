@@ -17,6 +17,7 @@ import {
   X,
   Loader2,
   TrendingUp,
+  TrendingDown,
   Package,
   Pencil,
   Upload,
@@ -348,6 +349,13 @@ const normalizeAllergenText = (s) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
+// Nom source (toujours français), indépendant de la langue d'interface — utilisé pour
+// toute détection par mots-clés (allergènes, féculents...) afin de rester cohérent
+// quelle que soit la langue choisie par l'utilisateur.
+function ingredientSourceName(ing) {
+  return ing?.catalogId && CATALOG_MAP[ing.catalogId] ? CATALOG_MAP[ing.catalogId].fr : ing?.name || "";
+}
+
 function detectAllergens(lines, ingredientsList, lang) {
   const set = new Set();
   lines.forEach((l) => {
@@ -355,13 +363,65 @@ function detectAllergens(lines, ingredientsList, lang) {
     if (!ing) return;
     if (ing.catalogId && ALLERGEN_MAP[ing.catalogId]) ALLERGEN_MAP[ing.catalogId].forEach((a) => set.add(a));
 
-    const sourceName = ing.catalogId && CATALOG_MAP[ing.catalogId] ? CATALOG_MAP[ing.catalogId].fr : ing.name;
-    const tokens = new Set(normalizeAllergenText(sourceName).split(" ").filter(Boolean));
+    const tokens = new Set(normalizeAllergenText(ingredientSourceName(ing)).split(" ").filter(Boolean));
     Object.entries(ALLERGEN_NAME_KEYWORDS).forEach(([allergen, keywords]) => {
       if (keywords.some((k) => tokens.has(k))) set.add(allergen);
     });
   });
   return Array.from(set).map((a) => ALLERGEN_LABELS[a][lang]).join(", ");
+}
+
+// Détection "féculent" pour les suggestions contextuelles de marge (2026-08). Ce n'est pas
+// une catégorie CATEGORIES à part entière (riz/pâtes sont rangés en "epicerie", pomme de
+// terre en "legumes"), donc mots-clés sur le nom source — même principe qu'ALLERGEN_NAME_KEYWORDS.
+// Chaque entrée est une phrase (liste de tokens, dans l'ordre) ; un "s" final est toléré
+// automatiquement par matchesFeculentKeywords (pluriel), pas besoin de lister les deux formes.
+// Liste non-exhaustive par nature, comme les autres listes de mots-clés de ce fichier — à
+// enrichir avec l'usage réel des fournisseurs de l'utilisateur.
+const FECULENT_NAME_KEYWORDS = [
+  ["riz"], ["pate"], ["spaghetti"], ["tagliatelle"], ["penne"], ["macaroni"], ["nouille"],
+  ["vermicelle"], ["patate"], ["frite"], ["semoule"], ["couscous"], ["quinoa"], ["boulgour"],
+  ["polenta"], ["lentille"], ["pain"], ["baguette"], ["pomme", "de", "terre"],
+  ["pois", "chiche"], ["haricot", "blanc"], ["haricot", "rouge"],
+];
+
+function matchesFeculentKeywords(tokens) {
+  return FECULENT_NAME_KEYWORDS.some((phrase) => {
+    for (let i = 0; i <= tokens.length - phrase.length; i++) {
+      if (phrase.every((pt, j) => tokens[i + j] === pt || tokens[i + j] === pt + "s")) return true;
+    }
+    return false;
+  });
+}
+
+function isProteinIngredient(ing) {
+  return ing?.category === "viandes" || ing?.category === "poissons";
+}
+
+function isFeculentIngredient(ing) {
+  if (!ing) return false;
+  const tokens = normalizeAllergenText(ingredientSourceName(ing)).split(" ").filter(Boolean);
+  return matchesFeculentKeywords(tokens);
+}
+
+// Suggestion contextuelle d'optimisation de marge : règles déterministes (pas d'appel IA),
+// pour garantir qu'on ne mentionne jamais une protéine/féculent absent de la recette.
+// Priorité : protéine présente > féculent sans protéine > ni l'un ni l'autre (dessert,
+// boisson, entrée simple), auquel cas on pointe l'ingrédient le plus cher de la recette.
+function recipeSuggestion(recipe, ingredientsList, lineCostFn, displayNameFn, lang) {
+  const tr = (key) => (TR[lang] && TR[lang][key]) || TR.fr[key];
+  const linesWithIng = recipe.lines
+    .map((l) => ({ line: l, ing: ingredientsList.find((i) => i.id === l.ingredientId) }))
+    .filter((x) => x.ing);
+  if (linesWithIng.some((x) => isProteinIngredient(x.ing))) return tr("suggestionProtein");
+  if (linesWithIng.some((x) => isFeculentIngredient(x.ing))) return tr("suggestionFeculent");
+
+  let priciest = null;
+  linesWithIng.forEach((x) => {
+    const cost = lineCostFn(x.line);
+    if (cost > 0 && (!priciest || cost > priciest.cost)) priciest = { name: displayNameFn(x.ing), cost };
+  });
+  return priciest ? tr("suggestionOtherWithIngredient")(priciest.name) : tr("suggestionOther");
 }
 
 const TR = {
@@ -437,6 +497,16 @@ const TR = {
     scanPriceLabel: "Prix (modifiable) :",
     estimatedPriceBadge: "estimé", estimatedPriceHint: "Prix de départ estimé, jamais confirmé par un scan ou une saisie manuelle — vérifie-le avec ton vrai fournisseur.",
     estimatedPriceLegend: "Prix estimé, pas encore vérifié avec ton fournisseur",
+    lossPercentLabel: "Rendement / Perte (%)",
+    lossLineBadge: (pct) => `Perte ${pct}%`,
+    addLossLink: "+ perte de préparation",
+    lossHint: "Perte estimée à la découpe ou à la préparation (ex : 20% sur du poisson brut, du parage de viande, de l'épluchage de légumes). Le coût réel de la recette en tient compte automatiquement.",
+    priceVariationHint: "Variation par rapport à la dernière mise à jour de prix de cet ingrédient",
+    suggestionTitle: "Piste d'optimisation :",
+    suggestionProtein: "Cette marge est sous ton objectif. Pistes : réajuster légèrement le grammage de la protéine, ou augmenter le prix de vente.",
+    suggestionFeculent: "Cette marge est sous ton objectif. Pistes : ajuster la portion de féculent/accompagnement, ou le prix de vente.",
+    suggestionOtherWithIngredient: (name) => `Cette marge est sous ton objectif. L'ingrédient le plus coûteux de cette recette est ${name} — revois son dosage, ou ajuste le prix de vente.`,
+    suggestionOther: "Cette marge est sous ton objectif. Pistes : ajuste le prix de vente, ou revois le dosage des ingrédients les plus chers.",
     pantryEmptyPrompt: "Choisis une catégorie ci-dessus ou lance une recherche pour voir tes ingrédients.",
     coefLabel: "Coef.",
     printRecipeSheet: "Imprimer la fiche recette", printMenuLabel: "Imprimer",
@@ -545,6 +615,16 @@ const TR = {
     scanPriceLabel: "Precio (editable):",
     estimatedPriceBadge: "estimado", estimatedPriceHint: "Precio de partida estimado, nunca confirmado por un escaneo o entrada manual — verifícalo con tu proveedor real.",
     estimatedPriceLegend: "Precio estimado, aún no verificado con tu proveedor",
+    lossPercentLabel: "Rendimiento / Merma (%)",
+    lossLineBadge: (pct) => `Merma ${pct}%`,
+    addLossLink: "+ merma de preparación",
+    lossHint: "Merma estimada al cortar o preparar (ej: 20% en pescado crudo, despiece de carne, pelado de verduras). El coste real de la receta lo tiene en cuenta automáticamente.",
+    priceVariationHint: "Variación respecto a la última actualización de precio de este ingrediente",
+    suggestionTitle: "Idea de optimización:",
+    suggestionProtein: "Este margen está por debajo de tu objetivo. Ideas: reajustar ligeramente el gramaje de la proteína, o subir el precio de venta.",
+    suggestionFeculent: "Este margen está por debajo de tu objetivo. Ideas: ajustar la ración de la guarnición, o el precio de venta.",
+    suggestionOtherWithIngredient: (name) => `Este margen está por debajo de tu objetivo. El ingrediente más caro de esta receta es ${name} — revisa su cantidad, o ajusta el precio de venta.`,
+    suggestionOther: "Este margen está por debajo de tu objetivo. Ideas: ajusta el precio de venta, o revisa la cantidad de los ingredientes más caros.",
     pantryEmptyPrompt: "Elige una categoría arriba o busca algo para ver tus ingredientes.",
     coefLabel: "Coef.",
     printRecipeSheet: "Imprimir la ficha de receta", printMenuLabel: "Imprimir",
@@ -653,6 +733,16 @@ const TR = {
     scanPriceLabel: "Price (editable):",
     estimatedPriceBadge: "estimated", estimatedPriceHint: "Starting estimated price, never confirmed by a scan or manual entry — check it with your actual supplier.",
     estimatedPriceLegend: "Estimated price, not yet verified with your supplier",
+    lossPercentLabel: "Yield / Loss (%)",
+    lossLineBadge: (pct) => `Loss ${pct}%`,
+    addLossLink: "+ prep loss",
+    lossHint: "Estimated loss from trimming or prep (e.g. 20% on raw fish, meat trimming, vegetable peeling). The recipe's real cost accounts for it automatically.",
+    priceVariationHint: "Change since the last price update for this ingredient",
+    suggestionTitle: "Optimization idea:",
+    suggestionProtein: "This margin is below your target. Ideas: slightly reduce the protein portion, or raise the sell price.",
+    suggestionFeculent: "This margin is below your target. Ideas: adjust the starch/side portion, or the sell price.",
+    suggestionOtherWithIngredient: (name) => `This margin is below your target. The most expensive ingredient in this recipe is ${name} — review its amount, or adjust the sell price.`,
+    suggestionOther: "This margin is below your target. Ideas: adjust the sell price, or review the amount of the most expensive ingredients.",
     pantryEmptyPrompt: "Pick a category above or search to see your ingredients.",
     coefLabel: "Coef.",
     printRecipeSheet: "Print recipe sheet", printMenuLabel: "Print",
@@ -1145,6 +1235,34 @@ function activeSupplier(ing) {
   return ing.suppliers.find((s) => s.id === ing.selectedSupplierId) || ing.suppliers[0];
 }
 
+// Prix réellement utilisable en cuisine une fois le parage/la perte pris en compte
+// (ex: 20% de perte sur du poisson brut -> le kg utile coûte plus cher que le kg acheté).
+// lossPercent vit sur l'ingrédient (pas sur la ligne de recette) : une seule vérité,
+// modifiable depuis le garde-manger ou directement depuis une fiche recette.
+// Le garde-fou à 95 évite une division par un nombre proche de 0 si une valeur
+// aberrante (>=100) est un jour stockée.
+function effectiveUnitPrice(ing) {
+  const sup = activeSupplier(ing);
+  if (!sup) return 0;
+  const loss = Math.min(Math.max(ing?.lossPercent || 0, 0), 95);
+  return sup.price / (1 - loss / 100);
+}
+
+// Variation par rapport à la dernière mise à jour de prix connue (les 2 dernières
+// entrées de l'historique, tous fournisseurs confondus par simplicité — voir note
+// dans CLAUDE.md sur la limite si l'ingrédient a plusieurs fournisseurs à prix différents).
+// Retourne null s'il n'y a pas assez d'historique pour comparer.
+function priceVariation(ing) {
+  const h = ing?.history;
+  if (!h || h.length < 2) return null;
+  const previous = h[h.length - 2].price;
+  const current = h[h.length - 1].price;
+  if (!previous) return null;
+  const pct = ((current - previous) / previous) * 100;
+  if (Math.abs(pct) < 1) return null; // variation négligeable, pas de bruit visuel
+  return { pct: Math.round(Math.abs(pct)), dir: pct > 0 ? "up" : "down" };
+}
+
 function NumField({ value, onChange, className, allowDecimal = true, ...rest }) {
   const [local, setLocal] = useState(value === 0 || value === undefined || value === null ? "" : String(value));
   const focusedRef = useRef(false);
@@ -1502,6 +1620,10 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
       ? t("scanSummaryNew")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit)
       : t("scanSummaryUpdate")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit);
   const hasWarning = item.pricingUnknown || item.priceInconsistent || item.lowConfidence;
+  const priceChangePct =
+    item.currentPrice !== null && item.currentPrice && (item.priceUp || item.priceDown || item.bigChange)
+      ? Math.round((Math.abs((item.unitPriceHT || 0) - item.currentPrice) / item.currentPrice) * 100)
+      : null;
 
   return (
     <div
@@ -1676,10 +1798,11 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
               style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : item.priceDown ? "#10B981" : "rgba(255,255,255,0.4)" }}
             >
               {(item.priceUp || item.bigChange) && <TrendingUp size={11} />}
+              {item.priceDown && <TrendingDown size={11} />}
               {item.priceUp
-                ? `${t("scanPriceIncrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
+                ? `${t("scanPriceIncrease")} (+${priceChangePct}%) : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
                 : item.priceDown
-                ? `${t("scanPriceDecrease")} : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
+                ? `${t("scanPriceDecrease")} (-${priceChangePct}%) : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
                 : t("scanPriceSame")}
             </div>
           )}
@@ -1739,6 +1862,7 @@ export default function App() {
   const [pantryCategory, setPantryCategory] = useState("none");
   const [expandedIngId, setExpandedIngId] = useState(null);
   const [autoOpenIdx, setAutoOpenIdx] = useState(null);
+  const [lossEditIdx, setLossEditIdx] = useState(null);
 
   const [addWizardOpen, setAddWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1); // 1 nom/recherche, 2 prix+unité, 3 catégorie (création only), "success"
@@ -1813,8 +1937,7 @@ export default function App() {
 
   const lineCost = (line) => {
     const ing = ingredientById(line.ingredientId);
-    const sup = activeSupplier(ing);
-    return sup ? sup.price * line.qty : 0;
+    return ing ? effectiveUnitPrice(ing) * line.qty : 0;
   };
 
   const recipeCost = (r) => r.lines.reduce((s, l) => s + lineCost(l), 0);
@@ -2622,6 +2745,10 @@ export default function App() {
 
   const tier = marginTier(margin, settings.minMargin);
   const marginLow = tier === "low";
+  // Suggestion contextuelle : uniquement quand la marge est sous l'objectif (mid/low),
+  // jamais sur une recette déjà au-dessus (pas de conseil "à corriger" quand tout va bien).
+  const marginSuggestion =
+    active && tier && tier !== "high" ? recipeSuggestion(active, ingredients, lineCost, ingredientDisplayName, lang) : null;
 
   const wizardExistingSuggestions = wizardQuery.trim()
     ? ingredients
@@ -3444,7 +3571,7 @@ export default function App() {
                       style={{ background: "#26221C" }}
                     >
                       <button
-                        onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); }}
+                        onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossEditIdx(null); }}
                         className="flex-1 min-w-0 flex items-center justify-between gap-3 text-left active:scale-95 transition-transform"
                       >
                         <div className="min-w-0">
@@ -3572,23 +3699,69 @@ export default function App() {
               <div className="border-t border-b border-dashed border-black/30 py-3 space-y-2">
                 {active.lines.map((line, idx) => {
                   const ing = ingredientById(line.ingredientId);
+                  const variation = ing ? priceVariation(ing) : null;
+                  const loss = ing?.lossPercent || 0;
+                  const editingLoss = lossEditIdx === idx;
                   return (
-                    <div key={idx} className="flex items-center gap-2 text-xs">
-                      <IngredientPicker
-                        ingredients={ingredients}
-                        value={line.ingredientId}
-                        displayName={ingredientDisplayName}
-                        onChange={(id) => changeLineIngredient(idx, id)}
-                        className="flex-1 min-w-0 text-black/80"
-                        autoOpen={autoOpenIdx === idx}
-                        placeholder={t("recipeLineIngredientPlaceholder")}
-                      />
-                      <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
-                      {activeSupplier(ing)?.priceSource === "estimate" && (
-                        <span className="w-1.5 h-1.5 rounded-full shrink-0 price-field" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
+                    <div key={idx}>
+                      <div className="flex items-center gap-2 text-xs">
+                        <IngredientPicker
+                          ingredients={ingredients}
+                          value={line.ingredientId}
+                          displayName={ingredientDisplayName}
+                          onChange={(id) => changeLineIngredient(idx, id)}
+                          className="flex-1 min-w-0 text-black/80"
+                          autoOpen={autoOpenIdx === idx}
+                          placeholder={t("recipeLineIngredientPlaceholder")}
+                        />
+                        <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
+                        {activeSupplier(ing)?.priceSource === "estimate" && (
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0 price-field" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
+                        )}
+                        <span className="w-14 shrink-0 text-right price-field">{lineCost(line).toFixed(2)}€</span>
+                        <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0"><Trash2 size={12} /></button>
+                      </div>
+                      {ing && (variation || loss > 0 || editingLoss) && (
+                        <div className="flex items-center gap-2 text-[10px] text-black/50 pl-0.5 -mt-0.5 mb-1.5">
+                          {variation && (
+                            <span
+                              className="flex items-center gap-0.5 font-semibold price-field"
+                              style={{ color: variation.dir === "up" ? "#DC2626" : "#16A34A" }}
+                              title={t("priceVariationHint")}
+                            >
+                              {variation.dir === "up" ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                              {variation.pct}%
+                            </span>
+                          )}
+                          {!editingLoss && loss > 0 && (
+                            <button type="button" onClick={() => setLossEditIdx(idx)} className="underline decoration-dotted hover:text-black print:no-underline">
+                              {t("lossLineBadge")(loss)}
+                            </button>
+                          )}
+                          {!editingLoss && loss === 0 && (
+                            <button type="button" onClick={() => setLossEditIdx(idx)} className="text-black/30 hover:text-black print:hidden">
+                              {t("addLossLink")}
+                            </button>
+                          )}
+                        </div>
                       )}
-                      <span className="w-14 shrink-0 text-right price-field">{lineCost(line).toFixed(2)}€</span>
-                      <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0"><Trash2 size={12} /></button>
+                      {ing && editingLoss && (
+                        <div className="print:hidden flex items-start gap-2 text-[10px] text-black/60 bg-black/5 rounded-lg px-2.5 py-2 mb-1.5">
+                          <div className="flex items-center gap-1 shrink-0">
+                            <NumField
+                              value={loss}
+                              onChange={(v) => updateIngredientField(ing.id, "lossPercent", Math.min(Math.max(v, 0), 95))}
+                              allowDecimal={false}
+                              className="w-10 bg-white/60 text-right outline-none rounded px-1 py-0.5"
+                            />
+                            <span>%</span>
+                          </div>
+                          <p className="flex-1 leading-snug">{t("lossHint")}</p>
+                          <button type="button" onClick={() => setLossEditIdx(null)} className="shrink-0 text-black/40 hover:text-black">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -3682,6 +3855,15 @@ export default function App() {
                     {tier === "high" ? <Check size={12} className="shrink-0" /> : <AlertTriangle size={12} className="shrink-0" />}
                     {marginMessage(Math.round(margin), effectiveGreenTarget, tier, lang)}
                   </div>
+                  {marginSuggestion && (
+                    <div
+                      className="flex items-start gap-2 text-[11px] font-body text-left px-3 py-2 rounded-xl max-w-[320px]"
+                      style={{ color: TIER_COLORS[tier], background: `${TIER_COLORS[tier]}0f`, border: `1px dashed ${TIER_COLORS[tier]}50` }}
+                    >
+                      <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                      <span><strong>{t("suggestionTitle")}</strong> {marginSuggestion}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -3885,6 +4067,17 @@ export default function App() {
                                 <option value="L">L</option>
                                 <option value="pièce">pièce</option>
                               </select>
+                            </div>
+
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[10px] uppercase tracking-wide text-white/40">{t("lossPercentLabel")}</span>
+                              <NumField
+                                value={ing.lossPercent || 0}
+                                onChange={(v) => updateIngredientField(ing.id, "lossPercent", Math.min(Math.max(v, 0), 95))}
+                                allowDecimal={false}
+                                className="w-12 bg-black/20 text-white/70 text-xs outline-none rounded px-1.5 py-1 text-right"
+                              />
+                              <span className="text-white/40 text-xs">%</span>
                             </div>
 
                             <div className="space-y-1 mb-2">
