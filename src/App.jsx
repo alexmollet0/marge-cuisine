@@ -548,7 +548,7 @@ const TR = {
     scanTab: "Escanear", scanTabHint: "Haz una foto de tu factura de Makro, Gros Mercat o cualquier otro proveedor — la IA se encarga del resto.",
     scanTakePhoto: "Tomar una foto", scanUploadFile: "Elegir una foto o un archivo",
     scanTipTitle: "💡 Consejo para un escaneo óptimo:",
-    scanTipBody: "Para una precisión máxima, prioriza la importación del archivo PDF original de tu proveedor (METRO, Transgourmet, etc.). Si haces una foto, coloca la factura bien plana bajo una buena luz. Atención: el desenfoque, las sombras, los pliegues y los reflejos reducen la precisión de la IA.",
+    scanTipBody: "Para una precisión máxima, prioriza la importación del archivo PDF original de tu proveedor (Makro, Gros Mercat, etc.). Si haces una foto, coloca la factura bien plana bajo una buena luz. Atención: el desenfoque, las sombras, los pliegues y los reflejos reducen la precisión de la IA.",
   },
 };
 
