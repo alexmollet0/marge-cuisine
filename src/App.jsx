@@ -404,6 +404,7 @@ const TR = {
     scanLowConfidence: "Lecture incertaine (document flou/dense) — compare avec le papier avant de valider",
     scanConfirmBigChange: "Confirmer ce changement important",
     scanManyUpWarning: "Plusieurs prix semblent en forte hausse par rapport à tes prix connus — vérifie que le document est bien net avant d'importer.",
+    scanLowConfidenceBanner: "Photo un peu floue : vérifie bien les lignes en orange avant d'importer.",
     scanReviewSection: "À vérifier avant d'importer", scanSafeSection: "Prêtes à importer",
     scanSummaryNew: (name, price, unit) => `Tu vas créer "${name}" à ${price}€/${unit}.`,
     scanSummaryUpdate: (name, price, unit) => `Tu vas mettre à jour "${name}" à ${price}€/${unit}.`,
@@ -495,6 +496,7 @@ const TR = {
     scanLowConfidence: "Lectura incierta (documento borroso/denso) — compara con el papel antes de validar",
     scanConfirmBigChange: "Confirmar este cambio importante",
     scanManyUpWarning: "Varios precios parecen estar muy al alza respecto a tus precios conocidos — verifica que el documento esté bien nítido antes de importar.",
+    scanLowConfidenceBanner: "Foto un poco borrosa: revisa bien las líneas en naranja antes de importar.",
     scanReviewSection: "A verificar antes de importar", scanSafeSection: "Listas para importar",
     scanSummaryNew: (name, price, unit) => `Vas a crear "${name}" a ${price}€/${unit}.`,
     scanSummaryUpdate: (name, price, unit) => `Vas a actualizar "${name}" a ${price}€/${unit}.`,
@@ -1254,6 +1256,10 @@ const CALC_CONTENT_UNITS = {
   g: { base: "kg", factor: 0.001 },
   L: { base: "L", factor: 1 },
   cl: { base: "L", factor: 0.01 },
+  // Pour les produits vendus directement à la pièce (pas de poids/volume à convertir, ex: les
+  // 3 PCE d'un plateau sans poids indiqué) : "1 pièce" vaut simplement 1, le prix final reste
+  // exprimé en €/pièce sans passer par un faux calcul kg/L.
+  pièce: { base: "pièce", factor: 1 },
 };
 
 // Calculateur guidé pour les lignes "prix par pièce/sachet/colis" sans poids ni volume indiqué
@@ -1320,6 +1326,7 @@ function PricingCalculator({ item, onUpdate, t }) {
           <option value="g">g</option>
           <option value="L">L</option>
           <option value="cl">cl</option>
+          <option value="pièce">pc</option>
         </select>
       </div>
 
@@ -2007,6 +2014,14 @@ export default function App() {
     const minLen = Math.min(a.length, b.length);
     if (minLen < 4) return false; // trop court pour être fiable (ex: "ail" / "aile")
     if (a.startsWith(b) || b.startsWith(a)) return true;
+    // Au-delà d'une abréviation (préfixe commun), on n'accepte une faute de frappe/OCR que si
+    // les deux mots commencent pareil : "haricot" et "abricot" ont une distance de Levenshtein
+    // de seulement 2 (assez pour matcher un mot de 7 lettres) mais ce sont deux légumes/fruits
+    // totalement différents dès la première lettre — un vrai cas trouvé en test réel. Une faute
+    // OCR change rarement la toute première lettre d'un mot, donc l'exiger identique élimine ce
+    // faux positif sans bloquer les vraies fautes de frappe (qui portent presque toujours sur une
+    // lettre du milieu ou de la fin).
+    if (a[0] !== b[0]) return false;
     const maxDist = a.length >= 7 || b.length >= 7 ? 2 : 1;
     return levenshtein(a, b) <= maxDist;
   };
@@ -2172,7 +2187,25 @@ export default function App() {
     const packageContentUnit = it.packageContentUnit || "pièce";
     const deterministicContent = extractDeterministicContent(it.rawLabel || it.name || "", packageContentUnit);
     const packageCount = it.packageCount && it.packageCount > 0 ? it.packageCount : 1;
-    const packageContent = deterministicContent || (it.packageContent && it.packageContent > 0 ? it.packageContent : 1);
+
+    // Piège "N PCE sans poids" pour un produit weighable (ex: "Noix de Saint-Jacques — 3 PCE —
+    // 27,00€" sans aucun poids indiqué) : des tests réels ont montré que l'IA recopie parfois
+    // packageCount dans packageContent avec packageContentUnit "pièce", comme si "3 pièces
+    // achetées" voulait dire "chaque pièce contient 3" — un contenu inventé, pas lu. Détecté
+    // quand les deux nombres sont identiques ET qu'aucune unité de poids/volume (kg/g/L/cl)
+    // n'apparaît nulle part dans le texte brut : dans ce cas précis on retombe sur "inconnu",
+    // exactement comme un colis sans poids indiqué.
+    const hasRealWeightText = /\d+(?:[.,]\d+)?\s*(kg|gr?|grammes?|l|cl|ml)\b/i.test(it.rawLabel || it.name || "");
+    const suspiciousPieceCount =
+      it.weighable === true &&
+      packageContentUnit === "pièce" &&
+      it.packageContent != null &&
+      it.packageCount != null &&
+      Math.abs(it.packageContent - it.packageCount) < 0.001 &&
+      !hasRealWeightText;
+    const rawPackageContent = suspiciousPieceCount ? null : it.packageContent;
+
+    const packageContent = deterministicContent || (rawPackageContent && rawPackageContent > 0 ? rawPackageContent : 1);
     const printedPrice = it.printedUnitPriceHT || 0;
     const printedUnit = it.printedPriceUnit || "colis";
 
@@ -2196,7 +2229,7 @@ export default function App() {
     // toujours suspect, quel que soit le type de produit. `deterministicContent` prime toujours :
     // si notre filet de sécurité a lui-même trouvé le poids/volume dans le texte, ce n'est plus
     // une inconnue même si l'IA, elle, ne l'a pas vu.
-    const pricingUnknown = printedUnit !== "kg" && printedUnit !== "L" && !deterministicContent && !it.packageContent;
+    const pricingUnknown = printedUnit !== "kg" && printedUnit !== "L" && !deterministicContent && !rawPackageContent;
 
     const expectedTotal = packageCount * packageContent * finalUnitPrice;
     const printedTotal = it.totalPriceHT || 0;
@@ -2237,8 +2270,23 @@ export default function App() {
       // passer ce type de ligne avec tous les champs à null au lieu de l'omettre — un vrai
       // produit a toujours un nom, donc on ignore silencieusement toute ligne sans nom exploitable
       // plutôt que de laisser apparaître une carte vide et confuse dans la vérification.
+      // Filet supplémentaire trouvé lors du benchmark de factures longues/dégradées : sous
+      // stress visuel maximal, le bloc de totaux en bas de page ("Total HT calculé sur les
+      // lignes ci-dessus", "Net à payer...") a été vu découpé en plusieurs fausses lignes
+      // produit. Ces lignes ont un nom, donc le filtre ci-dessus ne les attrape pas — on les
+      // reconnaît par mots-clés (accents/casse ignorés) au lieu de se fier uniquement au prompt.
+      const FOOTER_KEYWORDS = [
+        "total ht", "total ttc", "net a payer", "sous total", "recapitulatif", "calcule sur les lignes", "a regler", "montant du",
+        // équivalents espagnols du même type de bloc de totaux
+        "base imponible", "importe total", "total factura", "a pagar", "iva incluido",
+      ];
+      const looksLikeFooter = (it) => {
+        const text = normalizeStr(`${it.name || ""} ${it.rawLabel || ""}`);
+        return FOOTER_KEYWORDS.some((kw) => text.includes(kw));
+      };
       const items = (data.items || [])
         .filter((it) => it.name && it.name.trim())
+        .filter((it) => !looksLikeFooter(it))
         .map((it) => {
         const { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal, pricingUnknown } = computeItemPricing(it);
         // Signal de confiance déclaré par l'IA elle-même ligne par ligne (voir prompt, règle
@@ -2270,7 +2318,12 @@ export default function App() {
 
         return {
           ...merged,
-          assignTo: matchedId || "new",
+          // Un rapprochement douteux (score flou, faute de frappe/OCR) ne doit jamais
+          // pré-sélectionner l'ingrédient existant tout seul — cas réel trouvé en test
+          // ("Haricot" rapproché à tort d'"Abricot") : par défaut on coche "créer séparément"
+          // dès qu'il y a un doute, la suggestion reste visible et cliquable (guessedMatchId)
+          // mais l'utilisateur doit l'accepter explicitement plutôt que la subir par défaut.
+          assignTo: matchedId && match.confident ? matchedId : "new",
           // Référence stable vers l'ingrédient existant repéré (par l'IA ou la mémoire des
           // rapprochements), conservée même si l'utilisateur choisit "new" ensuite — permet de
           // toujours proposer "garder / renommer / créer séparément" sans perdre la suggestion.
@@ -2315,7 +2368,11 @@ export default function App() {
       const comparable = foodItems.filter((i) => i.currentPrice !== null && i.currentPriceIsReal);
       const manyUp = comparable.length >= 3 && comparable.filter((i) => i.priceUp).length / comparable.length > 0.6;
 
-      setScanResult({ supplier: data.supplier || null, date: data.date || null, items: foodItems, excludedItems, manyUp });
+      // Bandeau discret (jamais bloquant) si une bonne part des lignes ont un signal de
+      // confiance bas — signe probable d'une photo floue/inclinée plutôt qu'un souci par ligne.
+      const manyLowConfidence = foodItems.length >= 2 && foodItems.filter((i) => i.lowConfidence).length / foodItems.length > 0.3;
+
+      setScanResult({ supplier: data.supplier || null, date: data.date || null, items: foodItems, excludedItems, manyUp, manyLowConfidence });
     } catch (err) {
       setScanErr(err.message || "Erreur inconnue");
     } finally {
@@ -2656,6 +2713,15 @@ export default function App() {
                   <div className="flex items-start gap-2 rounded-lg p-2.5 mb-3 text-xs" style={{ background: `${TIER_COLORS.low}18`, color: TIER_COLORS.low }}>
                     <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                     {t("scanManyUpWarning")}
+                  </div>
+                )}
+
+                {/* Bandeau discret, jamais bloquant : juste un avertissement, l'utilisateur reste
+                    libre d'importer — la vraie protection reste le triangle orange par ligne. */}
+                {scanResult.manyLowConfidence && (
+                  <div className="flex items-start gap-2 rounded-lg p-2.5 mb-3 text-xs" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+                    <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                    {t("scanLowConfidenceBanner")}
                   </div>
                 )}
 
