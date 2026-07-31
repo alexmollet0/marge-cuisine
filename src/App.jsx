@@ -29,20 +29,20 @@ import {
 const uid = () => Math.random().toString(36).slice(2, 10);
 const today = () => new Date().toISOString().slice(0, 10);
 
-// Cachet "Marge en cuisine" : toque + flèche de marge, dans un anneau laiton.
-// Reprend le motif du tampon déjà utilisé sur le ticket recette.
+// Cachet "Chefup" : hirondelle en plein vol ascendant, queue fourchue rappelant
+// une fourchette. Reprend l'anneau laiton déjà utilisé sur le ticket recette.
 function Logo({ size = 22, variant = "dark" }) {
-  const ink = variant === "paper" ? "#2B2620" : "#1B1815";
   const plate = variant === "paper" ? "#F3EBDA" : "#26221C";
+  const ink = variant === "paper" ? "#2B2620" : "#1B1815";
   const brand = variant === "paper" ? "#3F8F52" : "#10B981";
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" style={{ flexShrink: 0, display: "block" }}>
       <circle cx="50" cy="50" r="47" fill={plate} stroke="#C99A55" strokeWidth="3" />
       <circle cx="50" cy="50" r="40" fill={ink} />
-      <path d="M32 66 h36 a2 2 0 0 1 2 2 v3 a2 2 0 0 1 -2 2 h-36 a2 2 0 0 1 -2 -2 v-3 a2 2 0 0 1 2 -2 Z" fill={brand} />
-      <path d="M34 66 c-8 -2 -13 -9 -12 -17 c1 -8 8 -12 12 -9 c1 -10 8 -16 16 -16 s15 6 16 16 c4 -3 11 1 12 9 c1 8 -4 15 -12 17 Z" fill={brand} />
-      <path d="M42 40 l0 15" stroke={ink} strokeWidth="3.4" strokeLinecap="round" />
-      <path d="M42 40 l-5.5 5.5 M42 40 l5.5 5.5" stroke={ink} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path
+        d="M 76 28 C 71 27 65 29 60 33 C 55 23 44 16 32 15 C 39 24 46 30 53 36 C 47 39 39 40 31 39 C 36 45 45 47 53 45 C 50 50 46 54 41 57 L 34 58 L 8 66 L 28 64 L 14 90 L 39 66 C 44 68 50 67 54 63 C 57 66 61 68 66 69 C 63 60 62 51 64 43 C 70 43 75 39 78 34 C 80 31 79 29 76 28 Z"
+        fill={brand}
+      />
     </svg>
   );
 }
@@ -363,7 +363,7 @@ function detectAllergens(lines, ingredientsList, lang) {
 
 const TR = {
   fr: {
-    appTitle: "Marge en cuisine", saved: "Enregistré", loading: "Chargement…", greeting: "Bonjour Chef",
+    appTitle: "Chefup", saved: "Enregistré", loading: "Chargement…", greeting: "Bonjour Chef",
     dataUnavailable: "Données locales indisponibles", resetData: "Réinitialiser mes données",
     resetDataConfirm: "Effacer toutes tes données ? Cette action est irréversible.",
     pantry: "Garde-manger", newIngredient: "Nouvel ingrédient", addIngredient: "Ajouter un ingrédient",
@@ -471,7 +471,7 @@ const TR = {
     deleteLabel: "Supprimer", deleteIngredientButton: "Supprimer l'ingrédient",
   },
   es: {
-    appTitle: "Margen en cocina", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef",
+    appTitle: "Chefup", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef",
     dataUnavailable: "Datos locales no disponibles", resetData: "Restablecer mis datos",
     resetDataConfirm: "¿Borrar todos tus datos? Esta acción es irreversible.",
     pantry: "Despensa", newIngredient: "Nuevo ingrediente", addIngredient: "Añadir ingrediente",
@@ -579,7 +579,7 @@ const TR = {
     deleteLabel: "Eliminar", deleteIngredientButton: "Eliminar ingrediente",
   },
   en: {
-    appTitle: "Kitchen Margin", saved: "Saved", loading: "Loading…", greeting: "Hello Chef",
+    appTitle: "Chefup", saved: "Saved", loading: "Loading…", greeting: "Hello Chef",
     dataUnavailable: "Local data unavailable", resetData: "Reset my data",
     resetDataConfirm: "Erase all your data? This action is irreversible.",
     pantry: "Pantry", newIngredient: "New ingredient", addIngredient: "Add ingredient",

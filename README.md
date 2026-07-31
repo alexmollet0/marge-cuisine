@@ -1,4 +1,4 @@
-# Marge en cuisine
+# Chefup
 
 Application de calcul de coûts et marges pour restaurateurs.
 

@@ -1,12 +1,13 @@
-# Marge en Cuisine — contexte du projet
+# Chefup — contexte du projet
 
-App SaaS de calcul de marges pour restaurateurs. React + Vite, déployée sur Vercel,
-code sur GitHub (github.com/alexmollet0/marge-cuisine, branche `main`).
+App SaaS de calcul de marges pour restaurateurs, nom commercial **Chefup** (ne jamais
+traduire ce nom, dans aucune langue). React + Vite, déployée sur Vercel, code sur GitHub
+(dépôt encore nommé `marge-cuisine` — voir note de renommage ci-dessous), branche `main`.
 
 ## Fichiers clés
-- `src/App.jsx` — toute l'application (un seul gros fichier)
+- `src/App.jsx` — toute l'application (un seul gros fichier), y compris le composant `Logo`
 - `api/scan-invoice.js` — fonction serveur Vercel qui appelle l'IA (Claude Haiku) pour lire les factures scannées
-- `src/storage.js` — stockage local (localStorage)
+- `src/storage.js` — stockage local (localStorage), préfixe de clé `"marge-cuisine:"` **volontairement pas renommé** (voir note ci-dessous)
 
 ## Déploiement
 Vercel redéploie automatiquement à chaque push sur `main`. Variable d'environnement
@@ -83,12 +84,15 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variable d'environn
 - Anglais ajouté comme troisième langue d'interface (2026-07-31), à la demande de l'utilisateur qui envisage une expansion internationale : nouveau bloc `TR.en` (`src/App.jsx`) miroir exact de `TR.fr` clé pour clé, `en:` ajouté à `CATEGORIES`, `CATALOG` (~195 ingrédients) et `ALLERGEN_LABELS`, nouveau bouton 🇬🇧 dans l'en-tête à côté de 🇫🇷/🇪🇸. Au passage, 8 textes codés en dur en ternaire `lang === "es" ? ... : ...` (ou pire, `t("duplicate") === "Dupliquer" ? ... : ...`) qui retombaient silencieusement sur le français/espagnol en anglais ont été repérés (certains par grep, d'autres seulement en testant l'app en direct) et déplacés vers de vraies clés `TR` : unité "colis"/"pack", les 6 messages qualitatifs de marge (`marginMessage`), le sous-titre du taux de TVA 10%, le placeholder de choix d'ingrédient de recette, "objectif atteint", la légende des seuils vert/orange/rouge, les 3 boutons "supprimer" (recette liste, recette fiche, ingrédient), et la confirmation de réinitialisation des données (qui n'était même pas traduite en espagnol avant). Vérifié en conditions réelles sur le déploiement (recette exemple, scanner, garde-manger) dans les 3 langues.
   **Décision importante à ne pas oublier** : reste entièrement en unités métriques (kg/L/pièce) — le support des unités impériales (lb/oz/gallon, marché américain) a été explicitement discuté et écarté de cette étape, à traiter plus tard comme un chantier séparé (probablement un réglage "système d'unités" par utilisateur, touchant le prompt du scanner ET le moteur de calcul, pas une simple traduction). Exemples de fournisseurs choisis en conséquence pour l'anglais : Bidfood, Brakes (Royaume-Uni, déjà en métrique) plutôt que des enseignes américaines.
   **Prochaines étapes mentionnées par l'utilisateur pour plus tard** (pas encore demandées formellement, juste du contexte) : compte utilisateur personnel avec connexion, intégration Stripe avec période d'essai de 7 jours.
+- Renommage de l'app en **Chefup** + nouveau logo hirondelle (2026-07-31), demandé par l'utilisateur en vue de l'expansion internationale déjà entamée avec l'anglais : `appTitle` remplacé par "Chefup" dans les 3 blocs `TR` (fr/es/en) — **ce nom ne doit jamais être traduit**, il apparaît identique dans les 3 langues. Titre de la page (`index.html`) mis à jour. Composant `Logo` (`src/App.jsx`) entièrement redessiné : l'ancien motif (toque + flèche de marge) est remplacé par une hirondelle stylisée en plein vol ascendant (aile en pointe balayée vers l'arrière, queue fourchue en deux pointes fines rappelant discrètement une fourchette), toujours dans le même écrin (anneau laiton + disque sombre/clair selon `variant`) pour rester cohérent avec le ticket recette et la fiche allergènes qui réutilisent ce composant. Forme dessinée et vérifiée visuellement via un aperçu HTML statique dans le navigateur (plusieurs itérations) avant intégration, faute de pouvoir lancer l'app en local (Node.js absent).
+  **Volontairement laissé en l'état, à trancher séparément** : le préfixe de clé `localStorage` (`src/storage.js`, `"marge-cuisine:"`) n'a pas été renommé — le changer casserait l'accès aux données déjà enregistrées dans le navigateur de chaque utilisateur actuel (aucune recette/ingrédient existant ne serait plus retrouvé). De même, le nom du dépôt GitHub (`marge-cuisine`), `package.json` (`"name": "marge-cuisine"`), le `README.md`, et l'URL de déploiement Vercel (`marge-cuisine.vercel.app`) n'ont pas été touchés — un renommage de dépôt/projet Vercel changerait l'URL de production en direct, à ne faire qu'avec un accord explicite et une vérification que la redirection/le redéploiement se passe bien.
 
 ## EN COURS — prochaine étape demandée par l'utilisateur (pas encore codée)
 Backlog identifié lors de la revue stratégique du 2026-07-30 (angles morts pour des factures réelles complexes), pas encore traité, par ordre de priorité suggéré :
 - Matching insensible à la langue d'interface (comparer toujours au nom source français des fournisseurs, pas au nom traduit selon `lang`) — déjà fait pour la détection d'allergènes (`ALLERGEN_NAME_KEYWORDS`), reste à faire pour le matching général (`guessIngredientId`).
 - Vigilance HT/TTC quand un fournisseur n'affiche que du TTC sans le préciser (pas de solution automatique fiable identifiée — probablement un signal d'alerte visible plutôt qu'une correction silencieuse).
 - Liste `DISTINCTIVE_MODIFIERS` non exhaustive : l'utilisateur peut vouloir y ajouter des mots propres à ses fournisseurs habituels au fil des scans réels.
+- Décision en attente suite au renommage en Chefup (2026-07-31) : l'utilisateur souhaite-t-il aussi renommer le dépôt GitHub / `package.json` / l'URL Vercel (`marge-cuisine` → `chefup`) ? Pas encore demandé explicitement — à clarifier avant d'y toucher, car ça changerait l'URL de production en direct.
 
 **Volontairement abandonnées (ne pas reproposer sauf si l'utilisateur en reparle) :**
 - Support multi-page / plusieurs photos en un seul scan (2026-07-31) : discuté, mais recommandation de garder une photo par scan pour la fiabilité de l'IA (fusionner 2 lectures = vrai risque de doublons/totaux mal recoupés) — un scan par page fait déjà le travail aujourd'hui, juste en deux passages. L'utilisateur a suivi cette recommandation et a annulé la tâche.

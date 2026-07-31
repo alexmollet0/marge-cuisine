@@ -1,6 +1,25 @@
 // Mini-remplaçant de "window.storage" (spécifique aux artifacts Claude)
 // utilisant localStorage, pour que l'app fonctionne sur un vrai site web.
-const PREFIX = "marge-cuisine:";
+const PREFIX = "chefup:";
+const OLD_PREFIX = "marge-cuisine:";
+const MIGRATION_FLAG = "__chefup_storage_migrated__";
+
+// Renommage "Marge en cuisine" -> "Chefup" (2026-07-31) : copie une seule fois les
+// données déjà enregistrées sous l'ancien préfixe vers le nouveau, pour qu'un
+// utilisateur existant ne perde pas ses recettes/ingrédients au premier chargement.
+function migrateOldPrefix() {
+  if (typeof localStorage === "undefined") return;
+  if (localStorage.getItem(MIGRATION_FLAG) === "1") return;
+  for (const oldKey of Object.keys(localStorage)) {
+    if (!oldKey.startsWith(OLD_PREFIX)) continue;
+    const newKey = PREFIX + oldKey.slice(OLD_PREFIX.length);
+    if (localStorage.getItem(newKey) === null) {
+      localStorage.setItem(newKey, localStorage.getItem(oldKey));
+    }
+  }
+  localStorage.setItem(MIGRATION_FLAG, "1");
+}
+migrateOldPrefix();
 
 export const storage = {
   async get(key) {
