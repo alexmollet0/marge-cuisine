@@ -2093,6 +2093,42 @@ export default function App() {
       reader.readAsDataURL(file);
     });
 
+  // Filet de sécurité déterministe : quand un poids/volume est identifiable noir sur blanc dans
+  // le texte brut de la ligne, on le recalcule nous-mêmes plutôt que de faire confiance à
+  // l'arithmétique de l'IA. Des tests réels sur 15 factures reproduites ont montré que l'IA se
+  // trompe régulièrement sur deux cas précis : le calcul d'un multipack "NxVOLUME" (ex:
+  // "Carton 6x75cl" → l'IA a renvoyé 6 ou 0.75 au lieu de 4.5 dans plusieurs tests) et la
+  // conversion grammes→kg (ex: "Bloc 500g" → l'IA a renvoyé 500 avec l'unité "kg" au lieu de 0.5,
+  // soit une erreur de prix x1000). Ce filet ne s'applique qu'aux contenus en kg ou L, jamais
+  // "pièce" — un motif reconnu écrase toujours la valeur de l'IA (plus fiable qu'elle sur ces
+  // deux cas précis d'après les tests), sinon on garde sa valeur telle quelle.
+  const extractDeterministicContent = (text, contentUnit) => {
+    if (!text || (contentUnit !== "kg" && contentUnit !== "L")) return null;
+    if (contentUnit === "L") {
+      const multipack = text.match(/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(cl|ml|l)\b/i);
+      if (multipack) {
+        const count = parseInt(multipack[1], 10);
+        const size = parseFloat(multipack[2].replace(",", "."));
+        const u = multipack[3].toLowerCase();
+        const perUnitL = u === "cl" ? size / 100 : u === "ml" ? size / 1000 : size;
+        return Math.round(count * perUnitL * 1000) / 1000;
+      }
+      const lMatch = text.match(/(\d+(?:[.,]\d+)?)\s*l\b/i);
+      if (lMatch) return parseFloat(lMatch[1].replace(",", "."));
+      const clMatch = text.match(/(\d+(?:[.,]\d+)?)\s*cl\b/i);
+      if (clMatch) return Math.round(parseFloat(clMatch[1].replace(",", ".")) * 10) / 1000;
+      const mlMatch = text.match(/(\d+(?:[.,]\d+)?)\s*ml\b/i);
+      if (mlMatch) return parseFloat(mlMatch[1].replace(",", ".")) / 1000;
+    }
+    if (contentUnit === "kg") {
+      const kgMatch = text.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
+      if (kgMatch) return parseFloat(kgMatch[1].replace(",", "."));
+      const gMatch = text.match(/(\d+(?:[.,]\d+)?)\s*g(?:r|rs|rammes?)?\b/i);
+      if (gMatch) return Math.round(parseFloat(gMatch[1].replace(",", "."))) / 1000;
+    }
+    return null;
+  };
+
   // Calcule le prix final au kg/L/pièce à partir de : combien de colis achetés,
   // ce que contient UN colis, et le prix tel qu'imprimé (déjà au kg/L, ou par colis entier).
   // Rien de tout ça n'est deviné par l'IA seule : c'est un calcul déterministe, vérifiable.
@@ -2103,9 +2139,10 @@ export default function App() {
       return { finalUnit: legacy.unit, finalUnitPrice: legacy.unitPriceHT, priceInconsistent: false, expectedTotal: null, pricingUnknown: false };
     }
 
-    const packageCount = it.packageCount && it.packageCount > 0 ? it.packageCount : 1;
-    const packageContent = it.packageContent && it.packageContent > 0 ? it.packageContent : 1;
     const packageContentUnit = it.packageContentUnit || "pièce";
+    const deterministicContent = extractDeterministicContent(it.rawLabel || it.name || "", packageContentUnit);
+    const packageCount = it.packageCount && it.packageCount > 0 ? it.packageCount : 1;
+    const packageContent = deterministicContent || (it.packageContent && it.packageContent > 0 ? it.packageContent : 1);
     const printedPrice = it.printedUnitPriceHT || 0;
     const printedUnit = it.printedPriceUnit || "colis";
 
@@ -2121,15 +2158,15 @@ export default function App() {
       finalUnitPrice = printedPrice / packageContent;
     }
 
-    // Produit normalement vendu au poids (légume, viande...) mais AUCUNE info de poids/volume
-    // trouvée sur le document (typique d'un simple ticket de caisse, ou d'un colis dont le poids
-    // n'est écrit nulle part) : impossible de calculer un vrai prix au kilo fiable. Mieux vaut le
-    // dire clairement plutôt que d'inventer un chiffre.
-    // Seul un packageContent absent (null/0) signale une vraie inconnue — l'IA est instruite de
-    // ne JAMAIS renvoyer un chiffre par défaut quand elle ne sait pas (voir prompt). Un contenu
-    // de 1 est une valeur légitime (ex: "LAIT ENTIER UHT 1L" vendu à la pièce = 1L par pièce),
-    // pas une inconnue déguisée : ne jamais le traiter comme suspect uniquement parce qu'il vaut 1.
-    const pricingUnknown = !!it.weighable && printedUnit !== "kg" && printedUnit !== "L" && !it.packageContent;
+    // Prix par pièce/colis pour un produit dont le contenu (poids/volume réel) est inconnu —
+    // impossible de calculer un vrai prix au kilo fiable, mieux vaut le dire clairement plutôt que
+    // d'inventer un chiffre. Ne dépend plus de "weighable" (des tests réels ont montré ce champ
+    // IA peu fiable, ex: sachet de Saint-Jacques ou plaquette de beurre parfois classés à tort
+    // "weighable: false" alors que leur contenance varie bel et bien) : un contenu manquant est
+    // toujours suspect, quel que soit le type de produit. `deterministicContent` prime toujours :
+    // si notre filet de sécurité a lui-même trouvé le poids/volume dans le texte, ce n'est plus
+    // une inconnue même si l'IA, elle, ne l'a pas vu.
+    const pricingUnknown = printedUnit !== "kg" && printedUnit !== "L" && !deterministicContent && !it.packageContent;
 
     const expectedTotal = packageCount * packageContent * finalUnitPrice;
     const printedTotal = it.totalPriceHT || 0;
@@ -2165,7 +2202,14 @@ export default function App() {
         const msg = debugDetail ? `${data.error} (${debugDetail})` : data.error || "Échec de l'analyse";
         throw new Error(msg);
       }
-      const items = (data.items || []).map((it) => {
+      // Filet de sécurité : une remise/récapitulatif/ligne de règlement doit être exclue par
+      // l'IA elle-même (voir prompt), mais des tests réels ont montré qu'elle laisse parfois
+      // passer ce type de ligne avec tous les champs à null au lieu de l'omettre — un vrai
+      // produit a toujours un nom, donc on ignore silencieusement toute ligne sans nom exploitable
+      // plutôt que de laisser apparaître une carte vide et confuse dans la vérification.
+      const items = (data.items || [])
+        .filter((it) => it.name && it.name.trim())
+        .map((it) => {
         const { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal, pricingUnknown } = computeItemPricing(it);
         const merged = { ...it, unit: finalUnit, unitPriceHT: pricingUnknown ? 0 : finalUnitPrice };
 
