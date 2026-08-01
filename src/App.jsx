@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Award,
   Percent,
+  Tags,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -352,13 +353,26 @@ const ALLERGEN_NAME_KEYWORDS = {
   fruits_a_coque: ["amande", "amandes", "noisette", "noisettes", "noix", "pistache", "pistaches", "cajou", "macadamia"],
 };
 
-const normalizeAllergenText = (s) =>
+// Casse/accents ignorés partout où on compare des noms de produits (recherche garde-manger,
+// rapprochement scan, détection allergènes...). Traite aussi œ/æ explicitement : ce sont des
+// ligatures qui ne se décomposent PAS via normalize("NFD") (contrairement à é/è/ê...), donc
+// "bœuf" tapé "boeuf" sans accent ne matchait jamais avant cet ajout (bug réel signalé,
+// 2026-08) — la lettre œ finissait juste supprimée par le filtre [^a-z0-9], coupant le mot en
+// deux ("b" + "uf") au lieu de devenir "boeuf".
+const normalizeDiacritics = (s) =>
   (s || "")
     .toLowerCase()
+    .replace(/œ/g, "oe")
+    .replace(/æ/g, "ae")
     .normalize("NFD")
-    .replace(/[^\x00-\x7F]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+    .replace(/\p{Diacritic}/gu, "");
+
+// Recherche "insensible" utilisée dans toutes les barres de recherche de l'app (garde-manger,
+// assistant ingrédient, sélecteur de ligne de recette) — avant cet ajout ces filtres faisaient
+// juste .toLowerCase().includes(), donc ni les accents ni œ/æ n'étaient ignorés.
+const textIncludes = (haystack, needle) => normalizeDiacritics(haystack).includes(normalizeDiacritics(needle));
+
+const normalizeAllergenText = (s) => normalizeDiacritics(s).replace(/[^a-z0-9]+/g, " ").trim();
 
 // Nom source (toujours français), indépendant de la langue d'interface — utilisé pour
 // toute détection par mots-clés (allergènes, féculents...) afin de rester cohérent
@@ -535,6 +549,8 @@ const TR = {
     wizardSearchHint: "Tape le nom d'un ingrédient pour le chercher ou en créer un nouveau.",
     recentIngredients: "Récents", noRecentIngredients: "Aucun ingrédient scanné ou modifié récemment.",
     pantryOnboardingHint: "Ces prix sont juste des exemples pour la recette de démonstration. Scanne tes propres factures pour remplir ton garde-manger avec tes vrais prix fournisseurs.",
+    pantryReclassifyHint: (n) => `${n} ingrédient${n > 1 ? "s" : ""} dans "Autres" peuvent être classés automatiquement.`,
+    pantryReclassifyButton: "Classer maintenant",
     recentToday: "Aujourd'hui", recentWeek: "Cette semaine", recentMonth: "Ce mois-ci",
     deleteRecipeConfirm: (name) => `Supprimer définitivement la recette "${name}" ?`,
     allergenSheetLink: "Fiche allergènes", allergenSheetTitle: "Fiche allergènes — toutes les recettes",
@@ -660,6 +676,8 @@ const TR = {
     wizardSearchHint: "Escribe el nombre de un ingrediente para buscarlo o crear uno nuevo.",
     recentIngredients: "Recientes", noRecentIngredients: "Ningún ingrediente escaneado o modificado recientemente.",
     pantryOnboardingHint: "Estos precios son solo ejemplos para la receta de demostración. Escanea tus propias facturas para llenar tu despensa con tus precios reales de proveedor.",
+    pantryReclassifyHint: (n) => `${n} ingrediente${n > 1 ? "s" : ""} en "Otros" se pueden clasificar automáticamente.`,
+    pantryReclassifyButton: "Clasificar ahora",
     recentToday: "Hoy", recentWeek: "Esta semana", recentMonth: "Este mes",
     deleteRecipeConfirm: (name) => `¿Eliminar definitivamente la receta "${name}"?`,
     allergenSheetLink: "Ficha de alérgenos", allergenSheetTitle: "Ficha de alérgenos — todas las recetas",
@@ -785,6 +803,8 @@ const TR = {
     wizardSearchHint: "Type an ingredient's name to search it or create a new one.",
     recentIngredients: "Recent", noRecentIngredients: "No ingredient scanned or edited recently.",
     pantryOnboardingHint: "These prices are just examples for the demo recipe. Scan your own invoices to fill your pantry with your real supplier prices.",
+    pantryReclassifyHint: (n) => `${n} ingredient${n > 1 ? "s" : ""} in "Other" can be classified automatically.`,
+    pantryReclassifyButton: "Classify now",
     recentToday: "Today", recentWeek: "This week", recentMonth: "This month",
     deleteRecipeConfirm: (name) => `Permanently delete the recipe "${name}"?`,
     allergenSheetLink: "Allergen sheet", allergenSheetTitle: "Allergen sheet — all recipes",
@@ -1027,7 +1047,7 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
   // repéré en test réel, 2026-08).
   const filtered =
     query.trim().length >= 2
-      ? ingredients.filter((i) => displayName(i).toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8)
+      ? ingredients.filter((i) => textIncludes(displayName(i), query)).slice(0, 8)
       : [];
 
   return (
@@ -1875,13 +1895,7 @@ export default function App() {
 
   // --- Scan de facture ---
 
-  const normalizeStr = (s) =>
-    (s || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
+  const normalizeStr = (s) => normalizeDiacritics(s).replace(/[^a-z0-9]+/g, " ").trim();
 
   // Détecte un poids/volume mentionné dans un texte (ex: "Mozzarella 125g", "Huile 75CL")
   // — sert de filet de sécurité si l'IA a oublié de convertir elle-même l'unité.
@@ -2107,6 +2121,29 @@ export default function App() {
     // catégorie, elle, est acceptée dès qu'un candidat existe : une mauvaise catégorie se corrige
     // en un clic, ce n'est pas un risque sanitaire.
     return { catalogId: best.id, category: best.cat, confident: bestScore >= 0.99 && !bestFuzzy };
+  };
+
+  // Ingrédients tombés en "Autres" faute de rapprochement catalogue au moment de l'import scan
+  // (ex: guessCatalogEntry n'avait rien trouvé à l'époque, ou l'ingrédient a été renommé depuis).
+  // Recalculé à chaque rendu à partir de guessCatalogEntry — pas de nouvel état, juste une
+  // relecture du garde-manger actuel.
+  const uncategorizedIngredients = ingredients.filter(
+    (i) => (i.category || "autres") === "autres" && guessCatalogEntry(ingredientSourceName(i))
+  );
+
+  // Reclasse en un clic tout ce qui peut l'être : ne touche jamais un ingrédient déjà catégorisé
+  // (même à tort — l'utilisateur doit corriger ça lui-même à la main pour ne pas écraser un choix
+  // volontaire), et ne pose catalogId (donc le lien allergène ALLERGEN_MAP) que si le rapprochement
+  // est confiant, comme à l'import scan normal.
+  const reclassifyUncategorized = () => {
+    setIngredients((ings) =>
+      ings.map((i) => {
+        if ((i.category || "autres") !== "autres") return i;
+        const guess = guessCatalogEntry(ingredientSourceName(i));
+        if (!guess) return i;
+        return { ...i, category: guess.category, catalogId: guess.confident ? guess.catalogId : i.catalogId };
+      })
+    );
   };
 
   // Mémoire des rapprochements déjà validés par l'utilisateur lors d'un scan précédent :
@@ -2484,8 +2521,12 @@ export default function App() {
           pricingUnknown,
           priceUnusable,
           bigChange,
-          priceUp: currentPrice !== null && merged.unitPriceHT > currentPrice * 1.02,
-          priceDown: currentPrice !== null && merged.unitPriceHT < currentPrice * 0.98,
+          // Seuil aligné sur celui déjà utilisé par priceVariation() (fiche recette) : sous 1%,
+          // c'est du bruit d'arrondi, pas une vraie variation. Avant ce correctif le seuil était
+          // à 2%, ce qui masquait des hausses/baisses réelles mais modestes (ex: 9.40€ -> 9.60€,
+          // ~2.1%, à la limite) — signalé par l'utilisateur comme "je ne vois jamais de variation".
+          priceUp: currentPrice !== null && merged.unitPriceHT > currentPrice * 1.01,
+          priceDown: currentPrice !== null && merged.unitPriceHT < currentPrice * 0.99,
         };
       });
 
@@ -2653,19 +2694,19 @@ export default function App() {
 
   const wizardExistingSuggestions = wizardQuery.trim()
     ? ingredients
-        .filter((i) => ingredientDisplayName(i).toLowerCase().includes(wizardQuery.trim().toLowerCase()))
+        .filter((i) => textIncludes(ingredientDisplayName(i), wizardQuery))
         .slice(0, 5)
     : [];
   const wizardExistingCatalogIds = new Set(ingredients.map((i) => i.catalogId).filter(Boolean));
   const wizardCatalogSuggestions = wizardQuery.trim()
     ? CATALOG.filter(
-        (c) => !wizardExistingCatalogIds.has(c.id) && c[lang].toLowerCase().includes(wizardQuery.trim().toLowerCase())
+        (c) => !wizardExistingCatalogIds.has(c.id) && textIncludes(c[lang], wizardQuery)
       ).slice(0, 5)
     : [];
 
   const pantryFiltered = ingredients.filter((i) => {
-    const q = pantryQuery.trim().toLowerCase();
-    const nameOk = q === "" || ingredientDisplayName(i).toLowerCase().includes(q);
+    const q = pantryQuery.trim();
+    const nameOk = q === "" || textIncludes(ingredientDisplayName(i), q);
     if (!nameOk) return false;
     if (pantryCategory === "none") return q !== ""; // rien par défaut : il faut choisir une catégorie ou chercher
     if (pantryCategory === "recent") return true; // filtré par date plus bas
@@ -3915,6 +3956,20 @@ export default function App() {
               <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 mb-3 text-xs" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                 <span>{t("pantryOnboardingHint")}</span>
+              </div>
+            )}
+
+            {uncategorizedIngredients.length > 0 && (
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 mb-3 text-xs" style={{ background: "#8B5CF618", color: "#C4B5FD" }}>
+                <Tags size={14} className="shrink-0" />
+                <span className="flex-1">{t("pantryReclassifyHint")(uncategorizedIngredients.length)}</span>
+                <button
+                  onClick={reclassifyUncategorized}
+                  className="shrink-0 text-[11px] font-display uppercase tracking-wide px-2.5 py-1.5 rounded-full"
+                  style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                >
+                  {t("pantryReclassifyButton")}
+                </button>
               </div>
             )}
 
