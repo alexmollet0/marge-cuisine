@@ -468,6 +468,7 @@ const TR = {
     scanExpectedTotal: "attendu", scanPrintedTotal: "imprimé :",
     scanLowConfidence: "Lecture incertaine (document flou/dense) — compare avec le papier avant de valider",
     scanConfirmUncertain: "Confirmer malgré le doute",
+    scanPriceDoubtLabel: "Vérifie ce prix avant d'importer",
     scanManyUpWarning: "Plusieurs prix semblent en forte hausse par rapport à tes prix connus — vérifie que le document est bien net avant d'importer.",
     scanLowConfidenceBanner: "Photo un peu floue : vérifie bien les lignes en orange avant d'importer.",
     scanReviewSection: "À vérifier avant d'importer", scanSafeSection: "Prêtes à importer",
@@ -587,6 +588,7 @@ const TR = {
     scanExpectedTotal: "esperado", scanPrintedTotal: "impreso:",
     scanLowConfidence: "Lectura incierta (documento borroso/denso) — compara con el papel antes de validar",
     scanConfirmUncertain: "Confirmar a pesar de la duda",
+    scanPriceDoubtLabel: "Comprueba este precio antes de importar",
     scanManyUpWarning: "Varios precios parecen estar muy al alza respecto a tus precios conocidos — verifica que el documento esté bien nítido antes de importar.",
     scanLowConfidenceBanner: "Foto un poco borrosa: revisa bien las líneas en naranja antes de importar.",
     scanReviewSection: "A verificar antes de importar", scanSafeSection: "Listas para importar",
@@ -706,6 +708,7 @@ const TR = {
     scanExpectedTotal: "expected", scanPrintedTotal: "printed:",
     scanLowConfidence: "Uncertain reading (blurry/dense document) — compare with the paper before validating",
     scanConfirmUncertain: "Confirm despite the uncertainty",
+    scanPriceDoubtLabel: "Check this price before importing",
     scanManyUpWarning: "Several prices seem sharply up compared to your known prices — check that the document is sharp before importing.",
     scanLowConfidenceBanner: "Photo a bit blurry: check the orange lines carefully before importing.",
     scanReviewSection: "To check before importing", scanSafeSection: "Ready to import",
@@ -1626,12 +1629,19 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
     item.assignTo === "new"
       ? t("scanSummaryNew")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit)
       : t("scanSummaryUpdate")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit);
-  const hasWarning = item.pricingUnknown || item.priceInconsistent || item.lowConfidence;
-  // Un vrai souci d'identité/prix (nom incertain, prix incohérent/illisible, confiance IA
-  // faible) justifie un bouton d'alerte — une simple grosse variation de prix (bigChange) non :
-  // le chef veut pouvoir valider normalement et juste voir la flèche/pourcentage d'info
-  // affichée plus bas, pas se faire arrêter par un symbole danger pour un prix qui monte.
-  const hasIdentityIssue = hasWarning || (!item.matchConfident && item.assignTo !== "new");
+  // Doute sur le PRIX (incohérent/illisible/IA peu sûre) : ne se résout jamais tout seul, reste
+  // affiché jusqu'à l'import quel que soit le chemin emprunté (pile ou liste directe).
+  const hasPriceDoubt = item.pricingUnknown || item.priceInconsistent || item.lowConfidence;
+  // Doute sur le NOM (rapprochement pas confiant) : une fois que l'utilisateur a explicitement
+  // tranché et validé dans la pile (item.reviewed), ce doute est résolu — le réafficher au moment
+  // du clic final n'a plus de sens, ça ferait revivre une décision déjà prise (repéré en test réel,
+  // 2026-08 : "Café grain arabica" gardait son bouton orange après validation explicite du nom).
+  const hasUnresolvedNameDoubt = !item.matchConfident && item.assignTo !== "new" && !item.reviewed;
+  // Un vrai souci d'identité/prix justifie un bouton d'alerte — une simple grosse variation de
+  // prix (bigChange) non : le chef veut pouvoir valider normalement et juste voir la flèche/
+  // pourcentage d'info affichée plus bas, pas se faire arrêter par un symbole danger pour un prix
+  // qui monte.
+  const hasIdentityIssue = hasPriceDoubt || hasUnresolvedNameDoubt;
   const priceChangePct =
     item.currentPrice !== null && item.currentPrice && (item.priceUp || item.priceDown || item.bigChange)
       ? Math.round((Math.abs((item.unitPriceHT || 0) - item.currentPrice) / item.currentPrice) * 100)
@@ -1667,7 +1677,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
           {needsRename && (
             <span className="text-[10px] text-white/35 truncate">({t("scanProposedLabel")} : {item.name})</span>
           )}
-          {hasWarning && !item.imported && <AlertTriangle size={12} className="shrink-0 ml-auto" style={{ color: TIER_COLORS.mid }} />}
+          {hasPriceDoubt && !item.imported && <AlertTriangle size={12} className="shrink-0 ml-auto" style={{ color: TIER_COLORS.mid }} />}
         </div>
 
         {/* Texte tel que lu sur la facture (débarrassé seulement du code fournisseur) : visible
@@ -1737,6 +1747,16 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             </>
           )}
         </div>
+
+        {/* Message visible en permanence (pas seulement au survol de la souris, invisible sur
+            mobile) : un doute sur le prix doit rester impossible à manquer jusqu'à l'import,
+            contrairement au doute sur le nom qui, lui, se résout une fois validé (voir
+            hasUnresolvedNameDoubt plus haut). */}
+        {hasPriceDoubt && !item.imported && (
+          <div className="flex items-center gap-1 mt-1.5 text-[10px] font-semibold" style={{ color: TIER_COLORS.mid }}>
+            <AlertTriangle size={11} className="shrink-0" /> {t("scanPriceDoubtLabel")}
+          </div>
+        )}
       </div>
 
       {expanded && !item.imported && (
