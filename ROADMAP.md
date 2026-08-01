@@ -62,10 +62,20 @@ gros du projet à ce stade, plus gros que tout ce qui a été construit jusqu'ic
       recette exemple) + encart d'accueil dans le garde-manger
 - [x] Création d'ingrédient directement depuis une recette (sans passer par le garde-manger)
 - [x] Bouton "estimer un prix temporaire" dans l'assistant ingrédient
-- [ ] **Retester la facture 30 lignes (ou une nouvelle) pour valider tous les correctifs du
-      2026-08** — en particulier "Pomme de terre frite" à 1,18€/kg, la fermeture automatique de la
-      fenêtre de scan après import en masse, et "Café grain arabica" (ou cas similaire) qui ne doit
-      plus réafficher le bouton orange après validation
+- [x] Retest immédiat : "tout parfait" sur la facture 30 lignes, sauf le point "doute nom résolu"
+      pas vérifiable (garde-manger vide → plus de rapprochement ambigu à tester, effet de bord
+      attendu du garde-manger vidé, pas un bug)
+- [x] `IngredientPicker` : suggestions masquées tant que rien n'est tapé (affichait les 8 premiers
+      ingrédients par défaut)
+- [x] Prix estimé dépendant de la catégorie (viandes/légumes/poissons...) au lieu d'un flat 1€
+      pour tout, jugé inutile en test réel
+- [x] Pertes estimées ajoutées sur les ingrédients de démo (bœuf, carottes, oignons, champignons)
+      pour illustrer aussi le rendement/perte dans la recette exemple
+- [ ] **Retester le rapprochement nom "doute résolu après validation"** — nécessite de rescanner
+      une facture dont les ingrédients existent déjà dans le garde-manger (ex: la même facture une
+      deuxième fois), pour retrouver un cas de rapprochement ambigu à valider
+- [ ] Retester "Pomme de terre frite" à 1,18€/kg et la fermeture automatique de la fenêtre de scan
+      après import en masse (déjà "tout parfait" au dernier retour, à reconfirmer si besoin)
 - [ ] Tester avec un vrai PDF numérique dès qu'une vraie facture PDF fournisseur est disponible
       (le test tenté n'était pas un vrai PDF)
 - [ ] Continuer à collecter des cas concrets d'erreurs de scan (prix faux, pas juste des fausses

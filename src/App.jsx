@@ -67,6 +67,16 @@ const CATEGORIES = [
 ];
 const CAT_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
 
+// Prix indicatifs par catégorie (ordre de grandeur grossier, marché français, par kg/L/pièce
+// selon l'unité de l'ingrédient) pour le bouton "estimer un prix temporaire" de l'assistant
+// ingrédient — un flat 1€ pour tout (viande comme légume) a été jugé inutile en test réel
+// (2026-08). Ça reste un point de départ à corriger par l'utilisateur, pas une vraie estimation
+// de marché, juste un chiffre moins absurde que le même pour tout.
+const CATEGORY_ESTIMATE_PRICE = {
+  viandes: 15, poissons: 18, legumes: 2.5, fruits: 3, cremerie: 6,
+  epicerie: 4, epices: 20, boissons: 5, autres: 5,
+};
+
 const CATALOG = [
   // Viandes
   { id: "boeuf", fr: "Bœuf (paleron / gîte)", es: "Ternera (paletilla)", en: "Beef (chuck / shin)", unit: "kg", cat: "viandes" },
@@ -798,18 +808,18 @@ const TR = {
 };
 
 const SEED_INGREDIENTS = [
-  { id: "i1", name: "Bœuf (paleron / gîte)", unit: "kg", catalogId: "boeuf", category: "viandes",
+  { id: "i1", name: "Bœuf (paleron / gîte)", unit: "kg", catalogId: "boeuf", category: "viandes", lossPercent: 5,
     selectedSupplierId: "s1", suppliers: [{ id: "s1", name: "Métro", price: 14.5, priceSource: "estimate" }],
     history: [{ date: "2026-05-02", price: 13.9, supplierName: "Métro" }] },
-  { id: "i2", name: "Carottes", unit: "kg", catalogId: "carottes", category: "legumes",
+  { id: "i2", name: "Carottes", unit: "kg", catalogId: "carottes", category: "legumes", lossPercent: 10,
     selectedSupplierId: "s2", suppliers: [{ id: "s2", name: "Grossiste local", price: 1.2, priceSource: "estimate" }], history: [] },
-  { id: "i3", name: "Oignons", unit: "kg", catalogId: "oignons", category: "legumes",
+  { id: "i3", name: "Oignons", unit: "kg", catalogId: "oignons", category: "legumes", lossPercent: 8,
     selectedSupplierId: "s3", suppliers: [{ id: "s3", name: "Grossiste local", price: 1.1, priceSource: "estimate" }], history: [] },
   { id: "i4", name: "Vin rouge de cuisine", unit: "L", catalogId: "vin_rouge", category: "boissons",
     selectedSupplierId: "s4", suppliers: [{ id: "s4", name: "Cavavin Pro", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i5", name: "Lardons", unit: "kg", catalogId: null, category: "viandes",
     selectedSupplierId: "s5", suppliers: [{ id: "s5", name: "Métro", price: 9.8, priceSource: "estimate" }], history: [] },
-  { id: "i6", name: "Champignons de Paris", unit: "kg", catalogId: "champignons", category: "legumes",
+  { id: "i6", name: "Champignons de Paris", unit: "kg", catalogId: "champignons", category: "legumes", lossPercent: 10,
     selectedSupplierId: "s6", suppliers: [{ id: "s6", name: "Grossiste local", price: 5.2, priceSource: "estimate" }], history: [] },
   { id: "i7", name: "Beurre doux", unit: "kg", catalogId: "beurre", category: "cremerie",
     selectedSupplierId: "s7",
@@ -994,10 +1004,13 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
     }
   }, [open]);
 
+  // Rien affiché tant que l'utilisateur n'a pas commencé à taper (sinon les 8 premiers ingrédients
+  // du garde-manger apparaissaient dès l'ouverture, avant même toute recherche — bruit inutile
+  // repéré en test réel, 2026-08).
   const filtered =
     query.trim().length >= 2
       ? ingredients.filter((i) => displayName(i).toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8)
-      : ingredients.slice(0, 8);
+      : [];
 
   return (
     <div className={`relative ${className || ""}`} ref={wrapRef}>
@@ -1031,7 +1044,11 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
                 {displayName(i)}
               </button>
             ))}
-            {filtered.length === 0 && <div className="px-2.5 py-2 text-xs text-white/30">Aucun résultat</div>}
+            {filtered.length === 0 && (
+              <div className="px-2.5 py-2 text-xs text-white/30">
+                {query.trim().length === 0 ? "Tape pour chercher…" : "Aucun résultat"}
+              </div>
+            )}
           </div>
           {onCreateNew && (
             <button
@@ -3286,7 +3303,7 @@ export default function App() {
                     que priceSource "estimate" ailleurs dans l'app), à corriger plus tard. */}
                 <button
                   type="button"
-                  onClick={() => setWizardData((d) => ({ ...d, price: 1, isEstimate: true }))}
+                  onClick={() => setWizardData((d) => ({ ...d, price: CATEGORY_ESTIMATE_PRICE[d.category] || 5, isEstimate: true }))}
                   className="w-full text-left text-[11px] mb-4 flex items-center gap-1.5"
                   style={{ color: TIER_COLORS.mid }}
                 >
