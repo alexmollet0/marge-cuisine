@@ -12,13 +12,13 @@ export default async function handler(req, res) {
     });
   }
 
-  const { image, mediaType } = req.body || {};
-  if (!image) {
-    return res.status(400).json({ error: "Aucune image reçue." });
+  const { image, mediaType, text, ocrText } = req.body || {};
+  if (!image && !text) {
+    return res.status(400).json({ error: "Aucune image ni texte reçu." });
   }
 
   const prompt = `Tu es un assistant spécialisé dans la lecture de factures et bons de livraison fournisseurs pour la restauration.
-Analyse l'image et réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de balises markdown), au format exact :
+Analyse le document fourni (image de facture, éventuellement accompagnée d'une transcription OCR indépendante, ou texte numérique déjà extrait d'un PDF) et réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de balises markdown), au format exact :
 
 {
   "supplier": "nom du fournisseur ou null",
@@ -121,6 +121,29 @@ Autres règles :
 - N'invente aucune ligne qui n'est pas visible sur le document.
 - Réponds TOUJOURS avec un JSON valide, même si l'image est floue, partiellement illisible ou de mauvaise qualité. Ne refuse jamais de répondre et n'ajoute aucun commentaire, explication ou avertissement en dehors du JSON.`;
 
+  // Contenu du message envoyé à Claude : soit une image (+ éventuellement une transcription OCR
+  // indépendante en indice), soit du texte natif déjà extrait d'un PDF numérique (pas de scan
+  // d'image dans ce cas, le texte est directement fiable). L'OCR (moteur classique, pas une IA)
+  // se trompe rarement sur le même chiffre que l'IA de vision — le lui donner en plus l'aide à se
+  // corriger elle-même sans lui faire aveuglément confiance (l'image reste la référence en cas de
+  // désaccord, précisé explicitement ci-dessous).
+  const content = [];
+  if (image) {
+    content.push({ type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: image } });
+    if (ocrText && ocrText.trim().length > 20) {
+      content.push({
+        type: "text",
+        text: `Transcription OCR automatique de cette image, faite par un moteur classique indépendant de toi (peut contenir des erreurs) — sers-t'en pour confirmer un chiffre en cas de doute, mais l'image reste la référence en cas de désaccord entre les deux :\n\n${ocrText.trim().slice(0, 6000)}`,
+      });
+    }
+  } else {
+    content.push({
+      type: "text",
+      text: `Voici le texte numérique natif extrait d'un PDF de facture (pas une image scannée, texte fiable et complet, aucune lecture visuelle à faire) :\n\n${text.trim().slice(0, 12000)}`,
+    });
+  }
+  content.push({ type: "text", text: prompt });
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -137,15 +160,7 @@ Autres règles :
         // Extraction structurée et déterministe (pas de rédaction créative) : on réduit la
         // variabilité d'une lecture à l'autre d'une même facture en fixant la température à 0.
         temperature: 0,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: image } },
-              { type: "text", text: prompt },
-            ],
-          },
-        ],
+        messages: [{ role: "user", content }],
       }),
     });
 

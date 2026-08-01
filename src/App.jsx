@@ -524,9 +524,7 @@ const TR = {
     allergenSheetLink: "Fiche allergènes", allergenSheetTitle: "Fiche allergènes — toutes les recettes",
     allergenSheetNone: "Aucun allergène renseigné",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer les lignes sûres",
-    scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
-    scanPdfNotSupportedYet: "Les factures PDF ne sont pas encore prises en charge — importe plutôt une photo (JPEG/PNG) de la facture.",
-    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
+    scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
     scanTab: "Scanner", scanTabHint: "Prends en photo ta facture Métro, Promocash, Transgourmet ou tout autre fournisseur — l'IA s'occupe du reste.",
     scanTakePhoto: "Prendre une photo", scanUploadFile: "Choisir une photo ou un fichier",
@@ -644,9 +642,7 @@ const TR = {
     allergenSheetLink: "Ficha de alérgenos", allergenSheetTitle: "Ficha de alérgenos — todas las recetas",
     allergenSheetNone: "Sin alérgenos indicados",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar las líneas seguras",
-    scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
-    scanPdfNotSupportedYet: "Las facturas en PDF todavía no están soportadas — importa una foto (JPEG/PNG) de la factura en su lugar.",
-    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
+    scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
     scanTab: "Escanear", scanTabHint: "Haz una foto de tu factura de Makro, Gros Mercat o cualquier otro proveedor — la IA se encarga del resto.",
     scanTakePhoto: "Tomar una foto", scanUploadFile: "Elegir una foto o un archivo",
@@ -764,9 +760,7 @@ const TR = {
     allergenSheetLink: "Allergen sheet", allergenSheetTitle: "Allergen sheet — all recipes",
     allergenSheetNone: "No allergens listed",
     scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import safe lines",
-    scanPriceIncrease: "Price up", scanNoItems: "No item detected.",
-    scanPdfNotSupportedYet: "PDF invoices aren't supported yet — import a photo (JPEG/PNG) of the invoice instead.",
-    scanHint: "Check and correct each line before importing — the AI can make mistakes.",
+    scanPriceIncrease: "Price up", scanNoItems: "No item detected.",    scanHint: "Check and correct each line before importing — the AI can make mistakes.",
     scanWeightLabel: "Weight of 1 piece (leave at 0 if truly priced by unit):",
     scanTab: "Scanner", scanTabHint: "Take a photo of your invoice from Bidfood, Brakes or any other supplier — the AI takes care of the rest.",
     scanTakePhoto: "Take a photo", scanUploadFile: "Choose a photo or file",
@@ -2402,6 +2396,55 @@ export default function App() {
       reader.readAsDataURL(file);
     });
 
+  // Lit un PDF : si c'est une vraie facture numérique (texte natif, pas un scan), on récupère ce
+  // texte directement — plus fiable que n'importe quelle lecture visuelle, puisqu'il n'y a rien à
+  // "lire", juste du texte déjà exact. Sinon (PDF composé uniquement d'une image scannée, texte
+  // natif absent ou quasi vide), on retombe sur le pipeline photo existant en rendant la première
+  // page — une seule page à la fois, comme pour une photo (déjà décidé : jamais fusionner plusieurs
+  // pages en un seul scan). Import dynamique de pdfjs-dist : grosse librairie, ne doit peser sur le
+  // chargement de l'app que pour qui scanne effectivement un PDF.
+  const readPdfFile = async (file) => {
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    let fullText = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      fullText += content.items.map((it) => it.str).join(" ") + "\n";
+    }
+    if (fullText.trim().length > 40) return { text: fullText.trim() };
+
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    return { base64: dataUrl.split(",")[1], mediaType: "image/jpeg" };
+  };
+
+  // OCR indépendant (moteur classique, pas une IA) fait en plus de la lecture par l'IA de vision :
+  // les deux se trompent rarement sur le même chiffre de la même façon, donc lui donner cette
+  // transcription en indice supplémentaire l'aide à se corriger elle-même (ex: virgule ratée,
+  // ligne voisine confondue). Best-effort et jamais bloquant : si l'OCR échoue ou n'est pas
+  // disponible, le scan continue normalement sans lui. Import dynamique pour la même raison que
+  // pdfjs-dist ci-dessus (grosse librairie, chargée seulement au moment de scanner une photo).
+  const runOcr = async (base64) => {
+    try {
+      const { createWorker } = await import("tesseract.js");
+      const worker = await createWorker("fra+spa+eng");
+      const { data } = await worker.recognize(`data:image/jpeg;base64,${base64}`);
+      await worker.terminate();
+      return (data.text || "").trim();
+    } catch (e) {
+      return "";
+    }
+  };
+
   // Filet de sécurité déterministe : quand un poids/volume est identifiable noir sur blanc dans
   // le texte brut de la ligne, on le recalcule nous-mêmes plutôt que de faire confiance à
   // l'arithmétique de l'IA. Des tests réels sur 15 factures reproduites ont montré que l'IA se
@@ -2555,22 +2598,26 @@ export default function App() {
     setScanResult(null);
     setReviewStackOpen(false);
     setExpandedReviewIdx(null);
-    // Un vrai PDF ne peut pas être décodé par <img> (utilisé par compressImageFile pour
-    // compresser avant envoi) — sans ce garde-fou, sélectionner un PDF plantait silencieusement
-    // avec "Image illisible", un message qui ne dit pas à l'utilisateur quoi faire. La vraie prise
-    // en charge (extraction du texte natif du PDF, plus fiable qu'une photo) est un chantier à
-    // part (voir CLAUDE.md) : ici on se contente d'un message honnête en attendant.
-    if (file.type === "application/pdf" || /\.pdf$/i.test(file.name || "")) {
-      setScanning(false);
-      setScanErr(t("scanPdfNotSupportedYet"));
-      return;
-    }
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
     try {
-      const { base64, mediaType } = await compressImageFile(file);
+      let payload;
+      if (isPdf) {
+        const pdfResult = await readPdfFile(file);
+        if (pdfResult.text) {
+          payload = { text: pdfResult.text };
+        } else {
+          const ocrText = await runOcr(pdfResult.base64);
+          payload = { image: pdfResult.base64, mediaType: pdfResult.mediaType, ocrText };
+        }
+      } else {
+        const { base64, mediaType } = await compressImageFile(file);
+        const ocrText = await runOcr(base64);
+        payload = { image: base64, mediaType, ocrText };
+      }
       const res = await fetch("/api/scan-invoice", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ image: base64, mediaType }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
