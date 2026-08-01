@@ -451,6 +451,8 @@ const TR = {
     overviewHint: "Touche une ligne pour ouvrir le ticket. Couleur = distance à ta marge cible.",
     noRecipeYet: "Aucune recette. Crée-en une pour commencer.",
     duplicate: "Dupliquer", print: "Imprimer", printTicket: "Imprimer (avec prix)", portions: "Portions", line: "ligne",
+    qtyHintToggle: "Repères cuillères/pincées",
+    qtyHintText: "1 cuillère à soupe ≈ 15g · 1 cuillère à café ≈ 5g · 1 pincée ≈ 1g (approximatif, à ajuster selon l'ingrédient).",
     total: "Coût total", costPerPortion: "Coût / portion", sellPriceTTC: "Prix de vente (TTC)",
     sellPriceHT: "Prix HT", vat: "TVA", targetMargin: "Marge cible", suggestedPrice: "Prix conseillé (TTC)",
     use: "Utiliser", marginLabel: "marge", lowMarginWarning: `En dessous de ${CRITICAL_MARGIN}%, à surveiller`,
@@ -525,7 +527,7 @@ const TR = {
     coefLabel: "Coef.",
     printRecipeSheet: "Imprimer la fiche recette", printMenuLabel: "Imprimer",
     exampleRecipeBadge: "Recette exemple",
-    wizardStep1Title: "Modifier ou créer un ingrédient", wizardStep2Title: "Prix et unité", wizardStep3Title: "Quelle catégorie ?",
+    wizardStep1Title: "Modifier ou créer un ingrédient", wizardPriceStepTitle: "Prix et unité", wizardCategoryStepTitle: "Quelle catégorie ?",
     wizardEstimatePrice: "Pas le prix sous les yeux ? Estimer un prix temporaire",
     wizardBack: "Précédent", wizardNext: "Suivant", wizardSave: "Enregistrer", wizardCreate: "Créer l'ingrédient",
     wizardSuccess: "Ajouté au garde-manger !", wizardUpdated: "Prix mis à jour !",
@@ -574,6 +576,8 @@ const TR = {
     overviewHint: "Toca una fila para abrir el ticket. Color = distancia a tu margen objetivo.",
     noRecipeYet: "No hay recetas. Crea una para empezar.",
     duplicate: "Duplicar", print: "Imprimir", printTicket: "Imprimir (con precios)", portions: "Raciones", line: "línea",
+    qtyHintToggle: "Referencias cucharadas/pizcas",
+    qtyHintText: "1 cucharada sopera ≈ 15g · 1 cucharadita ≈ 5g · 1 pizca ≈ 1g (aproximado, a ajustar según el ingrediente).",
     total: "Coste total", costPerPortion: "Coste / ración", sellPriceTTC: "Precio de venta (IVA inc.)",
     sellPriceHT: "Precio sin IVA", vat: "IVA", targetMargin: "Margen objetivo", suggestedPrice: "Precio sugerido (IVA inc.)",
     use: "Usar", marginLabel: "margen", lowMarginWarning: `Por debajo del ${CRITICAL_MARGIN}%, vigilar`,
@@ -648,7 +652,7 @@ const TR = {
     coefLabel: "Coef.",
     printRecipeSheet: "Imprimir la ficha de receta", printMenuLabel: "Imprimir",
     exampleRecipeBadge: "Receta de ejemplo",
-    wizardStep1Title: "Modificar o crear un ingrediente", wizardStep2Title: "Precio y unidad", wizardStep3Title: "¿Qué categoría?",
+    wizardStep1Title: "Modificar o crear un ingrediente", wizardPriceStepTitle: "Precio y unidad", wizardCategoryStepTitle: "¿Qué categoría?",
     wizardEstimatePrice: "¿No tienes el precio a mano? Estimar un precio temporal",
     wizardBack: "Atrás", wizardNext: "Siguiente", wizardSave: "Guardar", wizardCreate: "Crear el ingrediente",
     wizardSuccess: "¡Añadido a la despensa!", wizardUpdated: "¡Precio actualizado!",
@@ -697,6 +701,8 @@ const TR = {
     overviewHint: "Tap a row to open the ticket. Color = distance to your target margin.",
     noRecipeYet: "No recipes yet. Create one to get started.",
     duplicate: "Duplicate", print: "Print", printTicket: "Print (with prices)", portions: "Servings", line: "line",
+    qtyHintToggle: "Tablespoon/pinch reference",
+    qtyHintText: "1 tablespoon ≈ 15g · 1 teaspoon ≈ 5g · 1 pinch ≈ 1g (rough estimate, adjust per ingredient).",
     total: "Total cost", costPerPortion: "Cost / serving", sellPriceTTC: "Sell price (incl. tax)",
     sellPriceHT: "Price excl. tax", vat: "Tax", targetMargin: "Target margin", suggestedPrice: "Suggested price (incl. tax)",
     use: "Use", marginLabel: "margin", lowMarginWarning: `Below ${CRITICAL_MARGIN}%, keep an eye on it`,
@@ -771,7 +777,7 @@ const TR = {
     coefLabel: "Coef.",
     printRecipeSheet: "Print recipe sheet", printMenuLabel: "Print",
     exampleRecipeBadge: "Sample recipe",
-    wizardStep1Title: "Edit or create an ingredient", wizardStep2Title: "Price and unit", wizardStep3Title: "Which category?",
+    wizardStep1Title: "Edit or create an ingredient", wizardPriceStepTitle: "Price and unit", wizardCategoryStepTitle: "Which category?",
     wizardEstimatePrice: "Don't have the price on hand? Estimate a temporary price",
     wizardBack: "Back", wizardNext: "Next", wizardSave: "Save", wizardCreate: "Create ingredient",
     wizardSuccess: "Added to the pantry!", wizardUpdated: "Price updated!",
@@ -927,11 +933,12 @@ function QtyField({ qty, unit, onChange, className }) {
   const isSmallUnit = unit === "kg" || unit === "L";
   const focusedRef = useRef(false);
 
-  const [displaySmall, setDisplaySmall] = useState(isSmallUnit && (qty || 0) < 1);
-  useEffect(() => {
-    if (focusedRef.current) return;
-    setDisplaySmall(isSmallUnit && (qty || 0) < 1);
-  }, [qty, isSmallUnit]);
+  // null = automatique (dérivé de la valeur, seuil à 1) ; true/false = forcé par un clic explicite
+  // sur l'unité. Demande réelle (2026-08) : pouvoir taper "1.5" en pensant kg sans attendre que la
+  // valeur franchisse le seuil automatique, ou inversement rester en g pour une petite quantité.
+  const [manualSmall, setManualSmall] = useState(null);
+  const autoSmall = isSmallUnit && (qty || 0) < 1;
+  const displaySmall = manualSmall !== null ? manualSmall : autoSmall;
 
   const factor = isSmallUnit && displaySmall ? 1000 : 1;
   const displayUnit = isSmallUnit ? (displaySmall ? (unit === "kg" ? "g" : "mL") : unit) : unit;
@@ -977,7 +984,18 @@ function QtyField({ qty, unit, onChange, className }) {
           <ChevronDown size={10} />
         </button>
       </div>
-      <span className="text-black/40 text-[11px] shrink-0">{displayUnit}</span>
+      {isSmallUnit ? (
+        <button
+          type="button"
+          onClick={() => setManualSmall(!displaySmall)}
+          className="text-black/40 text-[11px] shrink-0 underline decoration-dotted hover:text-black print:no-underline"
+          title="Changer d'unité"
+        >
+          {displayUnit}
+        </button>
+      ) : (
+        <span className="text-black/40 text-[11px] shrink-0">{displayUnit}</span>
+      )}
     </div>
   );
 }
@@ -1336,6 +1354,19 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             <span className="text-white text-sm font-semibold">{(item.unitPriceHT || 0).toFixed(2)}€</span>
           )}
           <span className="text-white/40 text-[11px]">/{item.unit}</span>
+          {/* Variation de prix visible tout de suite, sans avoir à ouvrir "Modifier" — demande
+              réelle de l'utilisateur (2026-08) : compact ici (icône + %), le détail avant/après
+              reste disponible au survol et dans le panneau développé. */}
+          {(item.priceUp || item.priceDown || item.bigChange) && item.currentPrice !== null && item.currentPriceIsReal && (
+            <span
+              className="flex items-center gap-0.5 text-[10px] font-bold shrink-0"
+              style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : "#10B981" }}
+              title={`${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`}
+            >
+              {item.priceDown ? <TrendingDown size={11} /> : <TrendingUp size={11} />}
+              {priceChangePct}%
+            </span>
+          )}
           {!item.imported && (
             <button onClick={() => setEditingPrice((v) => !v)} className="text-white/30 hover:text-white shrink-0">
               <Pencil size={12} />
@@ -1526,6 +1557,7 @@ export default function App() {
   const [expandedIngId, setExpandedIngId] = useState(null);
   const [autoOpenIdx, setAutoOpenIdx] = useState(null);
   const [lossModalOpen, setLossModalOpen] = useState(false);
+  const [showQtyHint, setShowQtyHint] = useState(false);
 
   const [addWizardOpen, setAddWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1); // 1 nom/recherche, 2 prix+unité, 3 catégorie (création only), "success"
@@ -1717,7 +1749,7 @@ export default function App() {
     setWizardQuery("");
     setWizardEditId(ing.id);
     setWizardReturnToLineIdx(null);
-    setWizardStep(2);
+    setWizardStep(3);
     setAddWizardOpen(true);
   };
   const closeAddWizard = () => {
@@ -1726,16 +1758,20 @@ export default function App() {
     setWizardStep(1);
     setWizardEditId(null);
   };
+  // Catégorie déjà connue (celle du catalogue) : on saute directement au prix, pas besoin de la
+  // redemander.
   const pickWizardCatalog = (c) => {
     setWizardData({ name: c[lang], catalogId: c.id, unit: normUnit(c.unit), category: c.cat, price: 0 });
     setWizardEditId(null);
-    setWizardStep(2);
+    setWizardStep(3);
   };
+  // Nom inédit, catégorie inconnue : on la demande avant le prix (étape 2) plutôt que de deviner.
   const pickWizardCustom = (name) => {
     setWizardData((d) => ({ ...d, name: name || t("newIngredient"), catalogId: null }));
     setWizardEditId(null);
     setWizardStep(2);
   };
+  // Catégorie déjà connue (celle de l'ingrédient existant) : direct au prix.
   const pickWizardExisting = (ing) => {
     const sup = activeSupplier(ing);
     setWizardData({
@@ -1746,7 +1782,7 @@ export default function App() {
       price: sup?.price || 0,
     });
     setWizardEditId(ing.id);
-    setWizardStep(2);
+    setWizardStep(3);
   };
   const finalizeWizard = () => {
     const sId = uid();
@@ -2015,6 +2051,62 @@ export default function App() {
     // Un match qui ne repose que sur une approximation (abréviation, faute de frappe) n'est
     // jamais "confiant" : il part toujours en vérification, jamais importé automatiquement.
     return { id: best.id, confident: bestScore >= 0.99 && !bestFuzzy };
+  };
+
+  // Même logique de rapprochement que guessIngredientId ci-dessus, mais contre le CATALOGUE de
+  // référence (toujours comparé au nom source français) plutôt que contre le garde-manger de
+  // l'utilisateur — pour qu'un ingrédient créé automatiquement depuis un scan hérite d'une vraie
+  // catégorie et, si le rapprochement est fiable, d'un lien allergène (ALLERGEN_MAP), au lieu de
+  // toujours tomber en "Autres" sans aucun lien allergène précis (trou réel repéré en test, 2026-08
+  // : un garde-manger 100% scanné se retrouvait entièrement en "Autres"). Uniquement utilisée à
+  // l'import scan — l'assistant de création manuelle demande désormais la catégorie explicitement
+  // (voir wizardStep 2) plutôt que de deviner.
+  const guessCatalogEntry = (name) => {
+    const tokensRaw = tokenize(name);
+    const tokens = meaningfulTokens(tokensRaw);
+    if (!tokens.length) return null;
+    const scannedMods = new Set(tokensRaw.filter((tk) => DISTINCTIVE_MODIFIERS.has(tk)));
+    let best = null;
+    let bestScore = 0;
+    let bestFuzzy = false;
+    for (const c of CATALOG) {
+      const iTokensRaw = tokenize(c.fr);
+      const iTokens = meaningfulTokens(iTokensRaw);
+      if (!iTokens.length) continue;
+      const candidateMods = new Set(iTokensRaw.filter((tk) => DISTINCTIVE_MODIFIERS.has(tk)));
+      if (scannedMods.size || candidateMods.size) {
+        const sameMods = scannedMods.size === candidateMods.size && [...scannedMods].every((m) => candidateMods.has(m));
+        if (!sameMods) continue;
+      }
+      const usedI = new Set();
+      let shared = 0;
+      let fuzzy = false;
+      for (const tk of tokens) {
+        let matchIdx = iTokens.findIndex((itk, idx) => !usedI.has(idx) && tk === itk);
+        if (matchIdx === -1) {
+          matchIdx = iTokens.findIndex((itk, idx) => !usedI.has(idx) && tokensSimilar(tk, itk));
+          if (matchIdx !== -1) fuzzy = true;
+        }
+        if (matchIdx !== -1) {
+          usedI.add(matchIdx);
+          shared++;
+        }
+      }
+      if (shared === 0) continue;
+      const unionSize = tokens.length + iTokens.length - shared;
+      const score = shared / unionSize;
+      if (score > bestScore) {
+        bestScore = score;
+        best = c;
+        bestFuzzy = fuzzy;
+      }
+    }
+    if (!best || bestScore < 0.5) return null;
+    // Confiant uniquement si le score est très élevé et sans approximation — sert de seuil pour
+    // catalogId (déclenche ALLERGEN_MAP, mieux vaut rater une détection que se tromper). La
+    // catégorie, elle, est acceptée dès qu'un candidat existe : une mauvaise catégorie se corrige
+    // en un clic, ce n'est pas un risque sanitaire.
+    return { catalogId: best.id, category: best.cat, confident: bestScore >= 0.99 && !bestFuzzy };
   };
 
   // Mémoire des rapprochements déjà validés par l'utilisateur lors d'un scan précédent :
@@ -2443,12 +2535,13 @@ export default function App() {
       const sId = uid();
       const newId = uid();
       resultingIngredientId = newId;
+      const catalogGuess = guessCatalogEntry(item.name);
       const ni = {
         id: newId,
         name: item.name,
         unit: finalUnit,
-        catalogId: null,
-        category: "autres",
+        catalogId: catalogGuess?.confident ? catalogGuess.catalogId : null,
+        category: catalogGuess ? catalogGuess.category : "autres",
         selectedSupplierId: sId,
         suppliers: [{ id: sId, name: supplierName, price: finalPrice, priceSource: "scan" }],
         history: [{ date: today(), price: finalPrice, supplierName }],
@@ -3286,9 +3379,43 @@ export default function App() {
               </div>
             )}
 
-            {wizardStep === 2 && (
+            {/* Catégorie AVANT le prix (et seulement quand elle n'est pas déjà connue via le
+                catalogue ou un ingrédient existant) : deviner la catégorie à partir du nom seul
+                a été jugé trop fragile ("filet" = viande, poisson ou volaille selon le cas) —
+                mieux vaut la demander explicitement une fois, plutôt que de deviner mal. */}
+            {wizardStep === 2 && !wizardEditId && (
               <div key="step2" style={{ animation: "wizardStepIn 0.25s ease" }}>
-                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("wizardStep2Title")}</h3>
+                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-3">{t("wizardCategoryStepTitle")}</h3>
+                <div className="grid grid-cols-2 gap-2 mb-4 max-h-56 overflow-y-auto">
+                  {CATEGORIES.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setWizardData((d) => ({ ...d, category: c.id }))}
+                      className="rounded-xl py-3 px-2 text-xs font-semibold border-2 transition"
+                      style={{
+                        borderColor: wizardData.category === c.id ? BRAND_SOLID : "rgba(255,255,255,0.12)",
+                        background: wizardData.category === c.id ? `${BRAND_SOLID}22` : "#1B1815",
+                        color: wizardData.category === c.id ? BRAND_SOLID : "rgba(255,255,255,0.6)",
+                      }}
+                    >
+                      {c[lang]}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setWizardStep(1)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70">
+                    {t("wizardBack")}
+                  </button>
+                  <button onClick={() => setWizardStep(3)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold" style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}>
+                    {t("wizardNext")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {wizardStep === 3 && (
+              <div key="step3" style={{ animation: "wizardStepIn 0.25s ease" }}>
+                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("wizardPriceStepTitle")}</h3>
                 <p className="text-white/40 text-xs mb-4 truncate">{wizardData.name}</p>
                 <div className="flex items-center gap-2 rounded-xl px-3 py-3 border border-white/10 mb-1.5" style={{ background: "#1B1815" }}>
                   <NumField
@@ -3326,45 +3453,18 @@ export default function App() {
                   ))}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setWizardStep(1)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70">
+                  <button
+                    onClick={() => setWizardStep(!wizardEditId && !wizardData.catalogId ? 2 : 1)}
+                    className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70"
+                  >
                     {t("wizardBack")}
                   </button>
                   <button
-                    onClick={() => (wizardEditId ? finalizeEditWizard() : setWizardStep(3))}
+                    onClick={() => (wizardEditId ? finalizeEditWizard() : finalizeWizard())}
                     className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold"
                     style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                   >
-                    {wizardEditId ? t("wizardSave") : t("wizardNext")}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {wizardStep === 3 && !wizardEditId && (
-              <div key="step3" style={{ animation: "wizardStepIn 0.25s ease" }}>
-                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-3">{t("wizardStep3Title")}</h3>
-                <div className="grid grid-cols-2 gap-2 mb-4 max-h-56 overflow-y-auto">
-                  {CATEGORIES.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => setWizardData((d) => ({ ...d, category: c.id }))}
-                      className="rounded-xl py-3 px-2 text-xs font-semibold border-2 transition"
-                      style={{
-                        borderColor: wizardData.category === c.id ? BRAND_SOLID : "rgba(255,255,255,0.12)",
-                        background: wizardData.category === c.id ? `${BRAND_SOLID}22` : "#1B1815",
-                        color: wizardData.category === c.id ? BRAND_SOLID : "rgba(255,255,255,0.6)",
-                      }}
-                    >
-                      {c[lang]}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setWizardStep(2)} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70">
-                    {t("wizardBack")}
-                  </button>
-                  <button onClick={finalizeWizard} className="flex-1 text-xs uppercase tracking-wide py-2.5 rounded-full font-semibold" style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}>
-                    {t("wizardCreate")}
+                    {wizardEditId ? t("wizardSave") : t("wizardCreate")}
                   </button>
                 </div>
               </div>
@@ -3603,9 +3703,21 @@ export default function App() {
                     </div>
                   );
                 })}
-                <button onClick={addLine} className="text-xs text-black/40 hover:text-black flex items-center gap-1 pt-1 print:hidden">
-                  <Plus size={12} /> {t("line")}
-                </button>
+                <div className="flex items-center justify-between pt-1 print:hidden">
+                  <button onClick={addLine} className="text-xs text-black/40 hover:text-black flex items-center gap-1">
+                    <Plus size={12} /> {t("line")}
+                  </button>
+                  {/* Discret et opt-in à la demande (2026-08) : pas de texte permanent sur chaque
+                      ligne, juste un repère accessible d'un clic pour qui pense en cuillères/pincées
+                      plutôt qu'en grammes — la valeur stockée reste toujours un vrai grammage saisi
+                      à la main, aucune conversion automatique risquée. */}
+                  <button onClick={() => setShowQtyHint((v) => !v)} className="text-[10px] text-black/30 hover:text-black underline decoration-dotted">
+                    {t("qtyHintToggle")}
+                  </button>
+                </div>
+                {showQtyHint && (
+                  <div className="text-[10px] text-black/40 pt-1">{t("qtyHintText")}</div>
+                )}
               </div>
 
               <div className="pt-3 space-y-1 text-sm price-field">
