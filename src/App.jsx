@@ -541,6 +541,7 @@ const TR = {
     marginLowFixMsg: "Marge insuffisante, à corriger rapidement.",
     vatOption10Hint: "restauration FR/ES",
     recipeLineIngredientPlaceholder: "Choisir un ingrédient…",
+    recipeCreateIngredientFromLine: "Créer un nouvel ingrédient",
     recipeTargetReached: "Objectif de cette recette atteint",
     marginLegendWithOrange: (green, crit) => `Vert ≥ ${green}% · Orange entre ${crit}–${green}% · Rouge < ${crit}%`,
     marginLegendNoOrange: (crit) => `Vert ≥ ${crit}% · Rouge < ${crit}% (pas de zone orange avec ce seuil)`,
@@ -662,6 +663,7 @@ const TR = {
     marginLowFixMsg: "Margen insuficiente, a corregir rápidamente.",
     vatOption10Hint: "hostelería España",
     recipeLineIngredientPlaceholder: "Elegir un ingrediente…",
+    recipeCreateIngredientFromLine: "Crear un nuevo ingrediente",
     recipeTargetReached: "Objetivo de esta receta alcanzado",
     marginLegendWithOrange: (green, crit) => `Verde ≥ ${green}% · Naranja entre ${crit}–${green}% · Rojo < ${crit}%`,
     marginLegendNoOrange: (crit) => `Verde ≥ ${crit}% · Rojo < ${crit}% (sin zona naranja con este umbral)`,
@@ -783,6 +785,7 @@ const TR = {
     marginLowFixMsg: "Margin too low, needs fixing quickly.",
     vatOption10Hint: "food service",
     recipeLineIngredientPlaceholder: "Choose an ingredient…",
+    recipeCreateIngredientFromLine: "Create a new ingredient",
     recipeTargetReached: "This recipe's target reached",
     marginLegendWithOrange: (green, crit) => `Green ≥ ${green}% · Orange between ${crit}–${green}% · Red < ${crit}%`,
     marginLegendNoOrange: (crit) => `Green ≥ ${crit}% · Red < ${crit}% (no orange zone with this threshold)`,
@@ -968,7 +971,7 @@ function QtyField({ qty, unit, onChange, className }) {
 
 // Sélecteur d'ingrédient avec recherche (remplace un <select> qui deviendrait interminable).
 // Tape au moins 2 lettres pour filtrer, clique une suggestion pour choisir.
-function IngredientPicker({ ingredients, value, displayName, onChange, className, autoOpen, placeholder }) {
+function IngredientPicker({ ingredients, value, displayName, onChange, className, autoOpen, placeholder, onCreateNew, createNewLabel }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const wrapRef = useRef(null);
@@ -1027,6 +1030,15 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
             ))}
             {filtered.length === 0 && <div className="px-2.5 py-2 text-xs text-white/30">Aucun résultat</div>}
           </div>
+          {onCreateNew && (
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onCreateNew(query.trim()); setOpen(false); }}
+              className="w-full text-left px-2.5 py-2 text-xs text-[#8B5CF6] hover:bg-white/10 border-t border-white/10 flex items-center gap-1.5"
+            >
+              <Plus size={12} className="shrink-0" /> {createNewLabel}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1500,6 +1512,10 @@ export default function App() {
   const [wizardQuery, setWizardQuery] = useState("");
   const [wizardData, setWizardData] = useState({ name: "", catalogId: null, unit: "kg", category: "autres", price: 0 });
   const [wizardEditId, setWizardEditId] = useState(null); // id de l'ingrédient existant en cours de modification, sinon null (création)
+  // Index de la ligne de recette qui a ouvert l'assistant (création rapide depuis une recette),
+  // pour lui assigner automatiquement l'ingrédient une fois créé/choisi — null si l'assistant a
+  // été ouvert depuis le garde-manger, auquel cas rien de plus à faire après création.
+  const [wizardReturnToLineIdx, setWizardReturnToLineIdx] = useState(null);
 
   const [scanOpen, setScanOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -1661,10 +1677,11 @@ export default function App() {
   const updateIngredientName = (id, value) =>
     setIngredients((ings) => ings.map((i) => (i.id === id ? { ...i, name: value, catalogId: null } : i)));
 
-  const openAddWizard = () => {
-    setWizardData({ name: "", catalogId: null, unit: "kg", category: "autres", price: 0 });
-    setWizardQuery("");
+  const openAddWizard = (returnToLineIdx = null, prefillName = "") => {
+    setWizardData({ name: prefillName, catalogId: null, unit: "kg", category: "autres", price: 0 });
+    setWizardQuery(prefillName);
     setWizardEditId(null);
+    setWizardReturnToLineIdx(returnToLineIdx);
     setWizardStep(1);
     setAddWizardOpen(true);
   };
@@ -1679,11 +1696,13 @@ export default function App() {
     });
     setWizardQuery("");
     setWizardEditId(ing.id);
+    setWizardReturnToLineIdx(null);
     setWizardStep(2);
     setAddWizardOpen(true);
   };
   const closeAddWizard = () => {
     setAddWizardOpen(false);
+    setWizardReturnToLineIdx(null);
     setWizardStep(1);
     setWizardEditId(null);
   };
@@ -1723,6 +1742,7 @@ export default function App() {
       lastUpdated: today(),
     };
     setIngredients((ings) => [...ings, ni]);
+    if (wizardReturnToLineIdx !== null) changeLineIngredient(wizardReturnToLineIdx, ni.id);
     setWizardStep("success");
     setTimeout(() => closeAddWizard(), 1300);
   };
@@ -1744,6 +1764,7 @@ export default function App() {
       }
       return { ...i, unit: wizardData.unit, suppliers, selectedSupplierId, history, lastUpdated: today() };
     }));
+    if (wizardReturnToLineIdx !== null) changeLineIngredient(wizardReturnToLineIdx, wizardEditId);
     setWizardStep("success");
     setTimeout(() => closeAddWizard(), 1300);
   };
@@ -3523,6 +3544,8 @@ export default function App() {
                           className="flex-1 min-w-0 text-black/80"
                           autoOpen={autoOpenIdx === idx}
                           placeholder={t("recipeLineIngredientPlaceholder")}
+                          onCreateNew={(query) => openAddWizard(idx, query)}
+                          createNewLabel={t("recipeCreateIngredientFromLine")}
                         />
                         <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
                         {activeSupplier(ing)?.priceSource === "estimate" && (
@@ -3912,7 +3935,7 @@ export default function App() {
               })()}
             </div>
 
-            <button onClick={openAddWizard} className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-xl border border-dashed border-white/25 text-white/60 hover:text-[#8B5CF6] hover:border-[#8B5CF6] active:scale-95 transition">
+            <button onClick={() => openAddWizard()} className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-xl border border-dashed border-white/25 text-white/60 hover:text-[#8B5CF6] hover:border-[#8B5CF6] active:scale-95 transition">
               <Plus size={14} /> {t("addIngredient")}
             </button>
           </div>
