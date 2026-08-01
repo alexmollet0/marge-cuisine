@@ -525,6 +525,7 @@ const TR = {
     allergenSheetNone: "Aucun allergène renseigné",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer les lignes sûres",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",
+    scanPdfNotSupportedYet: "Les factures PDF ne sont pas encore prises en charge — importe plutôt une photo (JPEG/PNG) de la facture.",
     scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
     scanTab: "Scanner", scanTabHint: "Prends en photo ta facture Métro, Promocash, Transgourmet ou tout autre fournisseur — l'IA s'occupe du reste.",
@@ -644,6 +645,7 @@ const TR = {
     allergenSheetNone: "Sin alérgenos indicados",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar las líneas seguras",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",
+    scanPdfNotSupportedYet: "Las facturas en PDF todavía no están soportadas — importa una foto (JPEG/PNG) de la factura en su lugar.",
     scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
     scanTab: "Escanear", scanTabHint: "Haz una foto de tu factura de Makro, Gros Mercat o cualquier otro proveedor — la IA se encarga del resto.",
@@ -763,6 +765,7 @@ const TR = {
     allergenSheetNone: "No allergens listed",
     scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import safe lines",
     scanPriceIncrease: "Price up", scanNoItems: "No item detected.",
+    scanPdfNotSupportedYet: "PDF invoices aren't supported yet — import a photo (JPEG/PNG) of the invoice instead.",
     scanHint: "Check and correct each line before importing — the AI can make mistakes.",
     scanWeightLabel: "Weight of 1 piece (leave at 0 if truly priced by unit):",
     scanTab: "Scanner", scanTabHint: "Take a photo of your invoice from Bidfood, Brakes or any other supplier — the AI takes care of the rest.",
@@ -2407,9 +2410,12 @@ export default function App() {
   // conversion grammes→kg (ex: "Bloc 500g" → l'IA a renvoyé 500 avec l'unité "kg" au lieu de 0.5,
   // soit une erreur de prix x1000). Une campagne de tests "extrêmes" (2026-07-31, factures
   // dégradées/multi-colonnes) a montré un troisième cas du même type : le multipack en grammes
-  // "Nxg" (ex: "12x125g" → doit donner 1,5kg, pas 125g ni 12). Ce filet ne s'applique qu'aux
-  // contenus en kg ou L, jamais "pièce" — un motif reconnu écrase toujours la valeur de l'IA (plus
-  // fiable qu'elle sur ces cas précis d'après les tests), sinon on garde sa valeur telle quelle.
+  // "Nxg" (ex: "12x125g" → doit donner 1,5kg, pas 125g ni 12). Test réel du 2026-08 : le même
+  // calcul peut aussi apparaître dans l'ordre INVERSE, quantité puis compte (ex: "BURRATA 100G X8"
+  // = 8x100g, PAS 100g seul) — l'IA avait renvoyé 100g, donnant un prix ×8 trop élevé (118€/kg au
+  // lieu de ~14,75€/kg), sans lever la moindre alerte. Ce filet ne s'applique qu'aux contenus en kg
+  // ou L, jamais "pièce" — un motif reconnu écrase toujours la valeur de l'IA (plus fiable qu'elle
+  // sur ces cas précis d'après les tests), sinon on garde sa valeur telle quelle.
   // IMPORTANT : ce filet dépend entièrement de `rawLabel` contenant bien le texte de conditionnement
   // (voir prompt `api/scan-invoice.js`, champ rawLabel) — si l'IA ne recopie que la colonne
   // désignation sans la colonne format/conditionnement, ce filet ne peut rien détecter.
@@ -2421,6 +2427,15 @@ export default function App() {
         const count = parseInt(multipack[1], 10);
         const size = parseFloat(multipack[2].replace(",", "."));
         const u = multipack[3].toLowerCase();
+        const perUnitL = u === "cl" ? size / 100 : u === "ml" ? size / 1000 : size;
+        return Math.round(count * perUnitL * 1000) / 1000;
+      }
+      // Même calcul, ordre inversé "VOLUME x COMPTE" (ex: "75CL X6" au lieu de "6x75cl").
+      const multipackRev = text.match(/(\d+(?:[.,]\d+)?)\s*(cl|ml|l)\s*[x×]\s*(\d+)\b/i);
+      if (multipackRev) {
+        const size = parseFloat(multipackRev[1].replace(",", "."));
+        const u = multipackRev[2].toLowerCase();
+        const count = parseInt(multipackRev[3], 10);
         const perUnitL = u === "cl" ? size / 100 : u === "ml" ? size / 1000 : size;
         return Math.round(count * perUnitL * 1000) / 1000;
       }
@@ -2436,6 +2451,14 @@ export default function App() {
       if (multipackG) {
         const count = parseInt(multipackG[1], 10);
         const sizeG = parseFloat(multipackG[2].replace(",", "."));
+        return Math.round(count * sizeG) / 1000;
+      }
+      // Même calcul, ordre inversé "GRAMMAGE x COMPTE" (ex: "100G X8" = 8x100g, cas réel Burrata
+      // du 2026-08 où l'IA n'avait lu que "100g" en ignorant le "X8").
+      const multipackGRev = text.match(/(\d+(?:[.,]\d+)?)\s*g(?:r|rs|rammes?)?\s*[x×]\s*(\d+)\b/i);
+      if (multipackGRev) {
+        const sizeG = parseFloat(multipackGRev[1].replace(",", "."));
+        const count = parseInt(multipackGRev[2], 10);
         return Math.round(count * sizeG) / 1000;
       }
       const kgMatch = text.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
@@ -2503,10 +2526,18 @@ export default function App() {
     // une inconnue même si l'IA, elle, ne l'a pas vu.
     const pricingUnknown = printedUnit !== "kg" && printedUnit !== "L" && !deterministicContent && !rawPackageContent;
 
+    // Ce contrôle ne vérifie quelque chose d'utile que lorsque packageContent sert réellement à
+    // calculer finalUnitPrice (branche "colis" ci-dessus). Quand le prix est déjà donné
+    // directement au kg/L, packageContent n'entre pour rien dans le prix importé — un écart à ce
+    // stade ne signale qu'un champ non-utilisé mal lu (virgule ratée dans une quantité, confusion
+    // avec une ligne voisine dense), pas une vraie incohérence de prix. Deux faux positifs réels
+    // (2026-08, "4,12 KG" lu "412 KG", et une contamination par une ligne voisine) ont montré que
+    // ça fait vérifier l'utilisateur pour rien alors que le prix importé était déjà correct.
+    const pricingDependsOnPackageContent = printedUnit !== "kg" && printedUnit !== "L";
     const expectedTotal = packageCount * packageContent * finalUnitPrice;
     const printedTotal = it.totalPriceHT || 0;
     let priceInconsistent = false;
-    if (!pricingUnknown && printedTotal > 0 && expectedTotal > 0) {
+    if (pricingDependsOnPackageContent && !pricingUnknown && printedTotal > 0 && expectedTotal > 0) {
       const diff = Math.abs(expectedTotal - printedTotal) / Math.max(printedTotal, 0.01);
       if (diff > 0.15) priceInconsistent = true;
     }
@@ -2524,6 +2555,16 @@ export default function App() {
     setScanResult(null);
     setReviewStackOpen(false);
     setExpandedReviewIdx(null);
+    // Un vrai PDF ne peut pas être décodé par <img> (utilisé par compressImageFile pour
+    // compresser avant envoi) — sans ce garde-fou, sélectionner un PDF plantait silencieusement
+    // avec "Image illisible", un message qui ne dit pas à l'utilisateur quoi faire. La vraie prise
+    // en charge (extraction du texte natif du PDF, plus fiable qu'une photo) est un chantier à
+    // part (voir CLAUDE.md) : ici on se contente d'un message honnête en attendant.
+    if (file.type === "application/pdf" || /\.pdf$/i.test(file.name || "")) {
+      setScanning(false);
+      setScanErr(t("scanPdfNotSupportedYet"));
+      return;
+    }
     try {
       const { base64, mediaType } = await compressImageFile(file);
       const res = await fetch("/api/scan-invoice", {
@@ -2689,14 +2730,22 @@ export default function App() {
           if (ing.id !== ingId) return ing;
           let suppliers = ing.suppliers;
           const existing = suppliers.find((s) => normalizeStr(s.name) === normalizeStr(supplierName));
+          // Le fournisseur qu'on vient de confirmer par ce scan devient le fournisseur actif :
+          // c'est tout l'intérêt de scanner une facture (refléter le prix réel du moment), sinon
+          // le prix affiché restait bloqué sur l'ancien fournisseur (souvent une simple estimation
+          // de départ) même après un import "réussi" — bug réel trouvé en test par l'utilisateur.
+          let newSelectedSupplierId;
           if (existing) {
             suppliers = suppliers.map((s) => (s.id === existing.id ? { ...s, price: finalPrice, priceSource: "scan" } : s));
+            newSelectedSupplierId = existing.id;
           } else {
-            suppliers = [...suppliers, { id: uid(), name: supplierName, price: finalPrice, priceSource: "scan" }];
+            const newSupplierId = uid();
+            suppliers = [...suppliers, { id: newSupplierId, name: supplierName, price: finalPrice, priceSource: "scan" }];
+            newSelectedSupplierId = newSupplierId;
           }
           const history = [...(ing.history || []), { date: today(), price: finalPrice, supplierName }].slice(-15);
           const renamed = item.renameOnImport && item.name ? { name: item.name, catalogId: null } : {};
-          return { ...ing, unit: finalUnit, suppliers, history, lastUpdated: today(), ...renamed, selectedSupplierId: existing ? ing.selectedSupplierId : ing.selectedSupplierId };
+          return { ...ing, unit: finalUnit, suppliers, history, lastUpdated: today(), ...renamed, selectedSupplierId: newSelectedSupplierId };
         })
       );
     }
