@@ -55,9 +55,17 @@ gros du projet à ce stade, plus gros que tout ce qui a été construit jusqu'ic
 - [x] Arrondi des prix calculés (bug d'affichage en précision flottante brute)
 - [x] Fermeture automatique de la fenêtre de scan après "Importer les lignes sûres" (ou bascule
       directe vers la pile de vérification s'il reste des lignes à traiter)
-- [ ] **Retester la facture 30 lignes (ou une nouvelle) pour valider ces 3 derniers correctifs**
-      — en particulier "Pomme de terre frite" doit tomber à 1,18€/kg, et la fenêtre doit se fermer
-      seule après l'import en masse
+- [x] Doute nom (rapprochement pas confiant) résolu une fois la ligne validée ; doute prix rendu
+      visible en permanence sur la carte (plus seulement une infobulle au survol, invisible sur
+      mobile)
+- [x] Garde-manger de démarrage vidé (7 ingrédients au lieu de ~200, juste ce qu'il faut pour la
+      recette exemple) + encart d'accueil dans le garde-manger
+- [x] Création d'ingrédient directement depuis une recette (sans passer par le garde-manger)
+- [x] Bouton "estimer un prix temporaire" dans l'assistant ingrédient
+- [ ] **Retester la facture 30 lignes (ou une nouvelle) pour valider tous les correctifs du
+      2026-08** — en particulier "Pomme de terre frite" à 1,18€/kg, la fermeture automatique de la
+      fenêtre de scan après import en masse, et "Café grain arabica" (ou cas similaire) qui ne doit
+      plus réafficher le bouton orange après validation
 - [ ] Tester avec un vrai PDF numérique dès qu'une vraie facture PDF fournisseur est disponible
       (le test tenté n'était pas un vrai PDF)
 - [ ] Continuer à collecter des cas concrets d'erreurs de scan (prix faux, pas juste des fausses

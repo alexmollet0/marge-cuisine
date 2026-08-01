@@ -516,6 +516,7 @@ const TR = {
     printRecipeSheet: "Imprimer la fiche recette", printMenuLabel: "Imprimer",
     exampleRecipeBadge: "Recette exemple",
     wizardStep1Title: "Modifier ou créer un ingrédient", wizardStep2Title: "Prix et unité", wizardStep3Title: "Quelle catégorie ?",
+    wizardEstimatePrice: "Pas le prix sous les yeux ? Estimer un prix temporaire",
     wizardBack: "Précédent", wizardNext: "Suivant", wizardSave: "Enregistrer", wizardCreate: "Créer l'ingrédient",
     wizardSuccess: "Ajouté au garde-manger !", wizardUpdated: "Prix mis à jour !",
     wizardExistingSection: "Ingrédients existants — modifier le prix", wizardCatalogSection: "Suggestions",
@@ -638,6 +639,7 @@ const TR = {
     printRecipeSheet: "Imprimir la ficha de receta", printMenuLabel: "Imprimir",
     exampleRecipeBadge: "Receta de ejemplo",
     wizardStep1Title: "Modificar o crear un ingrediente", wizardStep2Title: "Precio y unidad", wizardStep3Title: "¿Qué categoría?",
+    wizardEstimatePrice: "¿No tienes el precio a mano? Estimar un precio temporal",
     wizardBack: "Atrás", wizardNext: "Siguiente", wizardSave: "Guardar", wizardCreate: "Crear el ingrediente",
     wizardSuccess: "¡Añadido a la despensa!", wizardUpdated: "¡Precio actualizado!",
     wizardExistingSection: "Ingredientes existentes — modificar el precio", wizardCatalogSection: "Sugerencias",
@@ -760,6 +762,7 @@ const TR = {
     printRecipeSheet: "Print recipe sheet", printMenuLabel: "Print",
     exampleRecipeBadge: "Sample recipe",
     wizardStep1Title: "Edit or create an ingredient", wizardStep2Title: "Price and unit", wizardStep3Title: "Which category?",
+    wizardEstimatePrice: "Don't have the price on hand? Estimate a temporary price",
     wizardBack: "Back", wizardNext: "Next", wizardSave: "Save", wizardCreate: "Create ingredient",
     wizardSuccess: "Added to the pantry!", wizardUpdated: "Price updated!",
     wizardExistingSection: "Existing ingredients — edit price", wizardCatalogSection: "Suggestions",
@@ -1737,7 +1740,7 @@ export default function App() {
       catalogId: wizardData.catalogId,
       category: wizardData.category,
       selectedSupplierId: sId,
-      suppliers: [{ id: sId, name: t("supplier"), price: wizardData.price || 0, priceSource: wizardData.price > 0 ? "manual" : "estimate" }],
+      suppliers: [{ id: sId, name: t("supplier"), price: wizardData.price || 0, priceSource: !wizardData.isEstimate && wizardData.price > 0 ? "manual" : "estimate" }],
       history: [],
       lastUpdated: today(),
     };
@@ -1755,11 +1758,11 @@ export default function App() {
         if (wizardData.price !== currentSup.price) {
           history = [...history, { date: today(), price: wizardData.price, supplierName: currentSup.name }].slice(-15);
         }
-        suppliers = i.suppliers.map((s) => (s.id === currentSup.id ? { ...s, price: wizardData.price, priceSource: "manual" } : s));
+        suppliers = i.suppliers.map((s) => (s.id === currentSup.id ? { ...s, price: wizardData.price, priceSource: wizardData.isEstimate ? "estimate" : "manual" } : s));
         selectedSupplierId = i.selectedSupplierId;
       } else {
         const sId = uid();
-        suppliers = [{ id: sId, name: t("supplier"), price: wizardData.price, priceSource: "manual" }];
+        suppliers = [{ id: sId, name: t("supplier"), price: wizardData.price, priceSource: wizardData.isEstimate ? "estimate" : "manual" }];
         selectedSupplierId = sId;
       }
       return { ...i, unit: wizardData.unit, suppliers, selectedSupplierId, history, lastUpdated: today() };
@@ -3270,14 +3273,25 @@ export default function App() {
               <div key="step2" style={{ animation: "wizardStepIn 0.25s ease" }}>
                 <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("wizardStep2Title")}</h3>
                 <p className="text-white/40 text-xs mb-4 truncate">{wizardData.name}</p>
-                <div className="flex items-center gap-2 rounded-xl px-3 py-3 border border-white/10 mb-3" style={{ background: "#1B1815" }}>
+                <div className="flex items-center gap-2 rounded-xl px-3 py-3 border border-white/10 mb-1.5" style={{ background: "#1B1815" }}>
                   <NumField
                     value={wizardData.price}
-                    onChange={(v) => setWizardData((d) => ({ ...d, price: v }))}
+                    onChange={(v) => setWizardData((d) => ({ ...d, price: v, isEstimate: false }))}
                     className="flex-1 min-w-0 bg-transparent text-white text-xl font-bold text-center outline-none"
                   />
                   <span className="text-white/40 text-sm shrink-0">€ / {wizardData.unit}</span>
                 </div>
+                {/* Pour tester une recette sans être bloqué par un prix qu'on n'a pas sous les
+                    yeux — remplit un prix placeholder clairement marqué "estimé" (même badge
+                    que priceSource "estimate" ailleurs dans l'app), à corriger plus tard. */}
+                <button
+                  type="button"
+                  onClick={() => setWizardData((d) => ({ ...d, price: 1, isEstimate: true }))}
+                  className="w-full text-left text-[11px] mb-4 flex items-center gap-1.5"
+                  style={{ color: TIER_COLORS.mid }}
+                >
+                  <AlertTriangle size={11} className="shrink-0" /> {t("wizardEstimatePrice")}
+                </button>
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   {["kg", "L", "pièce"].map((u) => (
                     <button
