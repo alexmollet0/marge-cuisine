@@ -48,8 +48,18 @@ gros du projet à ce stade, plus gros que tout ce qui a été construit jusqu'ic
 - [x] Import PDF : extraction du texte natif quand la facture est numérique (élimine la lecture
       visuelle) + repli sur l'image pour un PDF scanné
 - [x] OCR indépendant (Tesseract.js) en recoupement des photos, en plus de l'IA de vision
-- [ ] **Vérifier le déploiement du PDF/OCR en conditions réelles** (en cours par l'utilisateur au
-      moment d'écrire ces lignes)
+- [x] Déploiement du PDF/OCR vérifié en conditions réelles (build Vercel réussi, testé sur une
+      facture dense de 30 lignes — 30/30 lignes correctement classées, très bon résultat)
+- [x] Filet de calcul multipack étendu au motif direct "COMPTE x KG" (ex: "4X2.5KG"), trouvé lors
+      du test de la facture 30 lignes
+- [x] Arrondi des prix calculés (bug d'affichage en précision flottante brute)
+- [x] Fermeture automatique de la fenêtre de scan après "Importer les lignes sûres" (ou bascule
+      directe vers la pile de vérification s'il reste des lignes à traiter)
+- [ ] **Retester la facture 30 lignes (ou une nouvelle) pour valider ces 3 derniers correctifs**
+      — en particulier "Pomme de terre frite" doit tomber à 1,18€/kg, et la fenêtre doit se fermer
+      seule après l'import en masse
+- [ ] Tester avec un vrai PDF numérique dès qu'une vraie facture PDF fournisseur est disponible
+      (le test tenté n'était pas un vrai PDF)
 - [ ] Continuer à collecter des cas concrets d'erreurs de scan (prix faux, pas juste des fausses
       alertes) au fil de l'usage réel
 - [ ] Évaluer un modèle IA plus capable (Sonnet) sur les cas qui résistent à Haiku

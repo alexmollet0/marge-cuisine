@@ -477,6 +477,7 @@ const TR = {
     scanVerifyOneByOne: "Vérifier un par un", scanValidate: "Valider", scanModify: "Modifier",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
+    scanSkipAllAndClose: "Ignorer le reste et fermer",
     scanUpcoming: "Suivants",
     scanExistingLabel: "existant", scanProposedLabel: "nom proposé",
     scanRawLabelPrefix: "Facture :",
@@ -595,6 +596,7 @@ const TR = {
     scanVerifyOneByOne: "Verificar uno por uno", scanValidate: "Validar", scanModify: "Modificar",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
+    scanSkipAllAndClose: "Ignorar el resto y cerrar",
     scanUpcoming: "Siguientes",
     scanExistingLabel: "existente", scanProposedLabel: "nombre propuesto",
     scanRawLabelPrefix: "Factura :",
@@ -713,6 +715,7 @@ const TR = {
     scanVerifyOneByOne: "Check one by one", scanValidate: "Validate", scanModify: "Edit",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
+    scanSkipAllAndClose: "Skip the rest and close",
     scanUpcoming: "Next",
     scanExistingLabel: "existing", scanProposedLabel: "suggested name",
     scanRawLabelPrefix: "Invoice:",
@@ -1542,13 +1545,16 @@ function PricingCalculator({ item, onUpdate, t }) {
   const sourcePrice = item.printedUnitPriceHT || 0;
   const { base, factor } = CALC_CONTENT_UNITS[contentUnit];
   const baseContent = content * factor;
-  const computedPrice = baseContent > 0 ? sourcePrice / baseContent : 0;
+  // Arrondi à 4 décimales : sans lui, une division comme 11.80/3 affiche un flottant JS à
+  // rallonge (ex: 0.33749999999999997) — bug réel trouvé en test (2026-08), calcul juste,
+  // arrondi manquant.
+  const computedPrice = baseContent > 0 ? Math.round((sourcePrice / baseContent) * 10000) / 10000 : 0;
 
   const recompute = (patch) => {
     const next = { calcContent: content, calcContentUnit: contentUnit, printedUnitPriceHT: sourcePrice, ...patch };
     const { base: nextBase, factor: nextFactor } = CALC_CONTENT_UNITS[next.calcContentUnit];
     const nextBaseContent = next.calcContent * nextFactor;
-    const nextPrice = nextBaseContent > 0 ? next.printedUnitPriceHT / nextBaseContent : 0;
+    const nextPrice = nextBaseContent > 0 ? Math.round((next.printedUnitPriceHT / nextBaseContent) * 10000) / 10000 : 0;
     onUpdate({ ...next, unit: nextBase, unitPriceHT: nextPrice });
   };
 
@@ -2504,6 +2510,22 @@ export default function App() {
         const count = parseInt(multipackGRev[2], 10);
         return Math.round(count * sizeG) / 1000;
       }
+      // Même calcul, multipack directement en kg (ex: "4x2.5kg" = 10kg, cas réel "PDT FRITE
+      // 4X2.5KG" du 2026-08 où seul "2.5kg" avait été lu, ignorant le "4x" — prix importé x4 trop
+      // élevé sans alerte). Angle mort qui existait déjà avant les 2 filets grammes/volume
+      // ci-dessus, jamais couvert pour le kg directement. Les deux sens, comme pour les grammes.
+      const multipackKg = text.match(/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*kg\b/i);
+      if (multipackKg) {
+        const count = parseInt(multipackKg[1], 10);
+        const sizeKg = parseFloat(multipackKg[2].replace(",", "."));
+        return Math.round(count * sizeKg * 1000) / 1000;
+      }
+      const multipackKgRev = text.match(/(\d+(?:[.,]\d+)?)\s*kg\s*[x×]\s*(\d+)\b/i);
+      if (multipackKgRev) {
+        const sizeKg = parseFloat(multipackKgRev[1].replace(",", "."));
+        const count = parseInt(multipackKgRev[2], 10);
+        return Math.round(sizeKg * count * 1000) / 1000;
+      }
       const kgMatch = text.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
       if (kgMatch) return parseFloat(kgMatch[1].replace(",", "."));
       const gMatch = text.match(/(\d+(?:[.,]\d+)?)\s*g(?:r|rs|rammes?)?\b/i);
@@ -2555,8 +2577,12 @@ export default function App() {
       finalUnitPrice = printedPrice;
     } else {
       // Le prix imprimé est celui d'un colis entier : on le ramène au kg/L/pièce via son contenu.
+      // Arrondi à 4 décimales : une division comme 11.80/3 donne un flottant JS avec une quinzaine
+      // de décimales (ex: 0.33749999999999997), qui a l'air cassé une fois affiché à l'utilisateur
+      // — bug réel trouvé en test (2026-08). Le calcul lui-même n'a jamais été faux, seul l'arrondi
+      // manquait.
       finalUnit = packageContentUnit === "kg" || packageContentUnit === "L" ? packageContentUnit : "pièce";
-      finalUnitPrice = printedPrice / packageContent;
+      finalUnitPrice = Math.round((printedPrice / packageContent) * 10000) / 10000;
     }
 
     // Prix par pièce/colis pour un produit dont le contenu (poids/volume réel) est inconnu —
@@ -2834,10 +2860,27 @@ export default function App() {
     });
   };
 
+  // Après l'import en masse : si tout est réglé (rien à vérifier), on ferme directement la
+  // fenêtre au lieu de laisser l'utilisateur devant une liste "importé" qu'il doit fermer
+  // lui-même en remontant chercher la croix (frustration réelle remontée en test, 2026-08).
+  // S'il reste des lignes à vérifier, on l'emmène directement dans la pile "un par un" plutôt
+  // que de le laisser au milieu d'une liste où tout ce qui pouvait être importé l'a déjà été.
   const importAllScanItems = () => {
+    const stillNeedsReview = scanResult.items.some((item) => !item.imported && !item.skipped && !isReadyToImport(item));
     scanResult.items.forEach((item, idx) => {
       if (isReadyToImport(item)) importScanItem(idx);
     });
+    if (stillNeedsReview) setReviewStackOpen(true);
+    else closeScan();
+  };
+
+  // Échappatoire depuis la pile de vérification : ignore tout ce qui reste (jamais les lignes
+  // déjà importées) et ferme la fenêtre en un clic, pour qui ne veut pas vérifier ligne par ligne.
+  const skipAllPendingAndClose = () => {
+    scanResult.items.forEach((item, idx) => {
+      if (!item.imported && !item.skipped) skipScanItem(idx);
+    });
+    closeScan();
   };
 
   const closeScan = () => {
@@ -3199,13 +3242,18 @@ export default function App() {
                       const needsRename = current.item.assignTo !== "new" && current.item.name && matchedIng && ingredientDisplayName(matchedIng) !== current.item.name;
                       return (
                         <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-xs text-white/50 font-mono">
+                          <div className="flex items-center justify-between mb-3 gap-2">
+                            <span className="text-xs text-white/50 font-mono shrink-0">
                               {t("scanStackProgress")(stackTotal - review.length + 1, stackTotal)}
                             </span>
-                            <button onClick={() => setReviewStackOpen(false)} className="text-[11px] text-white/40 underline">
-                              {t("close")}
-                            </button>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <button onClick={skipAllPendingAndClose} className="text-[11px] text-white/40 hover:text-[#B23A2E] underline whitespace-nowrap">
+                                {t("scanSkipAllAndClose")}
+                              </button>
+                              <button onClick={() => setReviewStackOpen(false)} className="text-[11px] text-white/40 underline">
+                                {t("close")}
+                              </button>
+                            </div>
                           </div>
 
                           <div className="relative" style={{ minHeight: isExpanded ? "auto" : "220px" }}>
