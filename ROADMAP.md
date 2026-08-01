@@ -76,6 +76,20 @@ gros du projet à ce stade, plus gros que tout ce qui a été construit jusqu'ic
       deuxième fois), pour retrouver un cas de rapprochement ambigu à valider
 - [ ] Retester "Pomme de terre frite" à 1,18€/kg et la fermeture automatique de la fenêtre de scan
       après import en masse (déjà "tout parfait" au dernier retour, à reconfirmer si besoin)
+- [x] Pertes de démo corrigées après relecture critique : bœuf 10% (paré), champignons 5%
+      (nettoyage) — marge de la recette exemple revérifiée à ~75,3%
+- [x] Variation de prix visible directement sur la carte compacte du scanner (plus besoin
+      d'ouvrir "Modifier")
+- [x] Assistant ingrédient réordonné : catégorie demandée avant le prix uniquement quand elle
+      est inconnue (nom inédit), plus de devinette par mot-clé jugée trop fragile
+- [x] Rapprochement catalogue à la création d'un ingrédient scanné (catégorie + lien allergène
+      quand fiable) — corrige un garde-manger scanné qui atterrissait 100% en "Autres"
+- [x] `QtyField` : changement rapide de l'unité affichée (g/kg, mL/L) d'un clic
+- [x] Repère discret et optionnel cuillères/pincées (pas de nouvelle unité, juste un repère de
+      conversion approximatif à la demande)
+- [ ] **Retester ce nouveau lot** : enchaînement de l'assistant (nom inédit → catégorie → prix,
+      nom connu → direct au prix), et qu'un ingrédient scanné proche d'une entrée catalogue
+      (ex: "Carottes") récupère sa vraie catégorie au lieu d'"Autres"
 - [ ] Tester avec un vrai PDF numérique dès qu'une vraie facture PDF fournisseur est disponible
       (le test tenté n'était pas un vrai PDF)
 - [ ] Continuer à collecter des cas concrets d'erreurs de scan (prix faux, pas juste des fausses
