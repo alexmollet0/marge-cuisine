@@ -808,7 +808,7 @@ const TR = {
 };
 
 const SEED_INGREDIENTS = [
-  { id: "i1", name: "Bœuf (paleron / gîte)", unit: "kg", catalogId: "boeuf", category: "viandes", lossPercent: 5,
+  { id: "i1", name: "Bœuf (paleron / gîte)", unit: "kg", catalogId: "boeuf", category: "viandes", lossPercent: 10,
     selectedSupplierId: "s1", suppliers: [{ id: "s1", name: "Métro", price: 14.5, priceSource: "estimate" }],
     history: [{ date: "2026-05-02", price: 13.9, supplierName: "Métro" }] },
   { id: "i2", name: "Carottes", unit: "kg", catalogId: "carottes", category: "legumes", lossPercent: 10,
@@ -819,7 +819,7 @@ const SEED_INGREDIENTS = [
     selectedSupplierId: "s4", suppliers: [{ id: "s4", name: "Cavavin Pro", price: 4.5, priceSource: "estimate" }], history: [] },
   { id: "i5", name: "Lardons", unit: "kg", catalogId: null, category: "viandes",
     selectedSupplierId: "s5", suppliers: [{ id: "s5", name: "Métro", price: 9.8, priceSource: "estimate" }], history: [] },
-  { id: "i6", name: "Champignons de Paris", unit: "kg", catalogId: "champignons", category: "legumes", lossPercent: 10,
+  { id: "i6", name: "Champignons de Paris", unit: "kg", catalogId: "champignons", category: "legumes", lossPercent: 5,
     selectedSupplierId: "s6", suppliers: [{ id: "s6", name: "Grossiste local", price: 5.2, priceSource: "estimate" }], history: [] },
   { id: "i7", name: "Beurre doux", unit: "kg", catalogId: "beurre", category: "cremerie",
     selectedSupplierId: "s7",
