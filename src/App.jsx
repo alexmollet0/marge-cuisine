@@ -2706,12 +2706,15 @@ export default function App() {
 
   const pantryFiltered = ingredients.filter((i) => {
     const q = pantryQuery.trim();
-    const nameOk = q === "" || textIncludes(ingredientDisplayName(i), q);
-    if (!nameOk) return false;
-    if (pantryCategory === "none") return q !== ""; // rien par défaut : il faut choisir une catégorie ou chercher
+    // Dès qu'on tape quelque chose, la recherche porte sur TOUT le garde-manger, quel que soit
+    // l'onglet catégorie actif — sinon un ingrédient mal classé (ex: dans "Autres" au lieu de
+    // "Viandes") devient introuvable par nom tant qu'on n'a pas deviné dans quelle catégorie il
+    // a atterri. Bug réel signalé : chercher "boeuf" pendant qu'on est sur l'onglet "Autres" ne
+    // sortait rien si le produit était en fait classé ailleurs.
+    if (q !== "") return textIncludes(ingredientDisplayName(i), q);
+    if (pantryCategory === "none") return false; // rien par défaut : il faut choisir une catégorie ou chercher
     if (pantryCategory === "recent") return true; // filtré par date plus bas
-    const catOk = pantryCategory === "all" || (i.category || "autres") === pantryCategory;
-    return catOk;
+    return pantryCategory === "all" || (i.category || "autres") === pantryCategory;
   });
 
   // Tableau du garde-manger : regroupé par catégorie, puis ordre alphabétique dans chaque groupe.
