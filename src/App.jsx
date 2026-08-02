@@ -518,6 +518,7 @@ const TR = {
     welcomeBannerButton: "Scanner ma première facture",
     firstIngredientPrompt: "Ajoute ton premier ingrédient",
     marginLegendToggle: "Que veulent dire les couleurs ?",
+    deleteLineTooltip: "Retirer cet ingrédient de la recette",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanSkipAllAndClose: "Ignorer le reste et fermer",
@@ -658,6 +659,7 @@ const TR = {
     welcomeBannerButton: "Escanear mi primera factura",
     firstIngredientPrompt: "Añade tu primer ingrediente",
     marginLegendToggle: "¿Qué significan los colores?",
+    deleteLineTooltip: "Quitar este ingrediente de la receta",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanSkipAllAndClose: "Ignorar el resto y cerrar",
@@ -798,6 +800,7 @@ const TR = {
     welcomeBannerButton: "Scan my first invoice",
     firstIngredientPrompt: "Add your first ingredient",
     marginLegendToggle: "What do the colors mean?",
+    deleteLineTooltip: "Remove this ingredient from the recipe",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
     scanSkipAllAndClose: "Skip the rest and close",
@@ -3899,7 +3902,7 @@ export default function App() {
                           <span className="w-1.5 h-1.5 rounded-full shrink-0 price-field" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
                         )}
                         <span className="w-14 shrink-0 text-right price-field">{lineCost(line).toFixed(2)}€</span>
-                        <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0"><Trash2 size={12} /></button>
+                        <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0" title={t("deleteLineTooltip")}><Trash2 size={12} /></button>
                       </div>
                       {ing && (variation || loss > 0) && (
                         <div className="flex items-center gap-2 text-[10px] text-black/50 pl-0.5 -mt-0.5 mb-1.5">
