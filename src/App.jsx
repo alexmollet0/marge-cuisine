@@ -2663,6 +2663,15 @@ export default function App() {
       const manyLowConfidence = foodItems.length >= 2 && foodItems.filter((i) => i.lowConfidence).length / foodItems.length > 0.3;
 
       setScanResult({ supplier: data.supplier || null, date: data.date || null, items: foodItems, excludedItems, manyUp, manyLowConfidence });
+      // Vérification "un par un" par défaut dès qu'il y a quelque chose à vérifier — demandé
+      // explicitement par l'utilisateur (2026-08) : la liste groupée restait trop facile à
+      // survoler sans vraiment regarder chaque ligne. Le mode liste reste accessible via "Fermer".
+      const needsReview = foodItems.filter((it) => !isReadyToImport(it));
+      if (needsReview.length > 0) {
+        setReviewStackOpen(true);
+        setStackTotal(needsReview.length);
+        setExpandedReviewIdx(null);
+      }
     } catch (err) {
       setScanErr(err.message || "Erreur inconnue");
     } finally {
@@ -3174,39 +3183,55 @@ export default function App() {
                         );
                       }
                       const current = review[0];
-                      const upcoming = review.slice(1, 3);
+                      const upcoming = review.slice(1, 4);
                       const isExpanded = expandedReviewIdx === current.idx;
                       const matchedIng = current.item.assignTo !== "new" ? ingredientById(current.item.assignTo) : null;
                       const guessedIng = current.item.guessedMatchId ? ingredientById(current.item.guessedMatchId) : null;
                       const needsRename = current.item.assignTo !== "new" && current.item.name && matchedIng && ingredientDisplayName(matchedIng) !== current.item.name;
                       return (
                         <div>
-                          <div className="flex items-center justify-between mb-3 gap-2">
-                            <span className="text-xs text-white/50 font-mono shrink-0">
-                              {t("scanStackProgress")(stackTotal - review.length + 1, stackTotal)}
-                            </span>
-                            <div className="flex items-center gap-3 shrink-0">
-                              <button onClick={skipAllPendingAndClose} className="text-[11px] text-white/40 hover:text-[#B23A2E] underline whitespace-nowrap">
-                                {t("scanSkipAllAndClose")}
-                              </button>
-                              <button onClick={() => setReviewStackOpen(false)} className="text-[11px] text-white/40 underline">
-                                {t("close")}
-                              </button>
+                          <div className="mb-3">
+                            <div className="flex items-center justify-between mb-1.5 gap-2">
+                              <span className="text-sm text-white font-bold font-mono shrink-0">
+                                {t("scanStackProgress")(stackTotal - review.length + 1, stackTotal)}
+                              </span>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <button onClick={skipAllPendingAndClose} className="text-[11px] text-white/40 hover:text-[#B23A2E] underline whitespace-nowrap">
+                                  {t("scanSkipAllAndClose")}
+                                </button>
+                                <button onClick={() => setReviewStackOpen(false)} className="text-[11px] text-white/40 underline">
+                                  {t("close")}
+                                </button>
+                              </div>
+                            </div>
+                            {/* Barre de progression bien visible — avant ce correctif, seul un
+                                petit "1/16" discret indiquait où on en était, repéré comme pas
+                                assez visible par l'utilisateur (2026-08). */}
+                            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.1)" }}>
+                              <div
+                                className="h-full rounded-full transition-all"
+                                style={{ width: `${((stackTotal - review.length) / stackTotal) * 100}%`, background: BRAND_GRADIENT }}
+                              />
                             </div>
                           </div>
 
-                          <div className="relative" style={{ minHeight: isExpanded ? "auto" : "220px" }}>
+                          {/* Effet de pile de cartes plus marqué (demande explicite de l'utilisateur,
+                              2026-08 : "j'imagine les cartes suivantes en arrière-plan de manière
+                              jolie") — jusqu'à 3 cartes visibles derrière au lieu de 2, décalage et
+                              ombre plus prononcés pour bien donner l'impression d'une pile. */}
+                          <div className="relative" style={{ minHeight: isExpanded ? "auto" : "230px" }}>
                             {!isExpanded &&
                               upcoming.map(({ item: uItem }, i) => (
                                 <div
                                   key={i}
-                                  className="absolute inset-x-0 rounded-xl border border-white/10 px-4 py-3 pointer-events-none"
+                                  className="absolute inset-x-0 rounded-2xl border border-white/10 px-4 py-3 pointer-events-none"
                                   style={{
                                     background: "#26221C",
-                                    top: `${(i + 1) * 10}px`,
-                                    transform: `scale(${1 - (i + 1) * 0.04})`,
-                                    opacity: 0.55 - i * 0.2,
+                                    top: `${(i + 1) * 14}px`,
+                                    transform: `scale(${1 - (i + 1) * 0.045})`,
+                                    opacity: 0.6 - i * 0.18,
                                     zIndex: 10 - i,
+                                    boxShadow: "0 6px 16px rgba(0,0,0,0.35)",
                                   }}
                                 >
                                   <div className="text-white/60 text-sm truncate">{uItem.name}</div>
@@ -3238,14 +3263,31 @@ export default function App() {
                                   className="rounded-xl border p-4"
                                   style={{ background: "#1B1815", borderColor: `${TIER_COLORS.mid}80` }}
                                 >
+                                  {/* Avant ce correctif, tout ce qui n'était pas "nouveau" affichait le
+                                      même badge orange "à vérifier" — un rapprochement pourtant confiant
+                                      (score quasi parfait) et un rapprochement douteux (cas réel :
+                                      "haricot" confondu avec "abricot") se ressemblaient à l'écran,
+                                      alors que ce sont deux niveaux de confiance très différents.
+                                      Distinction demandée explicitement par l'utilisateur, 2026-08. */}
                                   <span
-                                    className="text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
+                                    className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded-full font-semibold"
                                     style={{
-                                      color: current.item.assignTo === "new" ? "#3B82F6" : TIER_COLORS.mid,
-                                      background: current.item.assignTo === "new" ? "#3B82F622" : `${TIER_COLORS.mid}22`,
+                                      color: current.item.assignTo === "new" ? "#3B82F6" : current.item.matchConfident ? TIER_COLORS.high : TIER_COLORS.mid,
+                                      background: current.item.assignTo === "new" ? "#3B82F622" : current.item.matchConfident ? `${TIER_COLORS.high}22` : `${TIER_COLORS.mid}22`,
                                     }}
                                   >
-                                    {current.item.assignTo === "new" ? t("scanNewIngredient") : t("scanLinkedGuess")}
+                                    {current.item.assignTo === "new" ? (
+                                      <Plus size={10} />
+                                    ) : current.item.matchConfident ? (
+                                      <Check size={10} />
+                                    ) : (
+                                      <AlertTriangle size={10} />
+                                    )}
+                                    {current.item.assignTo === "new"
+                                      ? t("scanNewIngredient")
+                                      : current.item.matchConfident
+                                      ? t("scanLinkedSure")
+                                      : t("scanLinkedGuess")}
                                   </span>
 
                                   {/* Texte facture visible dès le premier coup d'œil (pas besoin d'ouvrir
@@ -3272,7 +3314,30 @@ export default function App() {
                                       />
                                     </div>
                                   ) : (
-                                    <div className="text-white text-lg font-semibold mt-2">{current.item.name}</div>
+                                    // Pas de suggestion du tout (vrai nouvel ingrédient) : le nom doit
+                                    // rester modifiable directement ici, comme tout le reste de la carte
+                                    // — avant ce correctif c'était juste du texte statique.
+                                    <input
+                                      value={current.item.name || ""}
+                                      onChange={(e) => updateScanItem(current.idx, { name: e.target.value })}
+                                      className="w-full bg-transparent text-white text-lg font-semibold mt-2 outline-none border-b border-transparent focus:border-white/20"
+                                    />
+                                  )}
+
+                                  {/* Variation de prix par rapport au dernier prix connu — absente de
+                                      cette carte avant ce correctif (visible seulement dans la liste
+                                      groupée), demandée explicitement par l'utilisateur (2026-08). */}
+                                  {(current.item.priceUp || current.item.priceDown || current.item.bigChange) && current.item.currentPrice !== null && current.item.currentPriceIsReal && (
+                                    <div
+                                      className="flex items-center gap-1 text-[11px] font-bold mt-1.5"
+                                      style={{ color: current.item.bigChange ? TIER_COLORS.low : current.item.priceUp ? TIER_COLORS.mid : "#10B981" }}
+                                    >
+                                      {current.item.priceDown ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
+                                      {Math.round((Math.abs((current.item.unitPriceHT || 0) - current.item.currentPrice) / current.item.currentPrice) * 100)}%
+                                      <span className="text-white/35 font-normal">
+                                        ({current.item.currentPrice.toFixed(2)}€ → {(current.item.unitPriceHT || 0).toFixed(2)}€)
+                                      </span>
+                                    </div>
                                   )}
 
                                   <div className="flex items-center gap-2 mt-2 rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.06)" }}>
@@ -3284,11 +3349,11 @@ export default function App() {
                                     <span className="text-white/50 text-sm shrink-0">€/{unitDisplayLabel(current.item.unit, t)}</span>
                                     <button
                                       onClick={() => setExpandedReviewIdx(current.idx)}
-                                      className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-lg text-[11px] text-white/60 font-semibold"
+                                      className="shrink-0 flex items-center gap-1 px-3 h-10 rounded-lg text-xs text-white/70 font-semibold active:scale-95 transition-transform"
                                       style={{ background: "rgba(255,255,255,0.08)" }}
                                       title={t("scanModify")}
                                     >
-                                      <Pencil size={13} /> {t("scanModify")}
+                                      <Pencil size={14} /> {t("scanModify")}
                                     </button>
                                   </div>
 
@@ -3320,17 +3385,19 @@ export default function App() {
                                         )}
                                   </div>
 
-                                  <div className="flex gap-1.5 mt-3">
+                                  {/* Boutons agrandis (cible tactile testée sur téléphone), demande
+                                      explicite de l'utilisateur, 2026-08. */}
+                                  <div className="flex gap-2 mt-3">
                                     <button
                                       onClick={() => skipScanItem(current.idx)}
-                                      className="flex-1 text-[10px] uppercase tracking-wide py-2.5 rounded-full font-semibold border"
-                                      style={{ borderColor: "rgba(239,68,68,0.4)", color: "#EF4444" }}
+                                      className="flex-1 text-xs uppercase tracking-wide py-3.5 rounded-full font-bold border-2 active:scale-95 transition-transform"
+                                      style={{ borderColor: "rgba(239,68,68,0.5)", color: "#EF4444" }}
                                     >
                                       {t("scanSkip")}
                                     </button>
                                     <button
                                       onClick={() => updateScanItem(current.idx, { reviewed: true })}
-                                      className="flex-1 text-[10px] uppercase tracking-wide py-2.5 rounded-full font-semibold"
+                                      className="flex-1 text-xs uppercase tracking-wide py-3.5 rounded-full font-bold active:scale-95 transition-transform"
                                       style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                                     >
                                       {t("scanValidate")}
