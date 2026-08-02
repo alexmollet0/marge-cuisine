@@ -517,6 +517,7 @@ const TR = {
     welcomeBannerText: "Bienvenue sur Chefup ! La recette ci-dessous est un exemple avec des prix fictifs, pour te montrer comment l'app calcule tes marges. Scanne ta première vraie facture pour remplacer ces prix par les tiens.",
     welcomeBannerButton: "Scanner ma première facture",
     firstIngredientPrompt: "Ajoute ton premier ingrédient",
+    marginLegendToggle: "Que veulent dire les couleurs ?",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanSkipAllAndClose: "Ignorer le reste et fermer",
@@ -656,6 +657,7 @@ const TR = {
     welcomeBannerText: "¡Bienvenido a Chefup! La receta de abajo es un ejemplo con precios ficticios, para mostrarte cómo la app calcula tus márgenes. Escanea tu primera factura real para sustituir estos precios por los tuyos.",
     welcomeBannerButton: "Escanear mi primera factura",
     firstIngredientPrompt: "Añade tu primer ingrediente",
+    marginLegendToggle: "¿Qué significan los colores?",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanSkipAllAndClose: "Ignorar el resto y cerrar",
@@ -795,6 +797,7 @@ const TR = {
     welcomeBannerText: "Welcome to Chefup! The recipe below is an example with made-up prices, to show you how the app calculates your margins. Scan your first real invoice to replace these prices with your own.",
     welcomeBannerButton: "Scan my first invoice",
     firstIngredientPrompt: "Add your first ingredient",
+    marginLegendToggle: "What do the colors mean?",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
     scanSkipAllAndClose: "Skip the rest and close",
@@ -1643,6 +1646,7 @@ export default function App() {
   const [lang, setLang] = useState("fr");
   const [showSettings, setShowSettings] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [showMarginLegend, setShowMarginLegend] = useState(false);
   const [ready, setReady] = useState(false);
   const [loadErr, setLoadErr] = useState(false);
   const [savedPulse, setSavedPulse] = useState(false);
@@ -4022,7 +4026,27 @@ export default function App() {
                         </div>
                       </>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setShowMarginLegend((v) => !v)}
+                      className="w-5 h-5 shrink-0 self-center mr-1.5 rounded-full flex items-center justify-center text-[10px] font-bold border"
+                      style={{ borderColor: `${TIER_COLORS[tier]}80`, color: TIER_COLORS[tier] }}
+                      title={t("marginLegendToggle")}
+                    >
+                      ?
+                    </button>
                   </div>
+                  {/* Rouge/orange/vert code un seuil de marge que l'utilisateur choisit lui-même
+                      dans les Paramètres — la légende n'était visible que là-bas, jamais à
+                      l'endroit où la couleur apparaît réellement. Bouton "?" discret plutôt
+                      qu'un texte permanent, pour ne pas surcharger la fiche recette. */}
+                  {showMarginLegend && (
+                    <p className="text-[10px] text-black/40 text-center max-w-[280px]">
+                      {hasOrangeZone
+                        ? t("marginLegendWithOrange")(effectiveGreenTarget, CRITICAL_MARGIN)
+                        : t("marginLegendNoOrange")(CRITICAL_MARGIN)}
+                    </p>
+                  )}
                   <div
                     className="flex items-center gap-1.5 text-[11px] font-body text-center px-3 py-1.5 rounded-full font-medium max-w-[280px]"
                     style={{ color: TIER_COLORS[tier], background: `${TIER_COLORS[tier]}18` }}
