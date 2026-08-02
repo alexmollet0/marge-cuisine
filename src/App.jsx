@@ -611,6 +611,7 @@ export const TR = {
     authErrorEmailNotConfirmed: "Confirme d'abord ton adresse email (vérifie ta boîte mail) avant de te connecter.",
     authErrorPasswordTooShort: "Le mot de passe doit contenir au moins 6 caractères.", authErrorInvalidEmail: "Adresse email invalide.",
     authErrorGeneric: "Une erreur est survenue. Réessaie.", authErrorPasswordMismatch: "Les deux mots de passe ne correspondent pas.",
+    authTagline: "Calcule tes marges en toute simplicité", authSignupFreeNote: "Gratuit, aucune carte bancaire requise.",
   },
   es: {
     appTitle: "Chefup", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef",
@@ -767,6 +768,7 @@ export const TR = {
     authErrorEmailNotConfirmed: "Confirma primero tu dirección de email (revisa tu correo) antes de iniciar sesión.",
     authErrorPasswordTooShort: "La contraseña debe tener al menos 6 caracteres.", authErrorInvalidEmail: "Dirección de email inválida.",
     authErrorGeneric: "Ha ocurrido un error. Inténtalo de nuevo.", authErrorPasswordMismatch: "Las dos contraseñas no coinciden.",
+    authTagline: "Calcula tus márgenes con toda sencillez", authSignupFreeNote: "Gratis, sin necesidad de tarjeta bancaria.",
   },
   en: {
     appTitle: "Chefup", saved: "Saved", loading: "Loading…", greeting: "Hello Chef",
@@ -923,6 +925,7 @@ export const TR = {
     authErrorEmailNotConfirmed: "Confirm your email address first (check your inbox) before logging in.",
     authErrorPasswordTooShort: "Password must be at least 6 characters.", authErrorInvalidEmail: "Invalid email address.",
     authErrorGeneric: "Something went wrong. Please try again.", authErrorPasswordMismatch: "The two passwords don't match.",
+    authTagline: "Calculate your margins with ease", authSignupFreeNote: "Free, no credit card required.",
   },
 };
 

@@ -257,14 +257,19 @@ export default function AuthGate({ children }) {
           className="w-full max-w-sm rounded-2xl p-6 border border-white/10"
           style={{ background: "#26221C" }}
         >
-          <div className="flex items-center gap-2 justify-center mb-6">
+          <div className="flex items-center gap-2 justify-center mb-2">
             <Logo size={30} />
             <h1 className="font-display text-white text-lg tracking-wide uppercase">Chefup</h1>
           </div>
+          <p className="text-center text-xs text-white/40 mb-4">{t("authTagline")}</p>
           {LangSwitcher}
-          <h2 className="text-white text-center font-display uppercase text-sm tracking-wide mb-5">
+          <h2 className="text-white text-center font-display uppercase text-sm tracking-wide mb-1.5">
             {mode === "login" ? t("authLoginTitle") : mode === "signup" ? t("authSignupTitle") : t("authForgotTitle")}
           </h2>
+          {mode === "signup" && (
+            <p className="text-center text-xs text-emerald-400/80 mb-4">{t("authSignupFreeNote")}</p>
+          )}
+          {mode !== "signup" && <div className="mb-5" />}
 
           {err && (
             <div className="mb-4 text-xs rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">
