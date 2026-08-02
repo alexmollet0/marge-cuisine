@@ -503,6 +503,8 @@ const TR = {
     scanSummaryUpdate: (name, price, unit) => `Tu vas mettre à jour "${name}" à ${price}€/${unit}.`,
     scanItemsToReview: (n) => `${n} produit${n > 1 ? "s" : ""} à vérifier`,
     scanVerifyOneByOne: "Vérifier un par un", scanValidate: "Valider", scanModify: "Modifier",
+    editPriceTooltip: "Modifier le prix", viewDetailsLabel: "Détails",
+    viewDetailsTooltip: "Catégorie, pertes, fournisseurs...",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanSkipAllAndClose: "Ignorer le reste et fermer",
@@ -570,7 +572,7 @@ const TR = {
     marginWatchMsg: "En dessous de ta marge souhaitée — à surveiller sur ce plat.",
     marginLowMsg: "Marge largement insuffisante : ce plat n'est pas assez rentable en l'état.",
     marginLowFixMsg: "Marge insuffisante, à corriger rapidement.",
-    vatOption10Hint: "restauration FR/ES",
+    vatOption10Hint: "restauration FR/ES", vatOption21Hint: "TVA Espagne",
     recipeLineIngredientPlaceholder: "Choisir un ingrédient…",
     recipeCreateIngredientFromLine: "Créer un nouvel ingrédient",
     recipeTargetReached: "Objectif de cette recette atteint",
@@ -632,6 +634,8 @@ const TR = {
     scanSummaryUpdate: (name, price, unit) => `Vas a actualizar "${name}" a ${price}€/${unit}.`,
     scanItemsToReview: (n) => `${n} producto${n > 1 ? "s" : ""} a verificar`,
     scanVerifyOneByOne: "Verificar uno por uno", scanValidate: "Validar", scanModify: "Modificar",
+    editPriceTooltip: "Modificar el precio", viewDetailsLabel: "Detalles",
+    viewDetailsTooltip: "Categoría, mermas, proveedores...",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanSkipAllAndClose: "Ignorar el resto y cerrar",
@@ -699,7 +703,7 @@ const TR = {
     marginWatchMsg: "Por debajo de tu margen deseado — a vigilar en este plato.",
     marginLowMsg: "Margen muy insuficiente: este plato no es rentable tal cual.",
     marginLowFixMsg: "Margen insuficiente, a corregir rápidamente.",
-    vatOption10Hint: "hostelería España",
+    vatOption10Hint: "hostelería España", vatOption21Hint: "IVA general España",
     recipeLineIngredientPlaceholder: "Elegir un ingrediente…",
     recipeCreateIngredientFromLine: "Crear un nuevo ingrediente",
     recipeTargetReached: "Objetivo de esta receta alcanzado",
@@ -761,6 +765,8 @@ const TR = {
     scanSummaryUpdate: (name, price, unit) => `You're about to update "${name}" to ${price}€/${unit}.`,
     scanItemsToReview: (n) => `${n} item${n > 1 ? "s" : ""} to check`,
     scanVerifyOneByOne: "Check one by one", scanValidate: "Validate", scanModify: "Edit",
+    editPriceTooltip: "Edit the price", viewDetailsLabel: "Details",
+    viewDetailsTooltip: "Category, yield loss, suppliers...",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
     scanSkipAllAndClose: "Skip the rest and close",
@@ -828,7 +834,7 @@ const TR = {
     marginWatchMsg: "Below your desired margin — keep an eye on this dish.",
     marginLowMsg: "Margin far too low: this dish isn't profitable as it stands.",
     marginLowFixMsg: "Margin too low, needs fixing quickly.",
-    vatOption10Hint: "food service",
+    vatOption10Hint: "food service", vatOption21Hint: "Spain VAT",
     recipeLineIngredientPlaceholder: "Choose an ingredient…",
     recipeCreateIngredientFromLine: "Create a new ingredient",
     recipeTargetReached: "This recipe's target reached",
@@ -859,18 +865,46 @@ const SEED_INGREDIENTS = [
     history: [] },
 ];
 
-const SEED_RECIPES = [
-  {
-    id: "r1", name: "Bœuf bourguignon (recette exemple)", portions: 6, sellPrice: 19.9, targetMargin: 75, isExample: true,
-    notes: "Détaillez le bœuf en cubes de 4-5 cm, salez, poivrez. Faites-le mariner 12h au frais dans le vin rouge avec thym, laurier et un oignon émincé. Égouttez la viande en réservant la marinade, épongez-la bien avant de la saisir à feu vif dans un mélange beurre/huile jusqu'à belle coloration ; réservez. Faites revenir les lardons, puis les oignons et les carottes coupés en rondelles. Remettez la viande, saupoudrez d'une cuillère de farine, mouillez avec la marinade filtrée et complétez avec un peu d'eau ou de fond si besoin pour bien couvrir. Portez à frémissement, couvrez et laissez mijoter 3h à feu très doux. Ajoutez les champignons 30 min avant la fin de cuisson. Rectifiez l'assaisonnement, montez la sauce au beurre froid hors du feu pour la lier et la lustrer. Dressez avec du persil frais ciselé ; accompagnez de pommes de terre vapeur ou de tagliatelles fraîches.",
-    allergens: "Sulfites (vin)", allergensAuto: false, createdAt: "2026-06-10",
-    lines: [
-      { ingredientId: "i1", qty: 1.2 }, { ingredientId: "i2", qty: 0.4 }, { ingredientId: "i3", qty: 0.3 },
-      { ingredientId: "i4", qty: 0.75 }, { ingredientId: "i5", qty: 0.15 }, { ingredientId: "i6", qty: 0.25 },
-      { ingredientId: "i7", qty: 0.05 },
-    ],
-  },
-];
+// La recette de démo doit rester lisible quelle que soit la langue d'interface choisie dès le
+// premier lancement — avant ce correctif, seul le nom/les champs UI étaient traduits, mais les
+// instructions et l'allergène restaient toujours en français même en anglais/espagnol (repéré en
+// test réel, 2026-08). "Bœuf bourguignon" reste inchangé dans les 3 langues (nom de plat reconnu
+// tel quel), le "(recette exemple)" redondant avec le badge déjà traduit "RECETTE EXEMPLE" a été
+// retiré plutôt que traduit.
+const SEED_RECIPE_NOTES = {
+  fr: "Détaillez le bœuf en cubes de 4-5 cm, salez, poivrez. Faites-le mariner 12h au frais dans le vin rouge avec thym, laurier et un oignon émincé. Égouttez la viande en réservant la marinade, épongez-la bien avant de la saisir à feu vif dans un mélange beurre/huile jusqu'à belle coloration ; réservez. Faites revenir les lardons, puis les oignons et les carottes coupés en rondelles. Remettez la viande, saupoudrez d'une cuillère de farine, mouillez avec la marinade filtrée et complétez avec un peu d'eau ou de fond si besoin pour bien couvrir. Portez à frémissement, couvrez et laissez mijoter 3h à feu très doux. Ajoutez les champignons 30 min avant la fin de cuisson. Rectifiez l'assaisonnement, montez la sauce au beurre froid hors du feu pour la lier et la lustrer. Dressez avec du persil frais ciselé ; accompagnez de pommes de terre vapeur ou de tagliatelles fraîches.",
+  es: "Corta la carne de vacuno en dados de 4-5 cm, sala y pimienta. Déjala marinar 12h en la nevera en el vino tinto con tomillo, laurel y una cebolla picada. Escurre la carne reservando la marinada, sécala bien antes de sellarla a fuego fuerte en una mezcla de mantequilla/aceite hasta que quede bien dorada; reserva. Sofríe el bacon, luego la cebolla y las zanahorias cortadas en rodajas. Vuelve a añadir la carne, espolvorea con una cucharada de harina, moja con la marinada colada y completa con un poco de agua o caldo si hace falta para cubrir bien. Lleva a ebullición suave, tapa y cocina a fuego muy bajo durante 3h. Añade los champiñones 30 min antes de terminar la cocción. Rectifica la sazón, liga la salsa con mantequilla fría fuera del fuego para espesarla y darle brillo. Sirve con perejil fresco picado; acompaña con patatas al vapor o tallarines frescos.",
+  en: "Cut the beef into 4-5 cm cubes, season with salt and pepper. Marinate for 12h in the fridge in the red wine with thyme, bay leaf and a chopped onion. Drain the meat, keeping the marinade, and pat it dry before searing it over high heat in a butter/oil mix until nicely browned; set aside. Sauté the lardons, then the onions and carrots cut into rounds. Add the meat back in, sprinkle with a spoonful of flour, moisten with the strained marinade and top up with a little water or stock if needed to cover well. Bring to a gentle simmer, cover and cook on very low heat for 3h. Add the mushrooms 30 min before the end of cooking. Adjust the seasoning, then swirl in cold butter off the heat to thicken and give the sauce a glossy finish. Plate with freshly chopped parsley; serve with steamed potatoes or fresh tagliatelle.",
+};
+const SEED_RECIPE_ALLERGENS = { fr: "Sulfites (vin)", es: "Sulfitos (vino)", en: "Sulfites (wine)" };
+
+// Vrai uniquement si la recette de démo n'a jamais été modifiée (notes/allergènes encore
+// identiques à l'une des 3 langues connues) — sert à décider si on peut la reconstruire dans une
+// nouvelle langue sans risquer d'écraser un vrai texte tapé par l'utilisateur.
+function isPristineSeedRecipes(recipes) {
+  if (!recipes || recipes.length !== 1 || recipes[0].id !== "r1") return false;
+  const r = recipes[0];
+  return Object.values(SEED_RECIPE_NOTES).includes(r.notes) && Object.values(SEED_RECIPE_ALLERGENS).includes(r.allergens);
+}
+
+// Reconstruit la recette de démo dans la langue demandée — appelée au premier chargement (langue
+// sauvegardée si elle existe) et à chaque changement de langue tant que l'utilisateur n'a pas
+// modifié la recette lui-même (voir isPristineSeedRecipes, App).
+function buildSeedRecipes(lang) {
+  return [
+    {
+      id: "r1", name: "Bœuf bourguignon", portions: 6, sellPrice: 19.9, targetMargin: 75, isExample: true,
+      notes: SEED_RECIPE_NOTES[lang] || SEED_RECIPE_NOTES.fr,
+      allergens: SEED_RECIPE_ALLERGENS[lang] || SEED_RECIPE_ALLERGENS.fr,
+      allergensAuto: false, createdAt: "2026-06-10",
+      lines: [
+        { ingredientId: "i1", qty: 1.2 }, { ingredientId: "i2", qty: 0.4 }, { ingredientId: "i3", qty: 0.3 },
+        { ingredientId: "i4", qty: 0.75 }, { ingredientId: "i5", qty: 0.15 }, { ingredientId: "i6", qty: 0.25 },
+        { ingredientId: "i7", qty: 0.05 },
+      ],
+    },
+  ];
+}
 
 const DEFAULT_SETTINGS = { vat: 10, minMargin: 75 };
 
@@ -1561,7 +1595,7 @@ function marginMessage(roundedMargin, effectiveTarget, tier, lang) {
 
 export default function App() {
   const [ingredients, setIngredients] = useState(SEED_INGREDIENTS);
-  const [recipes, setRecipes] = useState(SEED_RECIPES);
+  const [recipes, setRecipes] = useState(buildSeedRecipes("fr"));
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   // Mémoire des rapprochements fournisseur → ingrédient déjà validés lors d'un scan précédent
   // (clé = texte brut de la ligne facture normalisé, valeur = id de l'ingrédient du garde-manger).
@@ -1622,7 +1656,11 @@ export default function App() {
         try { const r = await storage.get("lang"); lg = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("supplierMappings"); sm = r ? JSON.parse(r.value) : null; } catch (e) {}
         if (ing && ing.length) setIngredients(ing);
+        // Nouvel utilisateur (rien encore enregistré) mais langue déjà connue (choisie avant que
+        // le premier chargement se termine) : reconstruit la recette de démo dans cette langue
+        // plutôt que de garder la version française par défaut du useState initial.
         if (rec && rec.length) { setRecipes(rec); setActiveId(rec[0].id); }
+        else if (lg && lg !== "fr") { setRecipes(buildSeedRecipes(lg)); }
         if (set) setSettings({ ...DEFAULT_SETTINGS, ...set });
         if (lg) setLang(lg);
         if (sm && sm.length) setSupplierMappings(sm);
@@ -1888,6 +1926,15 @@ export default function App() {
     if (!window.confirm(t("resetDataConfirm"))) return;
     setIngredients([]); setRecipes([]); setActiveId(null); setSupplierMappings([]);
     try { await storage.delete("ingredients"); await storage.delete("recipes"); await storage.delete("supplierMappings"); } catch (e) {}
+  };
+
+  // Change la langue d'interface et, si la recette de démo n'a jamais été touchée, la reconstruit
+  // dans la nouvelle langue (sinon ses instructions/allergène resteraient dans l'ancienne langue,
+  // seul le reste de l'interface changerait — repéré en test réel, 2026-08). Ne touche jamais une
+  // recette réellement modifiée par l'utilisateur.
+  const changeLang = (newLang) => {
+    setLang(newLang);
+    if (isPristineSeedRecipes(recipes)) setRecipes(buildSeedRecipes(newLang));
   };
 
   const handlePrint = () => window.print();
@@ -2839,9 +2886,9 @@ export default function App() {
             <SettingsIcon size={16} />
           </button>
           <div className="flex items-center gap-1">
-            <button onClick={() => setLang("fr")} className={`text-lg leading-none ${lang === "fr" ? "" : "opacity-40 grayscale"}`} title="Français">🇫🇷</button>
-            <button onClick={() => setLang("es")} className={`text-lg leading-none ${lang === "es" ? "" : "opacity-40 grayscale"}`} title="Español">🇪🇸</button>
-            <button onClick={() => setLang("en")} className={`text-lg leading-none ${lang === "en" ? "" : "opacity-40 grayscale"}`} title="English">🇬🇧</button>
+            <button onClick={() => changeLang("fr")} className={`text-lg leading-none ${lang === "fr" ? "" : "opacity-40 grayscale"}`} title="Français">🇫🇷</button>
+            <button onClick={() => changeLang("es")} className={`text-lg leading-none ${lang === "es" ? "" : "opacity-40 grayscale"}`} title="Español">🇪🇸</button>
+            <button onClick={() => changeLang("en")} className={`text-lg leading-none ${lang === "en" ? "" : "opacity-40 grayscale"}`} title="English">🇬🇧</button>
           </div>
         </div>
       </header>
@@ -2860,7 +2907,7 @@ export default function App() {
               <option value={5.5}>5.5%</option>
               <option value={10}>10% ({t("vatOption10Hint")})</option>
               <option value={20}>20%</option>
-              <option value={21}>21% (IVA general España)</option>
+              <option value={21}>21% ({t("vatOption21Hint")})</option>
             </select>
 
             <label className="text-xs text-white/60 block mb-1">{t("minMarginLabel")}</label>
@@ -4067,11 +4114,16 @@ export default function App() {
                           <button
                             onClick={(e) => { e.stopPropagation(); openEditWizard(ing); }}
                             className="shrink-0 text-white/30 hover:text-[#8B5CF6] p-1"
-                            title={t("scanModify")}
+                            title={t("editPriceTooltip")}
                           >
                             <Pencil size={13} />
                           </button>
-                          <button onClick={() => setExpandedIngId(isOpen ? null : ing.id)} className="shrink-0 text-white/30 p-1">
+                          <button
+                            onClick={() => setExpandedIngId(isOpen ? null : ing.id)}
+                            className="shrink-0 flex items-center gap-0.5 text-white/30 hover:text-white p-1"
+                            title={t("viewDetailsTooltip")}
+                          >
+                            <span className="text-[9px] uppercase tracking-wide">{t("viewDetailsLabel")}</span>
                             <ChevronDown size={14} className={`transition-transform ${isOpen ? "rotate-180" : ""}`} />
                           </button>
                         </div>
