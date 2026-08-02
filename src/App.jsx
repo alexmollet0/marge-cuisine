@@ -577,8 +577,9 @@ const TR = {
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer ces lignes",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
-    scanTab: "Scanner", scanTabHint: "Prends en photo ta facture Métro, Promocash, Transgourmet ou tout autre fournisseur — l'IA s'occupe du reste.",
-    scanTakePhoto: "Prendre une photo", scanUploadFile: "Choisir une photo ou un fichier",
+    scanTab: "Scanner", scanTabHint: "Importe le PDF de ta facture Métro, Promocash, Transgourmet (ou prends-la en photo) — l'IA s'occupe du reste.",
+    scanTakePhoto: "Prendre une photo", scanUploadFile: "Importer un fichier (PDF, photo...)",
+    scanRecommendedBadge: "Recommandé — plus précis",
     scanTipTitle: "💡 Astuce pour un scan optimal :",
     scanTipBody: "Pour une précision maximale, privilégie l'import du fichier PDF original de ton fournisseur (METRO, Transgourmet, etc.). Si tu prends une photo, pose la facture bien à plat sous une bonne lumière. Attention : le flou, les ombres, les pliures et les reflets altèrent la précision de l'IA.",
     scanColisUnit: "colis",
@@ -719,8 +720,9 @@ const TR = {
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar estas líneas",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
-    scanTab: "Escanear", scanTabHint: "Haz una foto de tu factura de Makro, Gros Mercat o cualquier otro proveedor — la IA se encarga del resto.",
-    scanTakePhoto: "Tomar una foto", scanUploadFile: "Elegir una foto o un archivo",
+    scanTab: "Escanear", scanTabHint: "Importa el PDF de tu factura de Makro, Gros Mercat o cualquier otro proveedor (o hazle una foto) — la IA se encarga del resto.",
+    scanTakePhoto: "Tomar una foto", scanUploadFile: "Importar un archivo (PDF, foto...)",
+    scanRecommendedBadge: "Recomendado — más preciso",
     scanTipTitle: "💡 Consejo para un escaneo óptimo:",
     scanTipBody: "Para una precisión máxima, prioriza la importación del archivo PDF original de tu proveedor (Makro, Gros Mercat, etc.). Si haces una foto, coloca la factura bien plana bajo una buena luz. Atención: el desenfoque, las sombras, los pliegues y los reflejos reducen la precisión de la IA.",
     scanColisUnit: "paquete",
@@ -861,8 +863,9 @@ const TR = {
     scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import these lines",
     scanPriceIncrease: "Price up", scanNoItems: "No item detected.",    scanHint: "Check and correct each line before importing — the AI can make mistakes.",
     scanWeightLabel: "Weight of 1 piece (leave at 0 if truly priced by unit):",
-    scanTab: "Scanner", scanTabHint: "Take a photo of your invoice from Bidfood, Brakes or any other supplier — the AI takes care of the rest.",
-    scanTakePhoto: "Take a photo", scanUploadFile: "Choose a photo or file",
+    scanTab: "Scanner", scanTabHint: "Import your invoice as a PDF from Bidfood, Brakes or any other supplier (or take a photo) — the AI takes care of the rest.",
+    scanTakePhoto: "Take a photo", scanUploadFile: "Import a file (PDF, photo...)",
+    scanRecommendedBadge: "Recommended — more accurate",
     scanTipTitle: "💡 Tip for an optimal scan:",
     scanTipBody: "For maximum accuracy, prefer importing the original PDF file from your supplier (Bidfood, Brakes, etc.). If you take a photo, lay the invoice flat under good lighting. Careful: blur, shadows, creases and glare all reduce the AI's accuracy.",
     scanColisUnit: "pack",
@@ -4216,18 +4219,31 @@ export default function App() {
               </svg>
               <h2 className="font-display text-white uppercase tracking-wide text-sm mt-1">{t("scanInvoice")}</h2>
               <p className="text-white/40 text-xs leading-relaxed">{t("scanTabHint")}</p>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="mt-3 w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+              {/* Import de fichier mis en avant (PDF natif ou photo depuis la galerie) plutôt que
+                  la prise de photo directe — demande explicite de l'utilisateur, 2026-08, suite à
+                  la campagne de test qui a confirmé le PDF natif comme la modalité la plus fiable
+                  (aucun risque d'alignement visuel/décalage de ligne). La prise de photo reste
+                  pleinement fonctionnelle (l'utilisateur confirme de bons résultats même sur un
+                  ticket de caisse pris rapidement) — seule la mise en avant visuelle change,
+                  jamais une fonctionnalité retirée. */}
+              <span
+                className="mt-3 text-[9px] uppercase tracking-widest font-bold px-2.5 py-1 rounded-full"
+                style={{ background: "#3B82F622", color: "#3B82F6" }}
               >
-                <Camera size={15} /> {t("scanTakePhoto")}
-              </button>
+                {t("scanRecommendedBadge")}
+              </span>
               <button
                 onClick={() => fileInputLibraryRef.current?.click()}
-                className="w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform border border-white/20 text-white/70"
+                className="mt-1.5 w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                style={{ background: "#3B82F6", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(59,130,246,0.4)" }}
               >
                 <Upload size={15} /> {t("scanUploadFile")}
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform border border-white/20 text-white/60"
+              >
+                <Camera size={15} /> {t("scanTakePhoto")}
               </button>
             </div>
 
