@@ -511,6 +511,9 @@ const TR = {
     viewDetailsTooltip: "Catégorie, pertes, fournisseurs...", unitToggleTooltip: "Changer d'unité",
     pickerSearchPlaceholder: "Tape 2 lettres…", pickerTypeToSearch: "Tape pour chercher…", pickerNoResults: "Aucun résultat",
     unitPieceLabel: "pièce", unitFieldLabel: "Unité",
+    legacyPantryHint: "Ton garde-manger contient encore l'ancienne liste de démonstration (~200 ingrédients). Charge la nouvelle version allégée (7 ingrédients essentiels) pour repartir sur une base plus claire.",
+    legacyPantryButton: "Charger le nouveau garde-manger",
+    cancelLabel: "Annuler", resetConfirmButton: "Oui, tout réinitialiser",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanSkipAllAndClose: "Ignorer le reste et fermer",
@@ -644,6 +647,9 @@ const TR = {
     viewDetailsTooltip: "Categoría, mermas, proveedores...", unitToggleTooltip: "Cambiar de unidad",
     pickerSearchPlaceholder: "Escribe 2 letras…", pickerTypeToSearch: "Escribe para buscar…", pickerNoResults: "Sin resultados",
     unitPieceLabel: "unidad", unitFieldLabel: "Unidad",
+    legacyPantryHint: "Tu despensa todavía tiene la antigua lista de demostración (~200 ingredientes). Carga la nueva versión reducida (7 ingredientes esenciales) para empezar con una base más clara.",
+    legacyPantryButton: "Cargar la nueva despensa",
+    cancelLabel: "Cancelar", resetConfirmButton: "Sí, reiniciar todo",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanSkipAllAndClose: "Ignorar el resto y cerrar",
@@ -777,6 +783,9 @@ const TR = {
     viewDetailsTooltip: "Category, yield loss, suppliers...", unitToggleTooltip: "Change unit",
     pickerSearchPlaceholder: "Type 2 letters…", pickerTypeToSearch: "Type to search…", pickerNoResults: "No results",
     unitPieceLabel: "piece", unitFieldLabel: "Unit",
+    legacyPantryHint: "Your pantry still has the old demo list (~200 ingredients). Load the new lean version (7 essential ingredients) to start from a clearer base.",
+    legacyPantryButton: "Load the new pantry",
+    cancelLabel: "Cancel", resetConfirmButton: "Yes, reset everything",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
     scanSkipAllAndClose: "Skip the rest and close",
@@ -1624,6 +1633,7 @@ export default function App() {
   const [recipeSubView, setRecipeSubView] = useState("list"); // 'list' | 'detail'
   const [lang, setLang] = useState("fr");
   const [showSettings, setShowSettings] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [ready, setReady] = useState(false);
   const [loadErr, setLoadErr] = useState(false);
   const [savedPulse, setSavedPulse] = useState(false);
@@ -1938,9 +1948,20 @@ export default function App() {
   };
   const selectSupplier = (ingId, supId) => updateIngredientField(ingId, "selectedSupplierId", supId);
 
-  const clearAll = async () => {
-    if (!window.confirm(t("resetDataConfirm"))) return;
-    setIngredients([]); setRecipes([]); setActiveId(null); setSupplierMappings([]);
+  // Réinitialisation en 2 temps : confirmation dans une fenêtre du même style que le reste de
+  // l'app (remplace window.confirm, une boîte de dialogue système jugée peu engageante par
+  // l'utilisateur, 2026-08), puis exécution qui restaure directement les données de démo (au lieu
+  // de tout vider) — avant ce correctif, tout disparaissait (y compris la recette exemple) et il
+  // fallait rafraîchir la page à la main pour la revoir, ce qui donnait l'impression d'un bug.
+  const clearAll = () => setResetConfirmOpen(true);
+  const performReset = async () => {
+    const freshRecipes = buildSeedRecipes(lang);
+    setIngredients(SEED_INGREDIENTS);
+    setRecipes(freshRecipes);
+    setActiveId(freshRecipes[0].id);
+    setSupplierMappings([]);
+    setResetConfirmOpen(false);
+    setShowSettings(false);
     try { await storage.delete("ingredients"); await storage.delete("recipes"); await storage.delete("supplierMappings"); } catch (e) {}
   };
 
@@ -2959,6 +2980,37 @@ export default function App() {
             <button onClick={clearAll} className="w-full text-center mt-3 text-[11px] text-white/30 hover:text-[#B23A2E] underline">
               {t("resetData")}
             </button>
+          </div>
+        </div>
+      )}
+
+      {resetConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setResetConfirmOpen(false)}>
+          <div
+            className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10"
+            style={{ background: "#26221C" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-3" style={{ color: TIER_COLORS.low }}>
+              <AlertTriangle size={18} className="shrink-0" />
+              <h3 className="font-display uppercase tracking-wide text-sm">{t("resetData")}</h3>
+            </div>
+            <p className="text-white/70 text-sm mb-5">{t("resetDataConfirm")}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setResetConfirmOpen(false)}
+                className="flex-1 text-xs font-display uppercase tracking-wide py-2.5 rounded border border-white/20 text-white/70 hover:border-white/40"
+              >
+                {t("cancelLabel")}
+              </button>
+              <button
+                onClick={performReset}
+                className="flex-1 text-xs font-display uppercase tracking-wide py-2.5 rounded text-white"
+                style={{ background: TIER_COLORS.low }}
+              >
+                {t("resetConfirmButton")}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -4049,6 +4101,27 @@ export default function App() {
               <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 mb-3 text-xs" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                 <span>{t("pantryOnboardingHint")}</span>
+              </div>
+            )}
+
+            {/* Un appareil qui a visité l'app avant le vidage du garde-manger de démarrage
+                (~200 ingrédients -> 7) garde pour toujours son ancien garde-manger : le principe
+                "ne jamais écraser une donnée existante" s'applique aussi à cette ancienne démo,
+                exactement comme à de vraies données. Repéré en test réel (2026-08, téléphone de
+                l'utilisateur toujours sur l'ancienne liste). Condition volontairement stricte
+                (>20 ingrédients ET tous encore au prix "estimé") pour ne jamais se déclencher sur
+                un vrai garde-manger déjà utilisé, même partiellement. */}
+            {ingredients.length > 20 && ingredients.every((i) => activeSupplier(i)?.priceSource === "estimate") && (
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 mb-3 text-xs" style={{ background: "#8B5CF618", color: "#C4B5FD" }}>
+                <AlertTriangle size={14} className="shrink-0" />
+                <span className="flex-1">{t("legacyPantryHint")}</span>
+                <button
+                  onClick={() => setIngredients(SEED_INGREDIENTS)}
+                  className="shrink-0 text-[11px] font-display uppercase tracking-wide px-2.5 py-1.5 rounded-full"
+                  style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                >
+                  {t("legacyPantryButton")}
+                </button>
               </div>
             )}
 
