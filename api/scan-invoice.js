@@ -153,20 +153,13 @@ Autres règles :
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        // TEST TEMPORAIRE (2026-08) : bascule vers Sonnet pour vérifier si le décalage de
-        // ligne observé sur les photos dégradées avec Haiku est une limite de capacité du
-        // modèle. À revenir sur "claude-haiku-4-5-20251001" après le test, sauf décision
-        // explicite de l'utilisateur de garder Sonnet (coût par scan nettement plus élevé).
-        model: "claude-sonnet-5",
-        // TEST : Sonnet 5 utilise par défaut la réflexion étendue ("thinking"), plafonnée à
-        // 8192 tokens indépendamment de max_tokens — le modèle épuisait tout ce budget en
-        // réflexion sans jamais produire de réponse. Désactivée explicitement pour comparer
-        // directement à Haiku (même type de réponse directe, sans réflexion).
-        thinking: { type: "disabled" },
+        model: "claude-haiku-4-5-20251001",
+        // Une facture longue (15-20 lignes) génère un JSON plus volumineux qu'une petite facture
+        // de test — relevé pendant un benchmark que la marge par défaut devenait juste limite.
         max_tokens: 8192,
-        // TEST TEMPORAIRE : "temperature" est refusé par Sonnet 5 sur ce point d'accès
-        // ("deprecated for this model") — retiré le temps du test Sonnet. À remettre avec
-        // Haiku (voir commentaire ci-dessus sur le modèle).
+        // Extraction structurée et déterministe (pas de rédaction créative) : on réduit la
+        // variabilité d'une lecture à l'autre d'une même facture en fixant la température à 0.
+        temperature: 0,
         messages: [{ role: "user", content }],
       }),
     });
@@ -177,17 +170,7 @@ Autres règles :
     }
 
     const data = await response.json();
-    // DEBUG TEMPORAIRE (test Sonnet) : visibilité sur ce que l'IA a réellement renvoyé quand
-    // aucun bloc texte exploitable n'est trouvé, au lieu de silencieusement renvoyer {}.
     const textBlock = (data.content || []).find((c) => c.type === "text");
-    if (!textBlock) {
-      return res.status(502).json({
-        error: "DEBUG: pas de bloc texte trouvé.",
-        stop_reason: data.stop_reason,
-        content_types: (data.content || []).map((c) => c.type),
-        usage: data.usage,
-      });
-    }
     let raw = (textBlock?.text || "{}").trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
 
     // Filet de sécurité : si l'IA a malgré tout ajouté du texte avant/après le JSON,
