@@ -551,6 +551,7 @@ const TR = {
     pantryOnboardingHint: "Ces prix sont juste des exemples pour la recette de démonstration. Scanne tes propres factures pour remplir ton garde-manger avec tes vrais prix fournisseurs.",
     pantryReclassifyHint: (n) => `${n} ingrédient${n > 1 ? "s" : ""} dans "Autres" peuvent être classés automatiquement.`,
     pantryReclassifyButton: "Classer maintenant",
+    categoryLabel: "Catégorie",
     recentToday: "Aujourd'hui", recentWeek: "Cette semaine", recentMonth: "Ce mois-ci",
     deleteRecipeConfirm: (name) => `Supprimer définitivement la recette "${name}" ?`,
     allergenSheetLink: "Fiche allergènes", allergenSheetTitle: "Fiche allergènes — toutes les recettes",
@@ -678,6 +679,7 @@ const TR = {
     pantryOnboardingHint: "Estos precios son solo ejemplos para la receta de demostración. Escanea tus propias facturas para llenar tu despensa con tus precios reales de proveedor.",
     pantryReclassifyHint: (n) => `${n} ingrediente${n > 1 ? "s" : ""} en "Otros" se pueden clasificar automáticamente.`,
     pantryReclassifyButton: "Clasificar ahora",
+    categoryLabel: "Categoría",
     recentToday: "Hoy", recentWeek: "Esta semana", recentMonth: "Este mes",
     deleteRecipeConfirm: (name) => `¿Eliminar definitivamente la receta "${name}"?`,
     allergenSheetLink: "Ficha de alérgenos", allergenSheetTitle: "Ficha de alérgenos — todas las recetas",
@@ -805,6 +807,7 @@ const TR = {
     pantryOnboardingHint: "These prices are just examples for the demo recipe. Scan your own invoices to fill your pantry with your real supplier prices.",
     pantryReclassifyHint: (n) => `${n} ingredient${n > 1 ? "s" : ""} in "Other" can be classified automatically.`,
     pantryReclassifyButton: "Classify now",
+    categoryLabel: "Category",
     recentToday: "Today", recentWeek: "This week", recentMonth: "This month",
     deleteRecipeConfirm: (name) => `Permanently delete the recipe "${name}"?`,
     allergenSheetLink: "Allergen sheet", allergenSheetTitle: "Allergen sheet — all recipes",
@@ -2075,23 +2078,27 @@ export default function App() {
   // : un garde-manger 100% scanné se retrouvait entièrement en "Autres"). Uniquement utilisée à
   // l'import scan — l'assistant de création manuelle demande désormais la catégorie explicitement
   // (voir wizardStep 2) plutôt que de deviner.
+  // Contrairement à guessIngredientId (qui doit rester strict — deux produits différents ne
+  // doivent jamais fusionner leurs prix), ici on ne cherche qu'une catégorie approximative, sans
+  // risque réel en cas d'erreur. Bug réel trouvé en test (2026-08, garde-manger vidé) : un vrai
+  // nom de facture porte presque toujours des mots en plus du terme générique du catalogue (%,
+  // grade, marque, mode de préparation — ex: "Chocolat noir couverture 64%", "Œuf frais catégorie
+  // A", "Saumon atlantique filet sans peau") ; l'ancien score (mots partagés / union des DEUX
+  // côtés) était noyé par ces mots en plus et ne dépassait quasiment jamais le seuil, laissant la
+  // quasi-totalité des imports réels tomber en "Autres" même quand le produit de base était
+  // pourtant bien dans le catalogue. Le filtre DISTINCTIVE_MODIFIERS (qui empêche par exemple
+  // "Emmental râpé" de matcher "Emmental" pour l'identité/le prix) est également écarté ici : une
+  // transformation du produit ne change pas sa catégorie, seulement son prix.
   const guessCatalogEntry = (name) => {
-    const tokensRaw = tokenize(name);
-    const tokens = meaningfulTokens(tokensRaw);
+    const tokens = meaningfulTokens(tokenize(name));
     if (!tokens.length) return null;
-    const scannedMods = new Set(tokensRaw.filter((tk) => DISTINCTIVE_MODIFIERS.has(tk)));
     let best = null;
-    let bestScore = 0;
+    let bestCatScore = 0;
+    let bestIdScore = 0;
     let bestFuzzy = false;
     for (const c of CATALOG) {
-      const iTokensRaw = tokenize(c.fr);
-      const iTokens = meaningfulTokens(iTokensRaw);
+      const iTokens = meaningfulTokens(tokenize(c.fr));
       if (!iTokens.length) continue;
-      const candidateMods = new Set(iTokensRaw.filter((tk) => DISTINCTIVE_MODIFIERS.has(tk)));
-      if (scannedMods.size || candidateMods.size) {
-        const sameMods = scannedMods.size === candidateMods.size && [...scannedMods].every((m) => candidateMods.has(m));
-        if (!sameMods) continue;
-      }
       const usedI = new Set();
       let shared = 0;
       let fuzzy = false;
@@ -2107,20 +2114,22 @@ export default function App() {
         }
       }
       if (shared === 0) continue;
-      const unionSize = tokens.length + iTokens.length - shared;
-      const score = shared / unionSize;
-      if (score > bestScore) {
-        bestScore = score;
+      // Score "catégorie" : quelle part des mots du catalogue est couverte, sans être pénalisé
+      // par les mots supplémentaires côté facture (ils décrivent le produit, pas sa famille).
+      const catScore = shared / iTokens.length;
+      // Score "identité" (formule stricte d'origine) : sert uniquement à décider si on peut aussi
+      // poser catalogId (donc ALLERGEN_MAP) en confiance — une phrase avec un mot en trop dessus
+      // fait déjà chuter ce score loin sous 0.99, donc reste protégé même sans DISTINCTIVE_MODIFIERS.
+      const idScore = shared / (tokens.length + iTokens.length - shared);
+      if (catScore > bestCatScore) {
+        bestCatScore = catScore;
+        bestIdScore = idScore;
         best = c;
         bestFuzzy = fuzzy;
       }
     }
-    if (!best || bestScore < 0.5) return null;
-    // Confiant uniquement si le score est très élevé et sans approximation — sert de seuil pour
-    // catalogId (déclenche ALLERGEN_MAP, mieux vaut rater une détection que se tromper). La
-    // catégorie, elle, est acceptée dès qu'un candidat existe : une mauvaise catégorie se corrige
-    // en un clic, ce n'est pas un risque sanitaire.
-    return { catalogId: best.id, category: best.cat, confident: bestScore >= 0.99 && !bestFuzzy };
+    if (!best || bestCatScore < 0.5) return null;
+    return { catalogId: best.id, category: best.cat, confident: bestIdScore >= 0.99 && !bestFuzzy };
   };
 
   // Ingrédients tombés en "Autres" faute de rapprochement catalogue au moment de l'import scan
@@ -4081,6 +4090,24 @@ export default function App() {
                                 <option value="kg">kg</option>
                                 <option value="L">L</option>
                                 <option value="pièce">pièce</option>
+                              </select>
+                            </div>
+
+                            {/* Reclassement manuel — seul moyen de corriger un ingrédient jamais rapproché
+                                automatiquement du catalogue (nom trop spécifique à la facture, ex: "Mozzarella
+                                di bufala"). Ne touche jamais catalogId (donc pas le lien allergène) : changer
+                                juste la catégorie ne doit pas faire croire à un rapprochement produit fiable. */}
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[10px] uppercase tracking-wide text-white/40">{t("categoryLabel")}</span>
+                              <select
+                                value={ing.category || "autres"}
+                                onChange={(e) => updateIngredientField(ing.id, "category", e.target.value)}
+                                className="bg-black/20 text-white/70 text-xs outline-none rounded px-1.5 py-1"
+                                style={{ colorScheme: "dark" }}
+                              >
+                                {CATEGORIES.map((c) => (
+                                  <option key={c.id} value={c.id}>{c[lang]}</option>
+                                ))}
                               </select>
                             </div>
 
