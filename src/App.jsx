@@ -18,6 +18,7 @@ import {
   Loader2,
   TrendingUp,
   TrendingDown,
+  Minus,
   Package,
   Pencil,
   Upload,
@@ -1391,8 +1392,13 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
   // pourcentage d'info affichée plus bas, pas se faire arrêter par un symbole danger pour un prix
   // qui monte.
   const hasIdentityIssue = hasPriceDoubt || hasUnresolvedNameDoubt;
+  // Calculé dès qu'il y a un prix connu à comparer, même si la variation est nulle — avant ce
+  // correctif, seules les lignes avec une VRAIE variation (>1%) affichaient quoi que ce soit,
+  // ce qui donnait l'impression fausse que les autres lignes n'avaient pas été comparées du
+  // tout. Signal demandé explicite de l'utilisateur (2026-08) : un badge doit être présent sur
+  // CHAQUE ligne ayant un prix de référence, même pour dire "0%".
   const priceChangePct =
-    item.currentPrice !== null && item.currentPrice && (item.priceUp || item.priceDown || item.bigChange)
+    item.currentPrice !== null && item.currentPrice
       ? Math.round((Math.abs((item.unitPriceHT || 0) - item.currentPrice) / item.currentPrice) * 100)
       : null;
 
@@ -1457,13 +1463,27 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
           {/* Variation de prix visible tout de suite, sans avoir à ouvrir "Modifier" — demande
               réelle de l'utilisateur (2026-08) : compact ici (icône + %), le détail avant/après
               reste disponible au survol et dans le panneau développé. */}
-          {(item.priceUp || item.priceDown || item.bigChange) && item.currentPrice !== null && item.currentPriceIsReal && (
+          {item.currentPrice !== null && item.currentPriceIsReal && (
             <span
               className="flex items-center gap-0.5 text-[10px] font-bold shrink-0"
-              style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : "#10B981" }}
+              style={{
+                color: item.bigChange
+                  ? TIER_COLORS.low
+                  : item.priceUp
+                  ? TIER_COLORS.mid
+                  : item.priceDown
+                  ? "#10B981"
+                  : "rgba(255,255,255,0.35)",
+              }}
               title={`${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`}
             >
-              {item.priceDown ? <TrendingDown size={11} /> : <TrendingUp size={11} />}
+              {item.priceUp || item.bigChange ? (
+                <TrendingUp size={11} />
+              ) : item.priceDown ? (
+                <TrendingDown size={11} />
+              ) : (
+                <Minus size={11} />
+              )}
               {priceChangePct}%
             </span>
           )}
@@ -1596,6 +1616,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             >
               {(item.priceUp || item.bigChange) && <TrendingUp size={11} />}
               {item.priceDown && <TrendingDown size={11} />}
+              {!item.priceUp && !item.priceDown && !item.bigChange && <Minus size={11} />}
               {item.priceUp
                 ? `${t("scanPriceIncrease")} (+${priceChangePct}%) : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
                 : item.priceDown
@@ -3303,7 +3324,24 @@ export default function App() {
                                     />
                                   </div>
 
-                                  {guessedIng ? (
+                                  {/* Nom toujours modifiable ici, bien visible — avant ce correctif,
+                                      dès qu'un rapprochement existait, seul le choix "garder/renommer/
+                                      créer séparément" était affiché, sans moyen évident de corriger le
+                                      texte lui-même si l'IA s'est trompée (cas réel utilisateur :
+                                      "Orange à jus" proposé au lieu de "Orange dessert" — pas trouvé
+                                      "instinctivement" comment corriger). Éditer ce champ met aussi à
+                                      jour en direct les options "renommer"/"créer séparément" juste en
+                                      dessous, qui affichent toujours ce même nom. */}
+                                  <div className="flex items-center gap-1.5 mt-2 rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.06)" }}>
+                                    <Pencil size={13} className="text-white/30 shrink-0" />
+                                    <input
+                                      value={current.item.name || ""}
+                                      onChange={(e) => updateScanItem(current.idx, { name: e.target.value })}
+                                      className="flex-1 min-w-0 bg-transparent text-white text-base font-semibold outline-none"
+                                    />
+                                  </div>
+
+                                  {guessedIng && (
                                     <div className="mt-2">
                                       <ScanNameChoice
                                         item={current.item}
@@ -3313,26 +3351,35 @@ export default function App() {
                                         t={t}
                                       />
                                     </div>
-                                  ) : (
-                                    // Pas de suggestion du tout (vrai nouvel ingrédient) : le nom doit
-                                    // rester modifiable directement ici, comme tout le reste de la carte
-                                    // — avant ce correctif c'était juste du texte statique.
-                                    <input
-                                      value={current.item.name || ""}
-                                      onChange={(e) => updateScanItem(current.idx, { name: e.target.value })}
-                                      className="w-full bg-transparent text-white text-lg font-semibold mt-2 outline-none border-b border-transparent focus:border-white/20"
-                                    />
                                   )}
 
                                   {/* Variation de prix par rapport au dernier prix connu — absente de
                                       cette carte avant ce correctif (visible seulement dans la liste
-                                      groupée), demandée explicitement par l'utilisateur (2026-08). */}
-                                  {(current.item.priceUp || current.item.priceDown || current.item.bigChange) && current.item.currentPrice !== null && current.item.currentPriceIsReal && (
+                                      groupée), demandée explicitement par l'utilisateur (2026-08).
+                                      Affichée sur CHAQUE ligne ayant un prix de référence, même à 0%
+                                      (pas seulement les vraies variations) : sinon l'absence de badge
+                                      donne l'impression fausse qu'une ligne n'a pas été comparée du
+                                      tout — même correctif que la carte compacte, même demande. */}
+                                  {current.item.currentPrice !== null && current.item.currentPriceIsReal && (
                                     <div
                                       className="flex items-center gap-1 text-[11px] font-bold mt-1.5"
-                                      style={{ color: current.item.bigChange ? TIER_COLORS.low : current.item.priceUp ? TIER_COLORS.mid : "#10B981" }}
+                                      style={{
+                                        color: current.item.bigChange
+                                          ? TIER_COLORS.low
+                                          : current.item.priceUp
+                                          ? TIER_COLORS.mid
+                                          : current.item.priceDown
+                                          ? "#10B981"
+                                          : "rgba(255,255,255,0.35)",
+                                      }}
                                     >
-                                      {current.item.priceDown ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
+                                      {current.item.priceUp || current.item.bigChange ? (
+                                        <TrendingUp size={12} />
+                                      ) : current.item.priceDown ? (
+                                        <TrendingDown size={12} />
+                                      ) : (
+                                        <Minus size={12} />
+                                      )}
                                       {Math.round((Math.abs((current.item.unitPriceHT || 0) - current.item.currentPrice) / current.item.currentPrice) * 100)}%
                                       <span className="text-white/35 font-normal">
                                         ({current.item.currentPrice.toFixed(2)}€ → {(current.item.unitPriceHT || 0).toFixed(2)}€)
