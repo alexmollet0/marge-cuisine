@@ -497,7 +497,8 @@ const TR = {
     scanPriceDoubtLabel: "Vérifie ce prix avant d'importer",
     scanManyUpWarning: "Plusieurs prix semblent en forte hausse par rapport à tes prix connus — vérifie que le document est bien net avant d'importer.",
     scanLowConfidenceBanner: "Photo un peu floue : vérifie bien les lignes en orange avant d'importer.",
-    scanReviewSection: "À vérifier avant d'importer", scanSafeSection: "Prêtes à importer",
+    scanReviewSection: "À vérifier avant d'importer", scanSafeSection: "Aucune alerte détectée",
+    scanSafeHint: "Ça ne veut pas dire que c'est forcément juste — vérifie les prix avant de confirmer.",
     scanSummaryNew: (name, price, unit) => `Tu vas créer "${name}" à ${price}€/${unit}.`,
     scanSummaryUpdate: (name, price, unit) => `Tu vas mettre à jour "${name}" à ${price}€/${unit}.`,
     scanItemsToReview: (n) => `${n} produit${n > 1 ? "s" : ""} à vérifier`,
@@ -556,7 +557,7 @@ const TR = {
     deleteRecipeConfirm: (name) => `Supprimer définitivement la recette "${name}" ?`,
     allergenSheetLink: "Fiche allergènes", allergenSheetTitle: "Fiche allergènes — toutes les recettes",
     allergenSheetNone: "Aucun allergène renseigné",
-    scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer les lignes sûres",
+    scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer ces lignes",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
     scanTab: "Scanner", scanTabHint: "Prends en photo ta facture Métro, Promocash, Transgourmet ou tout autre fournisseur — l'IA s'occupe du reste.",
@@ -625,7 +626,8 @@ const TR = {
     scanPriceDoubtLabel: "Comprueba este precio antes de importar",
     scanManyUpWarning: "Varios precios parecen estar muy al alza respecto a tus precios conocidos — verifica que el documento esté bien nítido antes de importar.",
     scanLowConfidenceBanner: "Foto un poco borrosa: revisa bien las líneas en naranja antes de importar.",
-    scanReviewSection: "A verificar antes de importar", scanSafeSection: "Listas para importar",
+    scanReviewSection: "A verificar antes de importar", scanSafeSection: "Sin alertas detectadas",
+    scanSafeHint: "Eso no significa que sea forzosamente correcto — revisa los precios antes de confirmar.",
     scanSummaryNew: (name, price, unit) => `Vas a crear "${name}" a ${price}€/${unit}.`,
     scanSummaryUpdate: (name, price, unit) => `Vas a actualizar "${name}" a ${price}€/${unit}.`,
     scanItemsToReview: (n) => `${n} producto${n > 1 ? "s" : ""} a verificar`,
@@ -684,7 +686,7 @@ const TR = {
     deleteRecipeConfirm: (name) => `¿Eliminar definitivamente la receta "${name}"?`,
     allergenSheetLink: "Ficha de alérgenos", allergenSheetTitle: "Ficha de alérgenos — todas las recetas",
     allergenSheetNone: "Sin alérgenos indicados",
-    scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar las líneas seguras",
+    scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar estas líneas",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
     scanTab: "Escanear", scanTabHint: "Haz una foto de tu factura de Makro, Gros Mercat o cualquier otro proveedor — la IA se encarga del resto.",
@@ -753,7 +755,8 @@ const TR = {
     scanPriceDoubtLabel: "Check this price before importing",
     scanManyUpWarning: "Several prices seem sharply up compared to your known prices — check that the document is sharp before importing.",
     scanLowConfidenceBanner: "Photo a bit blurry: check the orange lines carefully before importing.",
-    scanReviewSection: "To check before importing", scanSafeSection: "Ready to import",
+    scanReviewSection: "To check before importing", scanSafeSection: "No alerts detected",
+    scanSafeHint: "That doesn't mean it's necessarily right — check the prices before confirming.",
     scanSummaryNew: (name, price, unit) => `You're about to create "${name}" at ${price}€/${unit}.`,
     scanSummaryUpdate: (name, price, unit) => `You're about to update "${name}" to ${price}€/${unit}.`,
     scanItemsToReview: (n) => `${n} item${n > 1 ? "s" : ""} to check`,
@@ -812,7 +815,7 @@ const TR = {
     deleteRecipeConfirm: (name) => `Permanently delete the recipe "${name}"?`,
     allergenSheetLink: "Allergen sheet", allergenSheetTitle: "Allergen sheet — all recipes",
     allergenSheetNone: "No allergens listed",
-    scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import safe lines",
+    scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import these lines",
     scanPriceIncrease: "Price up", scanNoItems: "No item detected.",    scanHint: "Check and correct each line before importing — the AI can make mistakes.",
     scanWeightLabel: "Weight of 1 piece (leave at 0 if truly priced by unit):",
     scanTab: "Scanner", scanTabHint: "Take a photo of your invoice from Bidfood, Brakes or any other supplier — the AI takes care of the rest.",
@@ -3237,9 +3240,10 @@ export default function App() {
                         )}
                         {safe.length > 0 && (
                           <div>
-                            <div className="text-[11px] uppercase tracking-widest mb-2 flex items-center gap-1.5 font-semibold" style={{ color: "#10B981" }}>
+                            <div className="text-[11px] uppercase tracking-widest mb-1 flex items-center gap-1.5 font-semibold" style={{ color: "#10B981" }}>
                               <Check size={12} /> {t("scanSafeSection")} ({safe.length})
                             </div>
+                            <div className="text-[11px] text-white/40 mb-2">{t("scanSafeHint")}</div>
                             <div className="space-y-2">{safe.map(renderCard)}</div>
                           </div>
                         )}
