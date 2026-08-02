@@ -514,6 +514,9 @@ const TR = {
     legacyPantryHint: "Ton garde-manger contient encore l'ancienne liste de démonstration (~200 ingrédients). Charge la nouvelle version allégée (7 ingrédients essentiels) pour repartir sur une base plus claire.",
     legacyPantryButton: "Charger le nouveau garde-manger",
     cancelLabel: "Annuler", resetConfirmButton: "Oui, tout réinitialiser",
+    welcomeBannerText: "Bienvenue sur Chefup ! La recette ci-dessous est un exemple avec des prix fictifs, pour te montrer comment l'app calcule tes marges. Scanne ta première vraie facture pour remplacer ces prix par les tiens.",
+    welcomeBannerButton: "Scanner ma première facture",
+    firstIngredientPrompt: "Ajoute ton premier ingrédient",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanSkipAllAndClose: "Ignorer le reste et fermer",
@@ -650,6 +653,9 @@ const TR = {
     legacyPantryHint: "Tu despensa todavía tiene la antigua lista de demostración (~200 ingredientes). Carga la nueva versión reducida (7 ingredientes esenciales) para empezar con una base más clara.",
     legacyPantryButton: "Cargar la nueva despensa",
     cancelLabel: "Cancelar", resetConfirmButton: "Sí, reiniciar todo",
+    welcomeBannerText: "¡Bienvenido a Chefup! La receta de abajo es un ejemplo con precios ficticios, para mostrarte cómo la app calcula tus márgenes. Escanea tu primera factura real para sustituir estos precios por los tuyos.",
+    welcomeBannerButton: "Escanear mi primera factura",
+    firstIngredientPrompt: "Añade tu primer ingrediente",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanSkipAllAndClose: "Ignorar el resto y cerrar",
@@ -786,6 +792,9 @@ const TR = {
     legacyPantryHint: "Your pantry still has the old demo list (~200 ingredients). Load the new lean version (7 essential ingredients) to start from a clearer base.",
     legacyPantryButton: "Load the new pantry",
     cancelLabel: "Cancel", resetConfirmButton: "Yes, reset everything",
+    welcomeBannerText: "Welcome to Chefup! The recipe below is an example with made-up prices, to show you how the app calculates your margins. Scan your first real invoice to replace these prices with your own.",
+    welcomeBannerButton: "Scan my first invoice",
+    firstIngredientPrompt: "Add your first ingredient",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
     scanSkipAllAndClose: "Skip the rest and close",
@@ -3679,6 +3688,23 @@ export default function App() {
             </div>
             <h1 className="font-display text-white text-xl mb-5">{t("greeting")}</h1>
 
+            {/* Message d'accueil orienté action, distinct du rappel plus tardif dans l'onglet
+                garde-manger (celui-ci parle de "prix estimé", un terme que le tout premier
+                utilisateur ne connaît pas encore) — demandé explicitement par l'utilisateur : la
+                toute première chose vue doit dire quoi faire, pas juste constater un état. */}
+            {ingredients.length > 0 && ingredients.every((i) => activeSupplier(i)?.priceSource === "estimate") && (
+              <div className="rounded-2xl p-4 mb-5 border border-white/10" style={{ background: "#26221C" }}>
+                <p className="text-white/70 text-sm leading-relaxed mb-3">{t("welcomeBannerText")}</p>
+                <button
+                  onClick={() => setActiveTab("scanner")}
+                  className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                  style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+                >
+                  <Camera size={14} /> {t("welcomeBannerButton")}
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">{t("recipes")}</h2>
               <div className="flex items-center gap-2">
@@ -3889,6 +3915,19 @@ export default function App() {
                     </div>
                   );
                 })}
+                {/* Une recette toute neuve (0 ligne) tombait sur un simple petit lien "+ ligne"
+                    perdu au milieu d'une page par ailleurs vide (0,00€ partout) — repéré comme
+                    confus par l'utilisateur. Remplacé par un bouton bien visible tant qu'aucun
+                    ingrédient n'a encore été ajouté ; redevient le petit lien discret habituel dès
+                    la première ligne, pour ne pas prendre de place inutile une fois la recette lancée. */}
+                {active.lines.length === 0 && (
+                  <button
+                    onClick={addLine}
+                    className="w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-xl border border-dashed border-black/25 text-black/50 hover:text-black hover:border-black/50 active:scale-95 transition mb-1 print:hidden"
+                  >
+                    <Plus size={14} /> {t("firstIngredientPrompt")}
+                  </button>
+                )}
                 <div className="flex items-center justify-between pt-1 print:hidden">
                   <button onClick={addLine} className="text-xs text-black/40 hover:text-black flex items-center gap-1">
                     <Plus size={12} /> {t("line")}
