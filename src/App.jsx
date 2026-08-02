@@ -18,7 +18,6 @@ import {
   Loader2,
   TrendingUp,
   TrendingDown,
-  Minus,
   Package,
   Pencil,
   Upload,
@@ -1462,28 +1461,17 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
           <span className="text-white/40 text-[11px]">/{unitDisplayLabel(item.unit, t)}</span>
           {/* Variation de prix visible tout de suite, sans avoir à ouvrir "Modifier" — demande
               réelle de l'utilisateur (2026-08) : compact ici (icône + %), le détail avant/après
-              reste disponible au survol et dans le panneau développé. */}
+              reste disponible au survol et dans le panneau développé. Seule une vraie hausse
+              change la couleur (orange, ou rouge si bigChange) — tout le reste (baisse ou prix
+              stable) reste vert avec la flèche vers le bas, y compris à 0% : demande explicite de
+              l'utilisateur, "pas augmenté" doit toujours rassurer visuellement de la même façon. */}
           {item.currentPrice !== null && item.currentPriceIsReal && (
             <span
               className="flex items-center gap-0.5 text-[10px] font-bold shrink-0"
-              style={{
-                color: item.bigChange
-                  ? TIER_COLORS.low
-                  : item.priceUp
-                  ? TIER_COLORS.mid
-                  : item.priceDown
-                  ? "#10B981"
-                  : "rgba(255,255,255,0.35)",
-              }}
+              style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : "#10B981" }}
               title={`${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`}
             >
-              {item.priceUp || item.bigChange ? (
-                <TrendingUp size={11} />
-              ) : item.priceDown ? (
-                <TrendingDown size={11} />
-              ) : (
-                <Minus size={11} />
-              )}
+              {item.priceUp || item.bigChange ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
               {priceChangePct}%
             </span>
           )}
@@ -1612,11 +1600,9 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
           {item.currentPrice !== null && item.currentPriceIsReal && (
             <div
               className="flex items-center gap-1 text-[10px]"
-              style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : item.priceDown ? "#10B981" : "rgba(255,255,255,0.4)" }}
+              style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : "#10B981" }}
             >
-              {(item.priceUp || item.bigChange) && <TrendingUp size={11} />}
-              {item.priceDown && <TrendingDown size={11} />}
-              {!item.priceUp && !item.priceDown && !item.bigChange && <Minus size={11} />}
+              {item.priceUp || item.bigChange ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
               {item.priceUp
                 ? `${t("scanPriceIncrease")} (+${priceChangePct}%) : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
                 : item.priceDown
@@ -3363,23 +3349,9 @@ export default function App() {
                                   {current.item.currentPrice !== null && current.item.currentPriceIsReal && (
                                     <div
                                       className="flex items-center gap-1 text-[11px] font-bold mt-1.5"
-                                      style={{
-                                        color: current.item.bigChange
-                                          ? TIER_COLORS.low
-                                          : current.item.priceUp
-                                          ? TIER_COLORS.mid
-                                          : current.item.priceDown
-                                          ? "#10B981"
-                                          : "rgba(255,255,255,0.35)",
-                                      }}
+                                      style={{ color: current.item.bigChange ? TIER_COLORS.low : current.item.priceUp ? TIER_COLORS.mid : "#10B981" }}
                                     >
-                                      {current.item.priceUp || current.item.bigChange ? (
-                                        <TrendingUp size={12} />
-                                      ) : current.item.priceDown ? (
-                                        <TrendingDown size={12} />
-                                      ) : (
-                                        <Minus size={12} />
-                                      )}
+                                      {current.item.priceUp || current.item.bigChange ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                                       {Math.round((Math.abs((current.item.unitPriceHT || 0) - current.item.currentPrice) / current.item.currentPrice) * 100)}%
                                       <span className="text-white/35 font-normal">
                                         ({current.item.currentPrice.toFixed(2)}€ → {(current.item.unitPriceHT || 0).toFixed(2)}€)
