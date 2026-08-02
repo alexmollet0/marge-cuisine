@@ -153,7 +153,11 @@ Autres règles :
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        // TEST TEMPORAIRE (2026-08) : bascule vers Sonnet pour vérifier si le décalage de
+        // ligne observé sur les photos dégradées avec Haiku est une limite de capacité du
+        // modèle. À revenir sur "claude-haiku-4-5-20251001" après le test, sauf décision
+        // explicite de l'utilisateur de garder Sonnet (coût par scan nettement plus élevé).
+        model: "claude-sonnet-5",
         // Une facture longue (15-20 lignes) génère un JSON plus volumineux qu'une petite facture
         // de test — relevé pendant un benchmark que la marge par défaut devenait juste limite.
         max_tokens: 8192,
