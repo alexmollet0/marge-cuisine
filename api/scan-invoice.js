@@ -158,11 +158,12 @@ Autres règles :
         // modèle. À revenir sur "claude-haiku-4-5-20251001" après le test, sauf décision
         // explicite de l'utilisateur de garder Sonnet (coût par scan nettement plus élevé).
         model: "claude-sonnet-5",
-        // TEST : Sonnet 5 utilise par défaut la réflexion étendue ("thinking") sur ce point
-        // d'accès — avec 8192 tokens le modèle épuisait tout le budget en réflexion sans
-        // jamais produire de réponse (stop_reason "max_tokens", 0 tokens de texte). Budget
-        // relevé pour laisser la place à la réflexion ET à la réponse JSON.
-        max_tokens: 20000,
+        // TEST : Sonnet 5 utilise par défaut la réflexion étendue ("thinking"), plafonnée à
+        // 8192 tokens indépendamment de max_tokens — le modèle épuisait tout ce budget en
+        // réflexion sans jamais produire de réponse. Désactivée explicitement pour comparer
+        // directement à Haiku (même type de réponse directe, sans réflexion).
+        thinking: { type: "disabled" },
+        max_tokens: 8192,
         // TEST TEMPORAIRE : "temperature" est refusé par Sonnet 5 sur ce point d'accès
         // ("deprecated for this model") — retiré le temps du test Sonnet. À remettre avec
         // Haiku (voir commentaire ci-dessus sur le modèle).
