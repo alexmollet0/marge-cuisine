@@ -510,7 +510,7 @@ const TR = {
     editPriceTooltip: "Modifier le prix", viewDetailsLabel: "Détails",
     viewDetailsTooltip: "Catégorie, pertes, fournisseurs...", unitToggleTooltip: "Changer d'unité",
     pickerSearchPlaceholder: "Tape 2 lettres…", pickerTypeToSearch: "Tape pour chercher…", pickerNoResults: "Aucun résultat",
-    unitPieceLabel: "pièce",
+    unitPieceLabel: "pièce", unitFieldLabel: "Unité",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanSkipAllAndClose: "Ignorer le reste et fermer",
@@ -643,7 +643,7 @@ const TR = {
     editPriceTooltip: "Modificar el precio", viewDetailsLabel: "Detalles",
     viewDetailsTooltip: "Categoría, mermas, proveedores...", unitToggleTooltip: "Cambiar de unidad",
     pickerSearchPlaceholder: "Escribe 2 letras…", pickerTypeToSearch: "Escribe para buscar…", pickerNoResults: "Sin resultados",
-    unitPieceLabel: "unidad",
+    unitPieceLabel: "unidad", unitFieldLabel: "Unidad",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanSkipAllAndClose: "Ignorar el resto y cerrar",
@@ -776,7 +776,7 @@ const TR = {
     editPriceTooltip: "Edit the price", viewDetailsLabel: "Details",
     viewDetailsTooltip: "Category, yield loss, suppliers...", unitToggleTooltip: "Change unit",
     pickerSearchPlaceholder: "Type 2 letters…", pickerTypeToSearch: "Type to search…", pickerNoResults: "No results",
-    unitPieceLabel: "piece",
+    unitPieceLabel: "piece", unitFieldLabel: "Unit",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
     scanSkipAllAndClose: "Skip the rest and close",
@@ -888,18 +888,18 @@ const SEED_RECIPE_NOTES = {
 };
 const SEED_RECIPE_ALLERGENS = { fr: "Sulfites (vin)", es: "Sulfitos (vino)", en: "Sulfites (wine)" };
 
-// Vrai uniquement si la recette de démo n'a jamais été modifiée (notes/allergènes encore
-// identiques à l'une des 3 langues connues) — sert à décider si on peut la reconstruire dans une
-// nouvelle langue sans risquer d'écraser un vrai texte tapé par l'utilisateur.
-function isPristineSeedRecipes(recipes) {
-  if (!recipes || recipes.length !== 1 || recipes[0].id !== "r1") return false;
-  const r = recipes[0];
-  return Object.values(SEED_RECIPE_NOTES).includes(r.notes) && Object.values(SEED_RECIPE_ALLERGENS).includes(r.allergens);
+// Vrai uniquement si LA recette de démo (id "r1") n'a jamais été modifiée (notes/allergènes
+// encore identiques à l'une des 3 langues connues) — sert à décider si on peut la reconstruire
+// dans une nouvelle langue sans risquer d'écraser un vrai texte tapé par l'utilisateur. Ne
+// dépend PAS du nombre total de recettes : un utilisateur qui a déjà créé ses propres recettes
+// à côté doit quand même voir la démo se traduire tant qu'il n'a personnellement rien changé dedans.
+function isPristineSeedRecipe(r) {
+  return !!r && r.id === "r1" && Object.values(SEED_RECIPE_NOTES).includes(r.notes) && Object.values(SEED_RECIPE_ALLERGENS).includes(r.allergens);
 }
 
 // Reconstruit la recette de démo dans la langue demandée — appelée au premier chargement (langue
 // sauvegardée si elle existe) et à chaque changement de langue tant que l'utilisateur n'a pas
-// modifié la recette lui-même (voir isPristineSeedRecipes, App).
+// modifié la recette lui-même (voir isPristineSeedRecipe, changeLang dans App).
 function buildSeedRecipes(lang) {
   return [
     {
@@ -1944,13 +1944,24 @@ export default function App() {
     try { await storage.delete("ingredients"); await storage.delete("recipes"); await storage.delete("supplierMappings"); } catch (e) {}
   };
 
-  // Change la langue d'interface et, si la recette de démo n'a jamais été touchée, la reconstruit
-  // dans la nouvelle langue (sinon ses instructions/allergène resteraient dans l'ancienne langue,
-  // seul le reste de l'interface changerait — repéré en test réel, 2026-08). Ne touche jamais une
-  // recette réellement modifiée par l'utilisateur.
+  // Change la langue d'interface et, si LA recette de démo (r1) n'a jamais été touchée, met à jour
+  // seulement ses notes/allergènes/nom dans la nouvelle langue (sinon ses instructions/allergène
+  // resteraient dans l'ancienne langue, seul le reste de l'interface changerait — repéré en test
+  // réel, 2026-08). Corrige au passage sa toute première version qui remplaçait TOUT le tableau
+  // `recipes` par `buildSeedRecipes(newLang)` (un seul élément) — sans danger tant qu'il n'y avait
+  // qu'une recette, mais aurait fait disparaître silencieusement les autres recettes de l'utilisateur
+  // dès qu'il en aurait créé une deuxième (repéré avant déploiement, jamais arrivé en production).
+  // Ne modifie jamais une recette réellement éditée par l'utilisateur, ni aucune autre recette.
   const changeLang = (newLang) => {
     setLang(newLang);
-    if (isPristineSeedRecipes(recipes)) setRecipes(buildSeedRecipes(newLang));
+    setRecipes((rs) => {
+      const idx = rs.findIndex((r) => r.id === "r1");
+      if (idx === -1 || !isPristineSeedRecipe(rs[idx])) return rs;
+      const seeded = buildSeedRecipes(newLang)[0];
+      const next = [...rs];
+      next[idx] = { ...rs[idx], name: seeded.name, notes: seeded.notes, allergens: seeded.allergens };
+      return next;
+    });
   };
 
   const handlePrint = () => window.print();
@@ -4155,7 +4166,7 @@ export default function App() {
                               className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#8B5CF6] pb-1 pt-2 mb-2"
                             />
                             <div className="flex items-center gap-2 mb-2">
-                              <span className="text-[10px] uppercase tracking-wide text-white/40">Unité</span>
+                              <span className="text-[10px] uppercase tracking-wide text-white/40">{t("unitFieldLabel")}</span>
                               <select
                                 value={ing.unit}
                                 onChange={(e) => updateIngredientField(ing.id, "unit", e.target.value)}
