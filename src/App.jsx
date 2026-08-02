@@ -519,6 +519,7 @@ const TR = {
     firstIngredientPrompt: "Ajoute ton premier ingrédient",
     marginLegendToggle: "Que veulent dire les couleurs ?",
     deleteLineTooltip: "Retirer cet ingrédient de la recette",
+    ingredientsSectionLabel: "Ingrédients", pricingSectionLabel: "Prix & marge",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanSkipAllAndClose: "Ignorer le reste et fermer",
@@ -660,6 +661,7 @@ const TR = {
     firstIngredientPrompt: "Añade tu primer ingrediente",
     marginLegendToggle: "¿Qué significan los colores?",
     deleteLineTooltip: "Quitar este ingrediente de la receta",
+    ingredientsSectionLabel: "Ingredientes", pricingSectionLabel: "Precio y margen",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanSkipAllAndClose: "Ignorar el resto y cerrar",
@@ -801,6 +803,7 @@ const TR = {
     firstIngredientPrompt: "Add your first ingredient",
     marginLegendToggle: "What do the colors mean?",
     deleteLineTooltip: "Remove this ingredient from the recipe",
+    ingredientsSectionLabel: "Ingredients", pricingSectionLabel: "Price & margin",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
     scanSkipAllAndClose: "Skip the rest and close",
@@ -3860,6 +3863,11 @@ export default function App() {
                 </div>
               )}
 
+              {/* Nouveaux repères de section (2026-08, demande explicite de simplifier la lecture
+                  d'une fiche par ailleurs longue) : de simples libellés, rien de replié/caché — la
+                  recette exemple doit rester lisible d'un coup d'œil dès l'arrivée, sans clic
+                  supplémentaire pour comprendre sa structure. */}
+              <div className="text-[10px] uppercase tracking-wide text-black/40 mt-2">{t("ingredientsSectionLabel")}</div>
               <div className="border-t border-b border-dashed border-black/30 py-3 space-y-2">
                 {active.lines.map((line, idx) => {
                   const ing = ingredientById(line.ingredientId);
@@ -3938,6 +3946,7 @@ export default function App() {
               </div>
 
               <div className="pt-3 space-y-1 text-sm price-field">
+                <div className="text-[10px] uppercase tracking-wide text-black/40 mb-1">{t("pricingSectionLabel")}</div>
                 <div className="flex justify-between"><span>{t("total")}</span><span className="font-semibold">{totalCost.toFixed(2)}€</span></div>
                 <div className="flex justify-between"><span>{t("costPerPortion")}</span><span className="font-semibold">{costPerPortion.toFixed(2)}€</span></div>
                 <div className="flex justify-between items-center pt-1">
