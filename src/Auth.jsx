@@ -3,8 +3,11 @@ import { Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
 
+// text-base (16px) plutôt que text-sm : en dessous de 16px, iOS/Android zooment
+// automatiquement l'écran au focus d'un champ, et ne rezooment pas toujours
+// proprement après — gênant comme toute première impression de l'app.
 const inputClass =
-  "w-full rounded-lg px-3 py-2 text-sm text-white bg-white/5 border border-white/10 outline-none focus:border-[#8B5CF6]";
+  "w-full rounded-lg px-3 py-2 text-base text-white bg-white/5 border border-white/10 outline-none focus:border-[#8B5CF6]";
 
 const AUTH_LANG_KEY = "chefup:authLang";
 
@@ -19,16 +22,17 @@ function guessAuthLang() {
   return "fr";
 }
 
-// Messages Supabase bruts (toujours en anglais côté API) traduits dans la
-// langue choisie sur cet écran, plutôt que de laisser fuiter du texte anglais.
-function translateAuthError(message, t) {
+// Messages Supabase bruts (toujours en anglais côté API) mappés vers une clé TR
+// (résolue seulement à l'affichage) plutôt qu'un texte déjà traduit — sinon un
+// message déjà affiché reste figé dans l'ancienne langue si on change de langue.
+function authErrorKey(message) {
   const m = (message || "").toLowerCase();
-  if (m.includes("invalid login credentials")) return t("authErrorInvalidCredentials");
-  if (m.includes("already registered")) return t("authErrorAlreadyRegistered");
-  if (m.includes("email not confirmed")) return t("authErrorEmailNotConfirmed");
-  if (m.includes("password should be at least")) return t("authErrorPasswordTooShort");
-  if (m.includes("valid email")) return t("authErrorInvalidEmail");
-  return t("authErrorGeneric");
+  if (m.includes("invalid login credentials")) return "authErrorInvalidCredentials";
+  if (m.includes("already registered")) return "authErrorAlreadyRegistered";
+  if (m.includes("email not confirmed")) return "authErrorEmailNotConfirmed";
+  if (m.includes("password should be at least")) return "authErrorPasswordTooShort";
+  if (m.includes("valid email")) return "authErrorInvalidEmail";
+  return "authErrorGeneric";
 }
 
 function PasswordField({ label, value, onChange, placeholder, autoComplete }) {
@@ -116,7 +120,7 @@ export default function AuthGate({ children }) {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (!data.session) {
-          setInfo(t("authSignupSuccessInfo"));
+          setInfo("authSignupSuccessInfo");
           setMode("login");
         }
       } else if (mode === "forgot") {
@@ -124,10 +128,10 @@ export default function AuthGate({ children }) {
           redirectTo: window.location.origin,
         });
         if (error) throw error;
-        setInfo(t("authForgotSuccessInfo"));
+        setInfo("authForgotSuccessInfo");
       }
     } catch (e2) {
-      setErr(translateAuthError(e2.message, t));
+      setErr(authErrorKey(e2.message));
     } finally {
       setBusy(false);
     }
@@ -137,7 +141,7 @@ export default function AuthGate({ children }) {
     setErr("");
     setInfo("");
     if (!email) {
-      setErr(t("authErrorInvalidEmail"));
+      setErr("authErrorInvalidEmail");
       return;
     }
     setBusy(true);
@@ -147,9 +151,9 @@ export default function AuthGate({ children }) {
         options: { emailRedirectTo: window.location.origin },
       });
       if (error) throw error;
-      setInfo(t("authMagicLinkInfo"));
+      setInfo("authMagicLinkInfo");
     } catch (e2) {
-      setErr(translateAuthError(e2.message, t));
+      setErr(authErrorKey(e2.message));
     } finally {
       setBusy(false);
     }
@@ -160,13 +164,13 @@ export default function AuthGate({ children }) {
     setErr("");
     setBusy(true);
     try {
-      if (newPassword.length < 6) throw new Error(t("authErrorPasswordTooShort"));
-      if (newPassword !== newPassword2) throw new Error(t("authErrorPasswordMismatch"));
+      if (newPassword.length < 6) { setErr("authErrorPasswordTooShort"); return; }
+      if (newPassword !== newPassword2) { setErr("authErrorPasswordMismatch"); return; }
       const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw new Error(translateAuthError(error.message, t));
+      if (error) throw error;
       setRecoveryMode(false);
     } catch (e2) {
-      setErr(e2.message || t("authErrorGeneric"));
+      setErr(authErrorKey(e2.message));
     } finally {
       setBusy(false);
     }
@@ -207,7 +211,7 @@ export default function AuthGate({ children }) {
 
           {err && (
             <div className="mb-4 text-xs rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">
-              {err}
+              {t(err)}
             </div>
           )}
 
@@ -264,12 +268,12 @@ export default function AuthGate({ children }) {
 
           {err && (
             <div className="mb-4 text-xs rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">
-              {err}
+              {t(err)}
             </div>
           )}
           {info && (
             <div className="mb-4 text-xs rounded-lg px-3 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              {info}
+              {t(info)}
             </div>
           )}
 
