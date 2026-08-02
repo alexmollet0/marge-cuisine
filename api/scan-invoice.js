@@ -174,7 +174,17 @@ Autres règles :
     }
 
     const data = await response.json();
+    // DEBUG TEMPORAIRE (test Sonnet) : visibilité sur ce que l'IA a réellement renvoyé quand
+    // aucun bloc texte exploitable n'est trouvé, au lieu de silencieusement renvoyer {}.
     const textBlock = (data.content || []).find((c) => c.type === "text");
+    if (!textBlock) {
+      return res.status(502).json({
+        error: "DEBUG: pas de bloc texte trouvé.",
+        stop_reason: data.stop_reason,
+        content_types: (data.content || []).map((c) => c.type),
+        usage: data.usage,
+      });
+    }
     let raw = (textBlock?.text || "{}").trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
 
     // Filet de sécurité : si l'IA a malgré tout ajouté du texte avant/après le JSON,
