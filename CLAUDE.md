@@ -184,11 +184,9 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environ
   Toujours pas testé visuellement (même limite que ci-dessus) — à revérifier sur téléphone en priorité avec les prochains scans réels.
 - **Écran d'accueil du scanner : import de fichier mis en avant plutôt que la photo directe** (2026-08), demandé par l'utilisateur après un test réel positif (photo d'un ticket de caisse pris rapidement, un seul nom mal lu à cause d'une impression effacée) — confirme que la photo reste fiable, mais la campagne de test de la même journée avait déjà montré le PDF natif comme la modalité la plus robuste (aucun risque de décalage de ligne). Onglet Scanner (`src/App.jsx`) : ordre des deux boutons inversé (import de fichier en premier), bouton d'import stylé en bleu plein (`#3B82F6`) avec un badge "RECOMMANDÉ — PLUS PRÉCIS" au-dessus, bouton "Prendre une photo" redescendu en second et repassé en simple contour gris — aucune fonctionnalité retirée, seule la hiérarchie visuelle change. Textes d'accroche (`scanTabHint`) et libellé du bouton (`scanUploadFile`) reformulés pour mener aussi par l'import de fichier plutôt que la photo. Vérifié en direct après déploiement (ordre, couleurs, badge, aucune erreur console).
 
-## EN COURS — authentification codée, en attente du premier test réel
+## EN COURS
 
-### 🎯 PROCHAINE ÉTAPE : tester le flux de connexion en conditions réelles sur Vercel
-
-**Ordre de travail validé avec l'utilisateur (2026-08)** : 1) fiabiliser le scan ✅ 2) revue fonctionnalité par fonctionnalité ✅ 3) refonte UX ✅ 4) **authentification — codée le 2026-08-02, pas encore testée en direct**.
+**Ordre de travail validé avec l'utilisateur (2026-08)** : 1) fiabiliser le scan ✅ 2) revue fonctionnalité par fonctionnalité ✅ 3) refonte UX ✅ 4) **authentification ✅ codée ET testée en conditions réelles le 2026-08-02** (inscription, confirmation email, connexion, sauvegarde/persistance des données, déconnexion/reconnexion — tout confirmé fonctionnel par l'utilisateur). Prochaine étape à discuter avec l'utilisateur : Stripe, ou finitions de l'auth (voir juste en dessous).
 
 **Ce qui a été fait le 2026-08-02** (première version, jamais testée en conditions réelles — Node.js toujours indisponible) :
 - Dépendance `@supabase/supabase-js` ajoutée à `package.json`.
@@ -200,8 +198,10 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environ
 - Table `kv_store` créée côté Supabase par l'utilisateur (SQL fourni, avec policy RLS `auth.uid() = user_id` et colonne `user_id` à `default auth.uid()` — le client n'a jamais besoin de connaître/transmettre l'id utilisateur explicitement). Variables `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` ajoutées sur Vercel.
 - **Aucune migration du localStorage existant** (décision actée le 2026-08-02) : un nouveau compte démarre avec les mêmes données de départ que l'app a toujours eues par défaut (recette exemple + `SEED_INGREDIENTS`), simplement parce que `kv_store` est vide pour ce compte et que les `useState` initiaux de `App.jsx` (`SEED_INGREDIENTS`, `buildSeedRecipes("fr")`) reprennent le dessus — aucun code de seed supplémentaire n'a été nécessaire.
 
+**Testé et confirmé fonctionnel par l'utilisateur (2026-08-02)** : inscription, email de confirmation reçu et lien cliqué (compte vérifié côté Supabase), connexion, recette exemple + garde-manger de base présents pour un nouveau compte, modification de données sauvegardée, déconnexion, reconnexion avec persistance des données. Réglage **Site URL** corrigé dans Supabase (Authentication → URL Configuration, `https://marge-cuisine.vercel.app` au lieu du `localhost:3000` par défaut) — sans ce réglage, le lien de confirmation email vérifie bien le compte mais affiche une page d'erreur après coup (pointait vers localhost).
+
 **Pas encore fait / à savoir pour la suite :**
-- **Aucun test réel effectué.** À valider dès que déployé : créer un compte (recevoir/confirmer l'email selon le réglage par défaut de Supabase — non vérifié si la confirmation email est activée ou non sur ce projet), se connecter, vérifier que la recette exemple + le garde-manger de base apparaissent, se déconnecter, se reconnecter, et vérifier que les données modifiées persistent bien.
+- **Email de confirmation moche, sans branding Chefup** (remarqué par l'utilisateur) : c'est le template générique par défaut de Supabase. Personnalisable dans Supabase → Authentication → Email Templates (HTML éditable). Pas fait, cosmétique, à faire si l'utilisateur le demande.
 - **Pas de "mot de passe oublié"** : aucun flux de réinitialisation de mot de passe codé pour l'instant.
 - **Pas d'écran de gestion de compte** (changer email/mot de passe une fois connecté) : pas demandé, pas codé.
 - **Stripe (période d'essai 7 jours)** : prochaine étape logique après validation de l'authentification par l'utilisateur en usage réel — ne pas commencer avant son feu vert explicite.
