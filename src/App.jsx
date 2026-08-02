@@ -305,6 +305,10 @@ const CATALOG = [
 ];
 const CATALOG_MAP = Object.fromEntries(CATALOG.map((c) => [c.id, c]));
 const normUnit = (u) => (u === "U" ? "pièce" : u);
+// "pièce" est un identifiant interne stable (comparé un peu partout dans le code, ex: unit ===
+// "pièce") — jamais renommé. Seul son AFFICHAGE doit être traduit ; "kg"/"L" restent identiques
+// dans les 3 langues donc n'ont besoin d'aucune conversion.
+const unitDisplayLabel = (u, t) => (u === "pièce" ? t("unitPieceLabel") : u);
 
 const ALLERGEN_LABELS = {
   gluten: { fr: "Gluten", es: "Gluten", en: "Gluten" },
@@ -504,7 +508,9 @@ const TR = {
     scanItemsToReview: (n) => `${n} produit${n > 1 ? "s" : ""} à vérifier`,
     scanVerifyOneByOne: "Vérifier un par un", scanValidate: "Valider", scanModify: "Modifier",
     editPriceTooltip: "Modifier le prix", viewDetailsLabel: "Détails",
-    viewDetailsTooltip: "Catégorie, pertes, fournisseurs...",
+    viewDetailsTooltip: "Catégorie, pertes, fournisseurs...", unitToggleTooltip: "Changer d'unité",
+    pickerSearchPlaceholder: "Tape 2 lettres…", pickerTypeToSearch: "Tape pour chercher…", pickerNoResults: "Aucun résultat",
+    unitPieceLabel: "pièce",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
     scanSkipAllAndClose: "Ignorer le reste et fermer",
@@ -635,7 +641,9 @@ const TR = {
     scanItemsToReview: (n) => `${n} producto${n > 1 ? "s" : ""} a verificar`,
     scanVerifyOneByOne: "Verificar uno por uno", scanValidate: "Validar", scanModify: "Modificar",
     editPriceTooltip: "Modificar el precio", viewDetailsLabel: "Detalles",
-    viewDetailsTooltip: "Categoría, mermas, proveedores...",
+    viewDetailsTooltip: "Categoría, mermas, proveedores...", unitToggleTooltip: "Cambiar de unidad",
+    pickerSearchPlaceholder: "Escribe 2 letras…", pickerTypeToSearch: "Escribe para buscar…", pickerNoResults: "Sin resultados",
+    unitPieceLabel: "unidad",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
     scanSkipAllAndClose: "Ignorar el resto y cerrar",
@@ -766,7 +774,9 @@ const TR = {
     scanItemsToReview: (n) => `${n} item${n > 1 ? "s" : ""} to check`,
     scanVerifyOneByOne: "Check one by one", scanValidate: "Validate", scanModify: "Edit",
     editPriceTooltip: "Edit the price", viewDetailsLabel: "Details",
-    viewDetailsTooltip: "Category, yield loss, suppliers...",
+    viewDetailsTooltip: "Category, yield loss, suppliers...", unitToggleTooltip: "Change unit",
+    pickerSearchPlaceholder: "Type 2 letters…", pickerTypeToSearch: "Type to search…", pickerNoResults: "No results",
+    unitPieceLabel: "piece",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
     scanSkipAllAndClose: "Skip the rest and close",
@@ -989,7 +999,7 @@ function NumField({ value, onChange, className, allowDecimal = true, ...rest }) 
 // la conversion d'affichage x1000 est appliquée. L'unité affichée (g/mL vs kg/L) ne se
 // recalcule jamais pendant la frappe (focus), pour ne pas changer l'interprétation du texte
 // en cours de saisie ; elle bascule automatiquement au-delà de 1000 (ex : 1000g -> 1 kg).
-function QtyField({ qty, unit, onChange, className }) {
+function QtyField({ qty, unit, onChange, className, unitToggleTooltip, t }) {
   const isSmallUnit = unit === "kg" || unit === "L";
   const focusedRef = useRef(false);
 
@@ -1049,12 +1059,12 @@ function QtyField({ qty, unit, onChange, className }) {
           type="button"
           onClick={() => setManualSmall(!displaySmall)}
           className="text-black/40 text-[11px] shrink-0 underline decoration-dotted hover:text-black print:no-underline"
-          title="Changer d'unité"
+          title={unitToggleTooltip}
         >
-          {displayUnit}
+          {unitDisplayLabel(displayUnit, t)}
         </button>
       ) : (
-        <span className="text-black/40 text-[11px] shrink-0">{displayUnit}</span>
+        <span className="text-black/40 text-[11px] shrink-0">{unitDisplayLabel(displayUnit, t)}</span>
       )}
     </div>
   );
@@ -1062,7 +1072,10 @@ function QtyField({ qty, unit, onChange, className }) {
 
 // Sélecteur d'ingrédient avec recherche (remplace un <select> qui deviendrait interminable).
 // Tape au moins 2 lettres pour filtrer, clique une suggestion pour choisir.
-function IngredientPicker({ ingredients, value, displayName, onChange, className, autoOpen, placeholder, onCreateNew, createNewLabel }) {
+function IngredientPicker({
+  ingredients, value, displayName, onChange, className, autoOpen, placeholder, onCreateNew, createNewLabel,
+  searchPlaceholder = "Tape 2 lettres…", typeToSearchText = "Tape pour chercher…", noResultsText = "Aucun résultat",
+}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const wrapRef = useRef(null);
@@ -1107,7 +1120,7 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tape 2 lettres…"
+              placeholder={searchPlaceholder}
               className="w-full bg-transparent text-white text-xs outline-none min-w-0"
               onBlur={() => setTimeout(() => setOpen(false), 150)}
             />
@@ -1124,7 +1137,7 @@ function IngredientPicker({ ingredients, value, displayName, onChange, className
             ))}
             {filtered.length === 0 && (
               <div className="px-2.5 py-2 text-xs text-white/30">
-                {query.trim().length === 0 ? "Tape pour chercher…" : "Aucun résultat"}
+                {query.trim().length === 0 ? typeToSearchText : noResultsText}
               </div>
             )}
           </div>
@@ -1375,7 +1388,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             onChange={(v) => onUpdate({ quantity: v })}
             className="w-10 shrink-0 bg-transparent text-white/50 text-[11px] text-right outline-none"
           />
-          <span className="text-white/40 text-[11px] shrink-0">{item.unit}</span>
+          <span className="text-white/40 text-[11px] shrink-0">{unitDisplayLabel(item.unit, t)}</span>
         </div>
 
         <div className="flex items-center gap-1.5 mt-1 min-w-0">
@@ -1413,7 +1426,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
           ) : (
             <span className="text-white text-sm font-semibold">{(item.unitPriceHT || 0).toFixed(2)}€</span>
           )}
-          <span className="text-white/40 text-[11px]">/{item.unit}</span>
+          <span className="text-white/40 text-[11px]">/{unitDisplayLabel(item.unit, t)}</span>
           {/* Variation de prix visible tout de suite, sans avoir à ouvrir "Modifier" — demande
               réelle de l'utilisateur (2026-08) : compact ici (icône + %), le détail avant/après
               reste disponible au survol et dans le panneau développé. */}
@@ -1525,7 +1538,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
               >
                 <option value="kg">kg</option>
                 <option value="L">L</option>
-                <option value="pièce">pièce</option>
+                <option value="pièce">{t("unitPieceLabel")}</option>
               </select>
               <IngredientPicker
                 ingredients={ingredients}
@@ -1534,6 +1547,9 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
                 onChange={(id) => onUpdate({ assignTo: id, guessedMatchId: id, matchConfident: true, renameOnImport: false })}
                 placeholder={t("scanSearchIngredientPlaceholder")}
                 className="flex-1 min-w-0 bg-black/30 text-white text-xs rounded-lg px-2.5 py-2"
+                searchPlaceholder={t("pickerSearchPlaceholder")}
+                typeToSearchText={t("pickerTypeToSearch")}
+                noResultsText={t("pickerNoResults")}
               />
               <button
                 type="button"
@@ -3198,7 +3214,7 @@ export default function App() {
                                       onChange={(v) => updateScanItem(current.idx, { unitPriceHT: v })}
                                       className="flex-1 min-w-0 bg-transparent text-white text-base font-semibold text-right outline-none border-b border-white/15 focus:border-[#8B5CF6]"
                                     />
-                                    <span className="text-white/50 text-sm shrink-0">€/{current.item.unit}</span>
+                                    <span className="text-white/50 text-sm shrink-0">€/{unitDisplayLabel(current.item.unit, t)}</span>
                                     <button
                                       onClick={() => setExpandedReviewIdx(current.idx)}
                                       className="shrink-0 flex items-center gap-1 px-2.5 h-8 rounded-lg text-[11px] text-white/60 font-semibold"
@@ -3451,7 +3467,7 @@ export default function App() {
                               className="w-full text-left px-3 py-2.5 text-sm text-white/80 hover:bg-white/10 flex items-center justify-between border-b border-white/5 last:border-0"
                             >
                               <span className="truncate">{ingredientDisplayName(ing)}</span>
-                              <span className="text-[10px] text-white/40 shrink-0 ml-2">{(sup?.price || 0).toFixed(2)}€ / {ing.unit}</span>
+                              <span className="text-[10px] text-white/40 shrink-0 ml-2">{(sup?.price || 0).toFixed(2)}€ / {unitDisplayLabel(ing.unit, t)}</span>
                             </button>
                           );
                         })}
@@ -3527,7 +3543,7 @@ export default function App() {
                     onChange={(v) => setWizardData((d) => ({ ...d, price: v, isEstimate: false }))}
                     className="flex-1 min-w-0 bg-transparent text-white text-xl font-bold text-center outline-none"
                   />
-                  <span className="text-white/40 text-sm shrink-0">€ / {wizardData.unit}</span>
+                  <span className="text-white/40 text-sm shrink-0">€ / {unitDisplayLabel(wizardData.unit, t)}</span>
                 </div>
                 {/* Pour tester une recette sans être bloqué par un prix qu'on n'a pas sous les
                     yeux — remplit un prix placeholder clairement marqué "estimé" (même badge
@@ -3552,7 +3568,7 @@ export default function App() {
                         color: wizardData.unit === u ? BRAND_SOLID : "rgba(255,255,255,0.6)",
                       }}
                     >
-                      {u}
+                      {unitDisplayLabel(u, t)}
                     </button>
                   ))}
                 </div>
@@ -3781,8 +3797,11 @@ export default function App() {
                           placeholder={t("recipeLineIngredientPlaceholder")}
                           onCreateNew={(query) => openAddWizard(idx, query)}
                           createNewLabel={t("recipeCreateIngredientFromLine")}
+                          searchPlaceholder={t("pickerSearchPlaceholder")}
+                          typeToSearchText={t("pickerTypeToSearch")}
+                          noResultsText={t("pickerNoResults")}
                         />
-                        <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" />
+                        <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" unitToggleTooltip={t("unitToggleTooltip")} t={t} />
                         {activeSupplier(ing)?.priceSource === "estimate" && (
                           <span className="w-1.5 h-1.5 rounded-full shrink-0 price-field" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
                         )}
@@ -4108,7 +4127,7 @@ export default function App() {
                                 {t("estimatedPriceBadge")}
                               </span>
                             )}
-                            <span className="text-white/40 text-[11px] shrink-0">{ing.unit}</span>
+                            <span className="text-white/40 text-[11px] shrink-0">{unitDisplayLabel(ing.unit, t)}</span>
                             <span className="text-white/80 text-xs font-mono shrink-0 w-16 text-right">{(sup?.price || 0).toFixed(2)}€</span>
                           </button>
                           <button
@@ -4145,7 +4164,7 @@ export default function App() {
                               >
                                 <option value="kg">kg</option>
                                 <option value="L">L</option>
-                                <option value="pièce">pièce</option>
+                                <option value="pièce">{t("unitPieceLabel")}</option>
                               </select>
                             </div>
 
