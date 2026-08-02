@@ -161,9 +161,9 @@ Autres règles :
         // Une facture longue (15-20 lignes) génère un JSON plus volumineux qu'une petite facture
         // de test — relevé pendant un benchmark que la marge par défaut devenait juste limite.
         max_tokens: 8192,
-        // Extraction structurée et déterministe (pas de rédaction créative) : on réduit la
-        // variabilité d'une lecture à l'autre d'une même facture en fixant la température à 0.
-        temperature: 0,
+        // TEST TEMPORAIRE : "temperature" est refusé par Sonnet 5 sur ce point d'accès
+        // ("deprecated for this model") — retiré le temps du test Sonnet. À remettre avec
+        // Haiku (voir commentaire ci-dessus sur le modèle).
         messages: [{ role: "user", content }],
       }),
     });
