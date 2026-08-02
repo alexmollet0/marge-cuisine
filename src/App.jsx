@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useId } from "react";
 import { storage } from "./storage.js";
+import { supabase } from "./supabaseClient.js";
 import {
   Plus,
+  LogOut,
   Trash2,
   AlertTriangle,
   Check,
@@ -35,7 +37,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 // Logo Chefup : hirondelle en plein vol ascendant, queue fourchue rappelant une
 // fourchette, remplie du dégradé de marque violet -> cyan. Icône libre (sans anneau
 // ni disque), pour rester lisible aussi bien sur le fond ardoise que sur le papier.
-function Logo({ size = 22 }) {
+export function Logo({ size = 22 }) {
   const gradId = useId();
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" style={{ flexShrink: 0, display: "block" }}>
@@ -480,7 +482,7 @@ const TR = {
     notes: "Notes / Instructions", notesPlaceholder: "Ex : Faire mariner la viande, mijoter 3h, dresser avec persil…",
     allergens: "Allergènes", allergensPlaceholder: "ex : gluten, lait, céleri…",
     allergensAutoBadge: "détecté auto", allergensReset: "Revenir à la détection auto",
-    createdOn: "Créé le", settings: "Paramètres", defaultVat: "TVA par défaut",
+    createdOn: "Créé le", settings: "Paramètres", logout: "Se déconnecter", defaultVat: "TVA par défaut",
     minMarginLabel: "Marge minimale souhaitée", close: "Fermer",
     scanInvoice: "Scanner une facture", scanning: "Analyse de la facture en cours…",
     scanError: "Erreur pendant l'analyse", scanRetry: "Réessayer",
@@ -623,7 +625,7 @@ const TR = {
     notes: "Notas / Instrucciones", notesPlaceholder: "Ej : Marinar la carne, cocinar a fuego lento 3h, emplatar con perejil…",
     allergens: "Alérgenos", allergensPlaceholder: "ej: gluten, lácteos, apio…",
     allergensAutoBadge: "detectado auto", allergensReset: "Volver a la detección automática",
-    createdOn: "Creado el", settings: "Ajustes", defaultVat: "IVA por defecto",
+    createdOn: "Creado el", settings: "Ajustes", logout: "Cerrar sesión", defaultVat: "IVA por defecto",
     minMarginLabel: "Margen mínimo deseado", close: "Cerrar",
     scanInvoice: "Escanear una factura", scanning: "Analizando la factura…",
     scanError: "Error durante el análisis", scanRetry: "Reintentar",
@@ -766,7 +768,7 @@ const TR = {
     notes: "Notes / Instructions", notesPlaceholder: "E.g.: Marinate the meat, simmer for 3h, plate with parsley…",
     allergens: "Allergens", allergensPlaceholder: "e.g.: gluten, milk, celery…",
     allergensAutoBadge: "auto-detected", allergensReset: "Back to auto-detection",
-    createdOn: "Created on", settings: "Settings", defaultVat: "Default tax rate",
+    createdOn: "Created on", settings: "Settings", logout: "Log out", defaultVat: "Default tax rate",
     minMarginLabel: "Desired minimum margin", close: "Close",
     scanInvoice: "Scan an invoice", scanning: "Analyzing the invoice…",
     scanError: "Error during analysis", scanRetry: "Retry",
@@ -1193,10 +1195,10 @@ const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 // TIER_COLORS/les indicateurs de statut (confiant/importé/prix en baisse = vert, à surveiller
 // = orange, problème = rouge) qui restent inchangés — seul le chrome interactif générique
 // (boutons, focus, sélection, onglets) passe à cette nouvelle couleur.
-const BRAND_SOLID = "#8B5CF6";
+export const BRAND_SOLID = "#8B5CF6";
 const BRAND_SOLID_PAPER = "#6D28D9";
-const BRAND_GRADIENT = "linear-gradient(135deg, #7C3AED 0%, #22D3EE 100%)";
-const BRAND_SHADOW = "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(124,58,237,0.35)";
+export const BRAND_GRADIENT = "linear-gradient(135deg, #7C3AED 0%, #22D3EE 100%)";
+export const BRAND_SHADOW = "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(124,58,237,0.35)";
 const TOP_BADGE_COLORS = ["#D4AF37", "#B4B8BC", "#C97F3F"];
 
 // Retire uniquement le code/référence interne en début de ligne (ex: "F11893 ") pour un
@@ -2955,6 +2957,9 @@ export default function App() {
           )}
           <button onClick={() => setShowSettings(true)} className="text-white/60 hover:text-[#8B5CF6]" title={t("settings")}>
             <SettingsIcon size={16} />
+          </button>
+          <button onClick={() => supabase.auth.signOut()} className="text-white/60 hover:text-[#8B5CF6]" title={t("logout")}>
+            <LogOut size={16} />
           </button>
           <div className="flex items-center gap-1">
             <button onClick={() => changeLang("fr")} className={`text-lg leading-none ${lang === "fr" ? "" : "opacity-40 grayscale"}`} title="Français">🇫🇷</button>

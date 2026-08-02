@@ -5,13 +5,16 @@ traduire ce nom, dans aucune langue). React + Vite, déployée sur Vercel, code 
 (dépôt encore nommé `marge-cuisine` — voir note de renommage ci-dessous), branche `main`.
 
 ## Fichiers clés
-- `src/App.jsx` — toute l'application (un seul gros fichier), y compris le composant `Logo`
+- `src/App.jsx` — toute l'application (un seul gros fichier), y compris le composant `Logo` (exporté) et les constantes de marque `BRAND_SOLID`/`BRAND_GRADIENT`/`BRAND_SHADOW` (exportées)
 - `api/scan-invoice.js` — fonction serveur Vercel qui appelle l'IA (Claude Haiku) pour lire les factures scannées
-- `src/storage.js` — stockage local (localStorage), préfixe de clé `"chefup:"` (migré depuis `"marge-cuisine:"` le 2026-07-31, avec copie automatique des données existantes)
+- `src/storage.js` — **stockage par compte (Supabase, depuis 2026-08-02)**, plus du localStorage. Même interface `get/set/delete/list` qu'avant (aucun autre fichier n'a eu besoin de changer), mais lit/écrit maintenant dans la table Postgres `kv_store` du projet Supabase, filtrée par compte via Row Level Security.
+- `src/supabaseClient.js` — client Supabase partagé (`createClient`), utilise `import.meta.env.VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`
+- `src/Auth.jsx` — porte d'authentification (`AuthGate`) : affiche un formulaire connexion/inscription tant qu'aucune session Supabase n'existe, sinon affiche l'app. Branché dans `src/main.jsx` autour de `<App/>`. Connexion obligatoire, pas de mode démo sans compte.
 
 ## Déploiement
-Vercel redéploie automatiquement à chaque push sur `main`. Variable d'environnement
-`ANTHROPIC_API_KEY` déjà configurée sur Vercel (ne pas y toucher).
+Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environnement configurées sur Vercel (ne pas y toucher) :
+- `ANTHROPIC_API_KEY` (scan de factures)
+- `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` (authentification + stockage des données, ajoutées le 2026-08-02) — la clé "anon" est une clé publique par conception (comme une clé Stripe "publishable"), sans danger dans le bundle frontend ; la vraie protection vient de la policy RLS sur la table `kv_store` côté Supabase.
 
 ## Fonctionnalités déjà en place
 - Calcul de marge par recette (coût ingrédients vs prix de vente, TVA configurable)
@@ -181,24 +184,28 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variable d'environn
   Toujours pas testé visuellement (même limite que ci-dessus) — à revérifier sur téléphone en priorité avec les prochains scans réels.
 - **Écran d'accueil du scanner : import de fichier mis en avant plutôt que la photo directe** (2026-08), demandé par l'utilisateur après un test réel positif (photo d'un ticket de caisse pris rapidement, un seul nom mal lu à cause d'une impression effacée) — confirme que la photo reste fiable, mais la campagne de test de la même journée avait déjà montré le PDF natif comme la modalité la plus robuste (aucun risque de décalage de ligne). Onglet Scanner (`src/App.jsx`) : ordre des deux boutons inversé (import de fichier en premier), bouton d'import stylé en bleu plein (`#3B82F6`) avec un badge "RECOMMANDÉ — PLUS PRÉCIS" au-dessus, bouton "Prendre une photo" redescendu en second et repassé en simple contour gris — aucune fonctionnalité retirée, seule la hiérarchie visuelle change. Textes d'accroche (`scanTabHint`) et libellé du bouton (`scanUploadFile`) reformulés pour mener aussi par l'import de fichier plutôt que la photo. Vérifié en direct après déploiement (ordre, couleurs, badge, aucune erreur console).
 
-## EN COURS — prochaine étape demandée par l'utilisateur (pas encore codée)
+## EN COURS — authentification codée, en attente du premier test réel
 
-### 🎯 PROCHAINE ÉTAPE, à partir de la prochaine conversation : AUTHENTIFICATION (email/mot de passe)
+### 🎯 PROCHAINE ÉTAPE : tester le flux de connexion en conditions réelles sur Vercel
 
-L'utilisateur change de conversation juste après ce point — cette section doit permettre de reprendre le travail sans avoir à relire tout l'historique ci-dessus.
+**Ordre de travail validé avec l'utilisateur (2026-08)** : 1) fiabiliser le scan ✅ 2) revue fonctionnalité par fonctionnalité ✅ 3) refonte UX ✅ 4) **authentification — codée le 2026-08-02, pas encore testée en direct**.
 
-**Ordre de travail validé avec l'utilisateur (2026-08), les 3 étapes précédentes sont maintenant terminées** : 1) fiabiliser le scan ✅ (voir campagne chiffrée — limite résiduelle assumée : décalage de ligne sur photo très dégradée/dense, testé et confirmé non résolvable par un changement de modèle, mitigé par la vérification humaine obligatoire avant tout import) 2) revue fonctionnalité par fonctionnalité de toute l'app déployée ✅ (terminée à 100%, plusieurs bugs réels trouvés et corrigés — voir entrées détaillées ci-dessus) 3) refonte UX pour la rapidité de compréhension/fluidité ✅ (8 pistes proposées, toutes acceptées avec nuances, codées et déployées, plus plusieurs itérations suite aux tout premiers retours réels sur téléphone) 4) **authentification — à faire maintenant**.
+**Ce qui a été fait le 2026-08-02** (première version, jamais testée en conditions réelles — Node.js toujours indisponible) :
+- Dépendance `@supabase/supabase-js` ajoutée à `package.json`.
+- `src/supabaseClient.js` créé (client Supabase à partir de `import.meta.env.VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`).
+- `src/storage.js` entièrement réécrit pour lire/écrire dans la table Postgres `kv_store` au lieu du localStorage — **même interface `get/set/delete/list` qu'avant**, donc `src/App.jsx` n'a eu besoin d'aucun changement sur sa logique de données (recettes/ingrédients/settings/lang/supplierMappings continuent de fonctionner à l'identique). L'ancien mécanisme de migration `"marge-cuisine:"` → `"chefup:"` a été supprimé (n'a plus de sens, il n'y a plus de localStorage pour les données).
+- `src/Auth.jsx` créé : écran de connexion/inscription (email + mot de passe), réutilise `Logo`/`BRAND_GRADIENT` exportés depuis `App.jsx`. Affiché tant qu'aucune session Supabase n'existe.
+- `src/main.jsx` : `<App/>` est maintenant enveloppée dans `<AuthGate>`. **Connexion obligatoire**, aucun mode démo sans compte.
+- Bouton de déconnexion (icône `LogOut`) ajouté dans l'en-tête de l'app, à côté de l'icône Paramètres. Clé de traduction `logout` ajoutée dans les 3 langues.
+- Table `kv_store` créée côté Supabase par l'utilisateur (SQL fourni, avec policy RLS `auth.uid() = user_id` et colonne `user_id` à `default auth.uid()` — le client n'a jamais besoin de connaître/transmettre l'id utilisateur explicitement). Variables `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` ajoutées sur Vercel.
+- **Aucune migration du localStorage existant** (décision actée le 2026-08-02) : un nouveau compte démarre avec les mêmes données de départ que l'app a toujours eues par défaut (recette exemple + `SEED_INGREDIENTS`), simplement parce que `kv_store` est vide pour ce compte et que les `useState` initiaux de `App.jsx` (`SEED_INGREDIENTS`, `buildSeedRecipes("fr")`) reprennent le dessus — aucun code de seed supplémentaire n'a été nécessaire.
 
-**Contexte à connaître avant de commencer :**
-- Mentionné par l'utilisateur le 2026-07-31 (pas une demande formelle à l'époque, contexte pour plus tard — c'est "plus tard", maintenant) : compte utilisateur personnel avec connexion, PUIS dans un second temps seulement intégration Stripe avec période d'essai de 7 jours. Ne pas commencer Stripe avant que l'authentification de base soit validée par l'utilisateur.
-- **État actuel : aucun compte n'existe.** Toutes les données (recettes, garde-manger, paramètres, mémoire des rapprochements fournisseurs) vivent uniquement en `localStorage` du navigateur, par appareil, jamais synchronisées entre appareils. C'est précisément ce qui a causé les problèmes de "mon téléphone n'a pas les dernières données" rencontrés cette session (voir plus haut, correctifs "bandeau garde-manger périmé" et diagnostic cache navigateur) — un vrai compte avec synchronisation serveur réglerait ce problème structurellement. Argument utile si l'utilisateur hésite sur la priorité ou la valeur de ce chantier.
-- **Rien n'a encore été codé côté authentification/backend.** Pas de Supabase, pas de base de données, pas d'API d'auth, aucune dépendance ajoutée pour ça. C'est un chantier entièrement nouveau, pas une itération sur l'existant — `src/storage.js` (localStorage) est aujourd'hui la SEULE couche de persistance de toute l'app.
-- **Décisions à prendre AVEC l'utilisateur avant de coder quoi que ce soit** (ne pas deviner, ne pas choisir seul — suivre la règle "expliquer avant de coder" pour tout changement non trivial) :
-  1. Quel fournisseur d'authentification/backend (Supabase a été évoqué par l'utilisateur par le passé mais jamais confirmé comme choix définitif — vérifier si c'est toujours son intention avant de partir dessus).
-  2. Que faire des données déjà présentes en `localStorage` à la première connexion d'un utilisateur existant (migrer vers son compte ? risque de perte de données à bien anticiper, ne jamais écraser silencieusement).
-  3. L'app reste-t-elle utilisable sans compte (mode démo actuel, tel quel), ou la connexion devient-elle obligatoire dès le lancement ?
-  4. Emplacement de l'hébergement du backend (Vercel a déjà `ANTHROPIC_API_KEY` en variable d'environnement — un futur backend d'auth aura probablement ses propres variables/secrets à configurer là, ou ailleurs selon le fournisseur choisi).
-- **Rappel d'environnement toujours valable** : Node.js indisponible aussi bien chez l'utilisateur que dans cet environnement de dev — impossible de lancer `npm run dev`/`npm install` en local. Toute nouvelle dépendance (SDK Supabase ou autre) devra être ajoutée directement dans `package.json` à la main et testée uniquement une fois déployée sur Vercel, comme pour `pdfjs-dist`/`tesseract.js` avant elle (qui ont fonctionné du premier coup, bon précédent).
+**Pas encore fait / à savoir pour la suite :**
+- **Aucun test réel effectué.** À valider dès que déployé : créer un compte (recevoir/confirmer l'email selon le réglage par défaut de Supabase — non vérifié si la confirmation email est activée ou non sur ce projet), se connecter, vérifier que la recette exemple + le garde-manger de base apparaissent, se déconnecter, se reconnecter, et vérifier que les données modifiées persistent bien.
+- **Pas de "mot de passe oublié"** : aucun flux de réinitialisation de mot de passe codé pour l'instant.
+- **Pas d'écran de gestion de compte** (changer email/mot de passe une fois connecté) : pas demandé, pas codé.
+- **Stripe (période d'essai 7 jours)** : prochaine étape logique après validation de l'authentification par l'utilisateur en usage réel — ne pas commencer avant son feu vert explicite.
+- **Rappel d'environnement toujours valable** : Node.js indisponible (ni chez l'utilisateur, ni dans l'environnement de dev) — tout testé uniquement une fois déployé sur Vercel.
 
 ### Reste, secondaire (fiabilité scanner déjà largement traitée)
 - **Toujours pas testé avec un vrai PDF numérique fourni par l'utilisateur** (sa tentative via Gemini a donné un fichier HTML, pas un PDF) — à valider dès qu'une vraie facture PDF fournisseur est disponible. Le chemin texte natif a été testé par simulation (campagne du 2026-08, 8/8) et s'est montré le plus fiable des trois modalités — c'est d'ailleurs pour ça que l'écran du scanner met maintenant l'import de fichier en avant (voir ci-dessus).
