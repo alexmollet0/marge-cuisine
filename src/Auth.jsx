@@ -1,10 +1,51 @@
 import React, { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW } from "./App.jsx";
 
 const inputClass =
   "w-full rounded-lg px-3 py-2 text-sm text-white bg-white/5 border border-white/10 outline-none focus:border-[#8B5CF6]";
+
+// Messages Supabase bruts (toujours en anglais) traduits en français, plutôt
+// que de laisser fuiter du texte anglais dans un écran par ailleurs en français.
+function translateAuthError(message) {
+  const m = (message || "").toLowerCase();
+  if (m.includes("invalid login credentials")) return "Email ou mot de passe incorrect.";
+  if (m.includes("already registered")) return "Un compte existe déjà avec cet email.";
+  if (m.includes("email not confirmed")) return "Confirme d'abord ton adresse email (vérifie ta boîte mail) avant de te connecter.";
+  if (m.includes("password should be at least")) return "Le mot de passe doit contenir au moins 6 caractères.";
+  if (m.includes("valid email")) return "Adresse email invalide.";
+  return "Une erreur est survenue. Réessaie.";
+}
+
+function PasswordField({ label, value, onChange, placeholder, autoComplete }) {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      {label && <label className="block text-xs text-white/50 mb-1">{label}</label>}
+      <div className="relative">
+        <input
+          type={show ? "text" : "password"}
+          required
+          minLength={6}
+          autoComplete={autoComplete}
+          value={value}
+          onChange={onChange}
+          className={`${inputClass} pr-9`}
+          placeholder={placeholder}
+        />
+        <button
+          type="button"
+          tabIndex={-1}
+          onClick={() => setShow((s) => !s)}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80"
+        >
+          {show ? <EyeOff size={15} /> : <Eye size={15} />}
+        </button>
+      </div>
+    </>
+  );
+}
 
 // Porte d'authentification : affiche le formulaire connexion/inscription/mot de
 // passe oublié tant qu'aucune session Supabase n'existe, sinon affiche l'app
@@ -61,7 +102,7 @@ export default function AuthGate({ children }) {
         setInfo("Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.");
       }
     } catch (e2) {
-      setErr(e2.message || "Une erreur est survenue.");
+      setErr(translateAuthError(e2.message));
     } finally {
       setBusy(false);
     }
@@ -75,7 +116,7 @@ export default function AuthGate({ children }) {
       if (newPassword.length < 6) throw new Error("6 caractères minimum.");
       if (newPassword !== newPassword2) throw new Error("Les deux mots de passe ne correspondent pas.");
       const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
+      if (error) throw new Error(translateAuthError(error.message));
       setRecoveryMode(false);
     } catch (e2) {
       setErr(e2.message || "Une erreur est survenue.");
@@ -114,29 +155,25 @@ export default function AuthGate({ children }) {
             </div>
           )}
 
-          <label className="block text-xs text-white/50 mb-1">Nouveau mot de passe</label>
-          <input
-            type="password"
-            required
-            minLength={6}
-            autoComplete="new-password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            className={`${inputClass} mb-4`}
-            placeholder="6 caractères minimum"
-          />
+          <div className="mb-4">
+            <PasswordField
+              label="Nouveau mot de passe"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="6 caractères minimum"
+            />
+          </div>
 
-          <label className="block text-xs text-white/50 mb-1">Confirme le mot de passe</label>
-          <input
-            type="password"
-            required
-            minLength={6}
-            autoComplete="new-password"
-            value={newPassword2}
-            onChange={(e) => setNewPassword2(e.target.value)}
-            className={`${inputClass} mb-5`}
-            placeholder="Retape le même mot de passe"
-          />
+          <div className="mb-5">
+            <PasswordField
+              label="Confirme le mot de passe"
+              autoComplete="new-password"
+              value={newPassword2}
+              onChange={(e) => setNewPassword2(e.target.value)}
+              placeholder="Retape le même mot de passe"
+            />
+          </div>
 
           <button
             type="submit"
@@ -191,19 +228,15 @@ export default function AuthGate({ children }) {
           />
 
           {mode !== "forgot" && (
-            <>
-              <label className="block text-xs text-white/50 mb-1">Mot de passe</label>
-              <input
-                type="password"
-                required
-                minLength={6}
+            <div className="mb-5">
+              <PasswordField
+                label="Mot de passe"
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className={`${inputClass} mb-5`}
                 placeholder="6 caractères minimum"
               />
-            </>
+            </div>
           )}
 
           <button
