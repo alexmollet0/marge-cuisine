@@ -1,21 +1,34 @@
 import React, { useState, useEffect } from "react";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
-import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW } from "./App.jsx";
+import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
 
 const inputClass =
   "w-full rounded-lg px-3 py-2 text-sm text-white bg-white/5 border border-white/10 outline-none focus:border-[#8B5CF6]";
 
-// Messages Supabase bruts (toujours en anglais) traduits en français, plutôt
-// que de laisser fuiter du texte anglais dans un écran par ailleurs en français.
-function translateAuthError(message) {
+const AUTH_LANG_KEY = "chefup:authLang";
+
+function guessAuthLang() {
+  try {
+    const saved = localStorage.getItem(AUTH_LANG_KEY);
+    if (saved && TR[saved]) return saved;
+  } catch (e) {}
+  const nav = (typeof navigator !== "undefined" && navigator.language) || "fr";
+  if (nav.startsWith("es")) return "es";
+  if (nav.startsWith("en")) return "en";
+  return "fr";
+}
+
+// Messages Supabase bruts (toujours en anglais côté API) traduits dans la
+// langue choisie sur cet écran, plutôt que de laisser fuiter du texte anglais.
+function translateAuthError(message, t) {
   const m = (message || "").toLowerCase();
-  if (m.includes("invalid login credentials")) return "Email ou mot de passe incorrect.";
-  if (m.includes("already registered")) return "Un compte existe déjà avec cet email.";
-  if (m.includes("email not confirmed")) return "Confirme d'abord ton adresse email (vérifie ta boîte mail) avant de te connecter.";
-  if (m.includes("password should be at least")) return "Le mot de passe doit contenir au moins 6 caractères.";
-  if (m.includes("valid email")) return "Adresse email invalide.";
-  return "Une erreur est survenue. Réessaie.";
+  if (m.includes("invalid login credentials")) return t("authErrorInvalidCredentials");
+  if (m.includes("already registered")) return t("authErrorAlreadyRegistered");
+  if (m.includes("email not confirmed")) return t("authErrorEmailNotConfirmed");
+  if (m.includes("password should be at least")) return t("authErrorPasswordTooShort");
+  if (m.includes("valid email")) return t("authErrorInvalidEmail");
+  return t("authErrorGeneric");
 }
 
 function PasswordField({ label, value, onChange, placeholder, autoComplete }) {
@@ -50,11 +63,14 @@ function PasswordField({ label, value, onChange, placeholder, autoComplete }) {
 // Porte d'authentification : affiche le formulaire connexion/inscription/mot de
 // passe oublié tant qu'aucune session Supabase n'existe, sinon affiche l'app
 // (children). Connexion obligatoire (décision produit du 2026-08-02) : aucun
-// mode démo sans compte.
+// mode démo sans compte. Langue de cet écran choisie indépendamment de la
+// langue du compte (inconnue tant qu'on n'est pas connecté), mémorisée en
+// localStorage le temps de la session pré-connexion.
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(undefined); // undefined = chargement initial
   const [recoveryMode, setRecoveryMode] = useState(false); // arrivée depuis le lien "mot de passe oublié"
   const [mode, setMode] = useState("login"); // "login" | "signup" | "forgot"
+  const [authLang, setAuthLang] = useState(guessAuthLang);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -62,6 +78,15 @@ export default function AuthGate({ children }) {
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const t = (key) => TR[authLang]?.[key] ?? TR.fr[key] ?? key;
+
+  function changeAuthLang(l) {
+    setAuthLang(l);
+    try {
+      localStorage.setItem(AUTH_LANG_KEY, l);
+    } catch (e) {}
+  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -91,7 +116,7 @@ export default function AuthGate({ children }) {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (!data.session) {
-          setInfo("Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.");
+          setInfo(t("authSignupSuccessInfo"));
           setMode("login");
         }
       } else if (mode === "forgot") {
@@ -99,10 +124,32 @@ export default function AuthGate({ children }) {
           redirectTo: window.location.origin,
         });
         if (error) throw error;
-        setInfo("Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.");
+        setInfo(t("authForgotSuccessInfo"));
       }
     } catch (e2) {
-      setErr(translateAuthError(e2.message));
+      setErr(translateAuthError(e2.message, t));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendMagicLink() {
+    setErr("");
+    setInfo("");
+    if (!email) {
+      setErr(t("authErrorInvalidEmail"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (error) throw error;
+      setInfo(t("authMagicLinkInfo"));
+    } catch (e2) {
+      setErr(translateAuthError(e2.message, t));
     } finally {
       setBusy(false);
     }
@@ -113,17 +160,25 @@ export default function AuthGate({ children }) {
     setErr("");
     setBusy(true);
     try {
-      if (newPassword.length < 6) throw new Error("6 caractères minimum.");
-      if (newPassword !== newPassword2) throw new Error("Les deux mots de passe ne correspondent pas.");
+      if (newPassword.length < 6) throw new Error(t("authErrorPasswordTooShort"));
+      if (newPassword !== newPassword2) throw new Error(t("authErrorPasswordMismatch"));
       const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw new Error(translateAuthError(error.message));
+      if (error) throw new Error(translateAuthError(error.message, t));
       setRecoveryMode(false);
     } catch (e2) {
-      setErr(e2.message || "Une erreur est survenue.");
+      setErr(e2.message || t("authErrorGeneric"));
     } finally {
       setBusy(false);
     }
   }
+
+  const LangSwitcher = (
+    <div className="flex items-center justify-center gap-1 mb-4">
+      <button type="button" onClick={() => changeAuthLang("fr")} className={`text-lg leading-none ${authLang === "fr" ? "" : "opacity-40 grayscale"}`} title="Français">🇫🇷</button>
+      <button type="button" onClick={() => changeAuthLang("es")} className={`text-lg leading-none ${authLang === "es" ? "" : "opacity-40 grayscale"}`} title="Español">🇪🇸</button>
+      <button type="button" onClick={() => changeAuthLang("en")} className={`text-lg leading-none ${authLang === "en" ? "" : "opacity-40 grayscale"}`} title="English">🇬🇧</button>
+    </div>
+  );
 
   if (session === undefined) {
     return (
@@ -145,8 +200,9 @@ export default function AuthGate({ children }) {
             <Logo size={30} />
             <h1 className="font-display text-white text-lg tracking-wide uppercase">Chefup</h1>
           </div>
+          {LangSwitcher}
           <h2 className="text-white text-center font-display uppercase text-sm tracking-wide mb-5">
-            Nouveau mot de passe
+            {t("authResetTitle")}
           </h2>
 
           {err && (
@@ -157,21 +213,21 @@ export default function AuthGate({ children }) {
 
           <div className="mb-4">
             <PasswordField
-              label="Nouveau mot de passe"
+              label={t("authNewPasswordLabel")}
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="6 caractères minimum"
+              placeholder={t("authPasswordPlaceholder")}
             />
           </div>
 
           <div className="mb-5">
             <PasswordField
-              label="Confirme le mot de passe"
+              label={t("authConfirmPasswordLabel")}
               autoComplete="new-password"
               value={newPassword2}
               onChange={(e) => setNewPassword2(e.target.value)}
-              placeholder="Retape le même mot de passe"
+              placeholder={t("authConfirmPasswordPlaceholder")}
             />
           </div>
 
@@ -182,7 +238,7 @@ export default function AuthGate({ children }) {
             style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
           >
             {busy && <Loader2 size={14} className="animate-spin" />}
-            Valider le nouveau mot de passe
+            {t("authResetButton")}
           </button>
         </form>
       </div>
@@ -201,8 +257,9 @@ export default function AuthGate({ children }) {
             <Logo size={30} />
             <h1 className="font-display text-white text-lg tracking-wide uppercase">Chefup</h1>
           </div>
+          {LangSwitcher}
           <h2 className="text-white text-center font-display uppercase text-sm tracking-wide mb-5">
-            {mode === "login" ? "Connexion" : mode === "signup" ? "Créer un compte" : "Mot de passe oublié"}
+            {mode === "login" ? t("authLoginTitle") : mode === "signup" ? t("authSignupTitle") : t("authForgotTitle")}
           </h2>
 
           {err && (
@@ -216,7 +273,7 @@ export default function AuthGate({ children }) {
             </div>
           )}
 
-          <label className="block text-xs text-white/50 mb-1">Email</label>
+          <label className="block text-xs text-white/50 mb-1">{t("authEmailLabel")}</label>
           <input
             type="email"
             required
@@ -224,17 +281,17 @@ export default function AuthGate({ children }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={`${inputClass} mb-4`}
-            placeholder="toi@exemple.com"
+            placeholder={t("authEmailPlaceholder")}
           />
 
           {mode !== "forgot" && (
             <div className="mb-5">
               <PasswordField
-                label="Mot de passe"
+                label={t("authPasswordLabel")}
                 autoComplete={mode === "login" ? "current-password" : "new-password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="6 caractères minimum"
+                placeholder={t("authPasswordPlaceholder")}
               />
             </div>
           )}
@@ -246,8 +303,26 @@ export default function AuthGate({ children }) {
             style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
           >
             {busy && <Loader2 size={14} className="animate-spin" />}
-            {mode === "login" ? "Se connecter" : mode === "signup" ? "Créer mon compte" : "Envoyer le lien de réinitialisation"}
+            {mode === "login" ? t("authLoginButton") : mode === "signup" ? t("authSignupButton") : t("authForgotButton")}
           </button>
+
+          {mode === "login" && (
+            <>
+              <div className="flex items-center gap-3 my-4">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-[10px] uppercase tracking-wide text-white/30">{t("authOrDivider")}</span>
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={sendMagicLink}
+                className="w-full py-2.5 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/5 disabled:opacity-60"
+              >
+                {t("authMagicLinkButton")}
+              </button>
+            </>
+          )}
 
           {mode === "login" && (
             <button
@@ -255,7 +330,7 @@ export default function AuthGate({ children }) {
               onClick={() => switchMode("forgot")}
               className="w-full mt-4 text-xs text-white/50 hover:text-white"
             >
-              Mot de passe oublié ?
+              {t("authForgotLink")}
             </button>
           )}
 
@@ -264,7 +339,7 @@ export default function AuthGate({ children }) {
             onClick={() => switchMode(mode === "login" ? "signup" : "login")}
             className="w-full mt-2 text-xs text-white/50 hover:text-white"
           >
-            {mode === "signup" ? "Déjà un compte ? Se connecter" : mode === "forgot" ? "Retour à la connexion" : "Pas encore de compte ? Créer un compte"}
+            {mode === "signup" ? t("authSwitchToLogin") : mode === "forgot" ? t("authBackToLogin") : t("authSwitchToSignup")}
           </button>
         </form>
       </div>

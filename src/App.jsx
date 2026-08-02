@@ -455,7 +455,7 @@ function recipeSuggestion(recipe, ingredientsList, lineCostFn, displayNameFn, la
   return priciest ? tr("suggestionOtherWithIngredient")(priciest.name) : tr("suggestionOther");
 }
 
-const TR = {
+export const TR = {
   fr: {
     appTitle: "Chefup", saved: "Enregistré", loading: "Chargement…", greeting: "Bonjour Chef",
     dataUnavailable: "Données locales indisponibles", resetData: "Réinitialiser mes données",
@@ -598,6 +598,19 @@ const TR = {
     marginLegendNoOrange: (crit) => `Vert ≥ ${crit}% · Rouge < ${crit}% (pas de zone orange avec ce seuil)`,
     deleteRecipeButton: "Supprimer cette recette",
     deleteLabel: "Supprimer", deleteIngredientButton: "Supprimer l'ingrédient",
+    authLoginTitle: "Connexion", authSignupTitle: "Créer un compte", authForgotTitle: "Mot de passe oublié", authResetTitle: "Nouveau mot de passe",
+    authEmailLabel: "Email", authPasswordLabel: "Mot de passe", authNewPasswordLabel: "Nouveau mot de passe", authConfirmPasswordLabel: "Confirme le mot de passe",
+    authEmailPlaceholder: "toi@exemple.com", authPasswordPlaceholder: "6 caractères minimum", authConfirmPasswordPlaceholder: "Retape le même mot de passe",
+    authLoginButton: "Se connecter", authSignupButton: "Créer mon compte", authForgotButton: "Envoyer le lien de réinitialisation", authResetButton: "Valider le nouveau mot de passe",
+    authForgotLink: "Mot de passe oublié ?", authSwitchToSignup: "Pas encore de compte ? Créer un compte", authSwitchToLogin: "Déjà un compte ? Se connecter", authBackToLogin: "Retour à la connexion",
+    authSignupSuccessInfo: "Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.",
+    authForgotSuccessInfo: "Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.",
+    authMagicLinkButton: "Recevoir un lien de connexion par email", authMagicLinkInfo: "Un lien de connexion vient d'être envoyé par email — clique dessus pour te connecter directement, sans mot de passe.",
+    authOrDivider: "ou",
+    authErrorInvalidCredentials: "Email ou mot de passe incorrect.", authErrorAlreadyRegistered: "Un compte existe déjà avec cet email.",
+    authErrorEmailNotConfirmed: "Confirme d'abord ton adresse email (vérifie ta boîte mail) avant de te connecter.",
+    authErrorPasswordTooShort: "Le mot de passe doit contenir au moins 6 caractères.", authErrorInvalidEmail: "Adresse email invalide.",
+    authErrorGeneric: "Une erreur est survenue. Réessaie.", authErrorPasswordMismatch: "Les deux mots de passe ne correspondent pas.",
   },
   es: {
     appTitle: "Chefup", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef",
@@ -741,6 +754,19 @@ const TR = {
     marginLegendNoOrange: (crit) => `Verde ≥ ${crit}% · Rojo < ${crit}% (sin zona naranja con este umbral)`,
     deleteRecipeButton: "Eliminar esta receta",
     deleteLabel: "Eliminar", deleteIngredientButton: "Eliminar ingrediente",
+    authLoginTitle: "Conexión", authSignupTitle: "Crear una cuenta", authForgotTitle: "Contraseña olvidada", authResetTitle: "Nueva contraseña",
+    authEmailLabel: "Email", authPasswordLabel: "Contraseña", authNewPasswordLabel: "Nueva contraseña", authConfirmPasswordLabel: "Confirma la contraseña",
+    authEmailPlaceholder: "tu@ejemplo.com", authPasswordPlaceholder: "6 caracteres mínimo", authConfirmPasswordPlaceholder: "Escribe otra vez la misma contraseña",
+    authLoginButton: "Iniciar sesión", authSignupButton: "Crear mi cuenta", authForgotButton: "Enviar el enlace de restablecimiento", authResetButton: "Confirmar la nueva contraseña",
+    authForgotLink: "¿Contraseña olvidada?", authSwitchToSignup: "¿Aún no tienes cuenta? Crear una cuenta", authSwitchToLogin: "¿Ya tienes cuenta? Iniciar sesión", authBackToLogin: "Volver al inicio de sesión",
+    authSignupSuccessInfo: "¡Cuenta creada! Revisa tu correo para confirmar tu dirección y luego inicia sesión.",
+    authForgotSuccessInfo: "Si existe una cuenta con este email, se acaba de enviar un enlace de restablecimiento.",
+    authMagicLinkButton: "Recibir un enlace de acceso por email", authMagicLinkInfo: "Se acaba de enviar un enlace de acceso por email — haz clic para conectarte directamente, sin contraseña.",
+    authOrDivider: "o",
+    authErrorInvalidCredentials: "Email o contraseña incorrectos.", authErrorAlreadyRegistered: "Ya existe una cuenta con este email.",
+    authErrorEmailNotConfirmed: "Confirma primero tu dirección de email (revisa tu correo) antes de iniciar sesión.",
+    authErrorPasswordTooShort: "La contraseña debe tener al menos 6 caracteres.", authErrorInvalidEmail: "Dirección de email inválida.",
+    authErrorGeneric: "Ha ocurrido un error. Inténtalo de nuevo.", authErrorPasswordMismatch: "Las dos contraseñas no coinciden.",
   },
   en: {
     appTitle: "Chefup", saved: "Saved", loading: "Loading…", greeting: "Hello Chef",
@@ -884,6 +910,19 @@ const TR = {
     marginLegendNoOrange: (crit) => `Green ≥ ${crit}% · Red < ${crit}% (no orange zone with this threshold)`,
     deleteRecipeButton: "Delete this recipe",
     deleteLabel: "Delete", deleteIngredientButton: "Delete ingredient",
+    authLoginTitle: "Log in", authSignupTitle: "Create an account", authForgotTitle: "Forgot password", authResetTitle: "New password",
+    authEmailLabel: "Email", authPasswordLabel: "Password", authNewPasswordLabel: "New password", authConfirmPasswordLabel: "Confirm password",
+    authEmailPlaceholder: "you@example.com", authPasswordPlaceholder: "6 characters minimum", authConfirmPasswordPlaceholder: "Type the same password again",
+    authLoginButton: "Log in", authSignupButton: "Create my account", authForgotButton: "Send reset link", authResetButton: "Confirm new password",
+    authForgotLink: "Forgot password?", authSwitchToSignup: "No account yet? Create one", authSwitchToLogin: "Already have an account? Log in", authBackToLogin: "Back to login",
+    authSignupSuccessInfo: "Account created! Check your inbox to confirm your address, then log in.",
+    authForgotSuccessInfo: "If an account exists with this email, a reset link was just sent.",
+    authMagicLinkButton: "Get a one-click login link by email", authMagicLinkInfo: "A login link was just sent by email — click it to log in directly, no password needed.",
+    authOrDivider: "or",
+    authErrorInvalidCredentials: "Incorrect email or password.", authErrorAlreadyRegistered: "An account already exists with this email.",
+    authErrorEmailNotConfirmed: "Confirm your email address first (check your inbox) before logging in.",
+    authErrorPasswordTooShort: "Password must be at least 6 characters.", authErrorInvalidEmail: "Invalid email address.",
+    authErrorGeneric: "Something went wrong. Please try again.", authErrorPasswordMismatch: "The two passwords don't match.",
   },
 };
 
