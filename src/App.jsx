@@ -507,8 +507,8 @@ const TR = {
     scanSummaryUpdate: (name, price, unit) => `Tu vas mettre à jour "${name}" à ${price}€/${unit}.`,
     scanItemsToReview: (n) => `${n} produit${n > 1 ? "s" : ""} à vérifier`,
     scanVerifyOneByOne: "Vérifier un par un", scanValidate: "Valider", scanModify: "Modifier",
-    editPriceTooltip: "Modifier le prix", viewDetailsLabel: "Détails",
-    viewDetailsTooltip: "Catégorie, pertes, fournisseurs...", unitToggleTooltip: "Changer d'unité",
+    viewDetailsLabel: "Modifier",
+    viewDetailsTooltip: "Prix, catégorie, pertes, fournisseurs...", unitToggleTooltip: "Changer d'unité",
     pickerSearchPlaceholder: "Tape 2 lettres…", pickerTypeToSearch: "Tape pour chercher…", pickerNoResults: "Aucun résultat",
     unitPieceLabel: "pièce", unitFieldLabel: "Unité",
     legacyPantryHint: "Ton garde-manger contient encore l'ancienne liste de démonstration (~200 ingrédients). Charge la nouvelle version allégée (7 ingrédients essentiels) pour repartir sur une base plus claire.",
@@ -648,8 +648,8 @@ const TR = {
     scanSummaryUpdate: (name, price, unit) => `Vas a actualizar "${name}" a ${price}€/${unit}.`,
     scanItemsToReview: (n) => `${n} producto${n > 1 ? "s" : ""} a verificar`,
     scanVerifyOneByOne: "Verificar uno por uno", scanValidate: "Validar", scanModify: "Modificar",
-    editPriceTooltip: "Modificar el precio", viewDetailsLabel: "Detalles",
-    viewDetailsTooltip: "Categoría, mermas, proveedores...", unitToggleTooltip: "Cambiar de unidad",
+    viewDetailsLabel: "Editar",
+    viewDetailsTooltip: "Precio, categoría, mermas, proveedores...", unitToggleTooltip: "Cambiar de unidad",
     pickerSearchPlaceholder: "Escribe 2 letras…", pickerTypeToSearch: "Escribe para buscar…", pickerNoResults: "Sin resultados",
     unitPieceLabel: "unidad", unitFieldLabel: "Unidad",
     legacyPantryHint: "Tu despensa todavía tiene la antigua lista de demostración (~200 ingredientes). Carga la nueva versión reducida (7 ingredientes esenciales) para empezar con una base más clara.",
@@ -789,8 +789,8 @@ const TR = {
     scanSummaryUpdate: (name, price, unit) => `You're about to update "${name}" to ${price}€/${unit}.`,
     scanItemsToReview: (n) => `${n} item${n > 1 ? "s" : ""} to check`,
     scanVerifyOneByOne: "Check one by one", scanValidate: "Validate", scanModify: "Edit",
-    editPriceTooltip: "Edit the price", viewDetailsLabel: "Details",
-    viewDetailsTooltip: "Category, yield loss, suppliers...", unitToggleTooltip: "Change unit",
+    viewDetailsLabel: "Edit",
+    viewDetailsTooltip: "Price, category, yield loss, suppliers...", unitToggleTooltip: "Change unit",
     pickerSearchPlaceholder: "Type 2 letters…", pickerTypeToSearch: "Type to search…", pickerNoResults: "No results",
     unitPieceLabel: "piece", unitFieldLabel: "Unit",
     legacyPantryHint: "Your pantry still has the old demo list (~200 ingredients). Load the new lean version (7 essential ingredients) to start from a clearer base.",
@@ -1841,21 +1841,6 @@ export default function App() {
     setWizardEditId(null);
     setWizardReturnToLineIdx(returnToLineIdx);
     setWizardStep(1);
-    setAddWizardOpen(true);
-  };
-  const openEditWizard = (ing) => {
-    const sup = activeSupplier(ing);
-    setWizardData({
-      name: ingredientDisplayName(ing),
-      catalogId: ing.catalogId,
-      unit: ing.unit,
-      category: ing.category || "autres",
-      price: sup?.price || 0,
-    });
-    setWizardQuery("");
-    setWizardEditId(ing.id);
-    setWizardReturnToLineIdx(null);
-    setWizardStep(3);
     setAddWizardOpen(true);
   };
   const closeAddWizard = () => {
@@ -4279,13 +4264,6 @@ export default function App() {
                             )}
                             <span className="text-white/40 text-[11px] shrink-0">{unitDisplayLabel(ing.unit, t)}</span>
                             <span className="text-white/80 text-xs font-mono shrink-0 w-16 text-right">{(sup?.price || 0).toFixed(2)}€</span>
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); openEditWizard(ing); }}
-                            className="shrink-0 text-white/30 hover:text-[#8B5CF6] p-1"
-                            title={t("editPriceTooltip")}
-                          >
-                            <Pencil size={13} />
                           </button>
                           <button
                             onClick={() => setExpandedIngId(isOpen ? null : ing.id)}
