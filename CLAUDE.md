@@ -10,11 +10,15 @@ traduire ce nom, dans aucune langue). React + Vite, déployée sur Vercel, code 
 - `src/storage.js` — **stockage par compte (Supabase, depuis 2026-08-02)**, plus du localStorage. Même interface `get/set/delete/list` qu'avant (aucun autre fichier n'a eu besoin de changer), mais lit/écrit maintenant dans la table Postgres `kv_store` du projet Supabase, filtrée par compte via Row Level Security.
 - `src/supabaseClient.js` — client Supabase partagé (`createClient`), utilise `import.meta.env.VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`
 - `src/Auth.jsx` — porte d'authentification (`AuthGate`) : affiche un formulaire connexion/inscription tant qu'aucune session Supabase n'existe, sinon affiche l'app. Branché dans `src/main.jsx` autour de `<App/>`. Connexion obligatoire, pas de mode démo sans compte.
+- `src/Billing.jsx` — porte d'abonnement (`SubscriptionGate`), imbriquée DANS `AuthGate` (`src/main.jsx` : `AuthGate > SubscriptionGate > App`). Voir section Stripe ci-dessous.
+- `api/_lib.js` — utilitaires serveur partagés par les fonctions Stripe (client Stripe, client Supabase admin service_role, vérification du token utilisateur). Préfixé `_` pour que Vercel ne le déploie pas comme route.
+- `api/create-checkout-session.js`, `api/create-portal-session.js`, `api/stripe-webhook.js` — fonctions serveur Stripe (voir section Stripe ci-dessous).
 
 ## Déploiement
 Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environnement configurées sur Vercel (ne pas y toucher) :
 - `ANTHROPIC_API_KEY` (scan de factures)
 - `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` (authentification + stockage des données, ajoutées le 2026-08-02) — la clé "anon" est une clé publique par conception (comme une clé Stripe "publishable"), sans danger dans le bundle frontend ; la vraie protection vient de la policy RLS sur la table `kv_store` côté Supabase.
+- **À ajouter pour Stripe (2026-08-03, voir section EN COURS)** : `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` (secrètes, jamais préfixées `VITE_`), `SUPABASE_SERVICE_ROLE_KEY` (clé admin Supabase qui contourne RLS — jamais dans le bundle frontend, utilisée uniquement par `api/_lib.js`).
 
 **Nom de domaine (2026-08-02)** : `getchefup.com` acheté directement via Vercel (Settings → Domains) et connecté automatiquement — `chefup.com` était déjà pris. C'est maintenant l'adresse de référence de l'app (Site URL Supabase pointe dessus). L'ancienne adresse `marge-cuisine.vercel.app` reste fonctionnelle en parallèle (toujours dans les Redirect URLs Supabase), mais `getchefup.com` est l'adresse à utiliser/donner aux utilisateurs. Le nom du dépôt GitHub et du projet Vercel restent `marge-cuisine` (voir note de renommage plus bas, inchangée).
 
@@ -187,12 +191,48 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environ
   2. **Dans la pile de vérification, impossible de corriger "instinctivement" un nom mal proposé par l'IA** (cas réel : "Orange à jus" proposé au lieu de "Orange dessert") — dès qu'un rapprochement existait, seul `ScanNameChoice` (choix garder/renommer/créer séparément) s'affichait, sans champ de texte visible pour corriger le nom lui-même ; il fallait ouvrir "Modifier" pour trouver un champ éditable. Nouveau champ nom toujours affiché et modifiable en haut de la carte de la pile (même quand un rapprochement existe), avec icône crayon pour bien signaler que c'est cliquable — le modifier met aussi à jour en direct les options "renommer"/"créer séparément" juste en dessous, qui réutilisent ce même texte.
   Toujours pas testé visuellement (même limite que ci-dessus) — à revérifier sur téléphone en priorité avec les prochains scans réels.
 - **Écran d'accueil du scanner : import de fichier mis en avant plutôt que la photo directe** (2026-08), demandé par l'utilisateur après un test réel positif (photo d'un ticket de caisse pris rapidement, un seul nom mal lu à cause d'une impression effacée) — confirme que la photo reste fiable, mais la campagne de test de la même journée avait déjà montré le PDF natif comme la modalité la plus robuste (aucun risque de décalage de ligne). Onglet Scanner (`src/App.jsx`) : ordre des deux boutons inversé (import de fichier en premier), bouton d'import stylé en bleu plein (`#3B82F6`) avec un badge "RECOMMANDÉ — PLUS PRÉCIS" au-dessus, bouton "Prendre une photo" redescendu en second et repassé en simple contour gris — aucune fonctionnalité retirée, seule la hiérarchie visuelle change. Textes d'accroche (`scanTabHint`) et libellé du bouton (`scanUploadFile`) reformulés pour mener aussi par l'import de fichier plutôt que la photo. Vérifié en direct après déploiement (ordre, couleurs, badge, aucune erreur console).
+- **Stripe (abonnement 39€/mois, essai 7 jours sans carte) : code écrit le 2026-08-03, PAS ENCORE actif/testé** — voir la section EN COURS ci-dessous pour l'état détaillé (fichiers créés, étapes restantes côté compte Stripe/Supabase/Vercel avant que ça fonctionne réellement). Ne pas supposer que l'abonnement fonctionne tant que ces étapes ne sont pas confirmées faites.
 
 ## EN COURS
 
-### 🎯 PROCHAINE ÉTAPE, dès la prochaine conversation : STRIPE (abonnement payant, essai 7 jours)
+### 🎯 PROCHAINE ÉTAPE, dès la prochaine conversation : finir de brancher STRIPE (code écrit le 2026-08-03, pas encore actif)
 
-**Ordre de travail validé avec l'utilisateur (2026-08)** : 1) fiabiliser le scan ✅ 2) revue fonctionnalité par fonctionnalité ✅ 3) refonte UX ✅ 4) **authentification ✅ codée, testée ET peaufinée le 2026-08-02** (inscription, confirmation email brandée, connexion, mot de passe oublié, lien magique, déconnexion/reconnexion, domaine personnalisé, trilingue — tout confirmé fonctionnel par l'utilisateur en conditions réelles) 5) **Stripe — à faire dès la prochaine session**, l'utilisateur a dit explicitement "on fera Stripe demain" en fin de session du 2026-08-02. Rien de bloquant côté auth pour l'instant, ce chantier est considéré terminé pour le moment.
+**Ordre de travail validé avec l'utilisateur (2026-08)** : 1) fiabiliser le scan ✅ 2) revue fonctionnalité par fonctionnalité ✅ 3) refonte UX ✅ 4) **authentification ✅** (2026-08-02) 5) **Stripe — code écrit le 2026-08-03, PAS ENCORE DÉPLOYÉ/CONFIGURÉ**, voir ci-dessous pour l'état exact et les étapes restantes.
+
+**Décision produit actée avec l'utilisateur (2026-08-03)** : l'essai de 7 jours ne demande **aucune carte bancaire**. Choix laissé à mon appréciation par l'utilisateur ("prend la meilleure décision") ; raisonnement : l'acquisition prévue passe par TikTok/affiliation créateurs (trafic froid, faible intention au premier clic), et le frein identifié chez ce type d'utilisateur est l'inertie ("la flemme"), pas le prix — demander une carte à l'inscription aurait ajouté exactement la friction à éviter, et aurait été plus dur à faire relayer par un créateur affilié ("essaie gratuitement" vs "donne ta carte"). Conséquence architecture : **Stripe n'intervient pas du tout pendant les 7 jours d'essai** — l'essai se calcule uniquement à partir de la date d'inscription Supabase (`session.user.created_at`), rien à stocker en plus pour ça. Stripe n'entre en jeu qu'au moment où l'essai se termine (paywall) ou si l'utilisateur choisit de s'abonner.
+
+**Ce qui a été codé le 2026-08-03 (relu attentivement, PAS testé en conditions réelles — Stripe pas encore configuré côté compte) :**
+- `src/Billing.jsx` (`SubscriptionGate`, imbriqué dans `AuthGate` via `src/main.jsx`) : pendant les 7 jours suivant l'inscription → accès complet + bandeau discret "Essai gratuit : J-X" ; après, si aucun abonnement `active`/`trialing`/`past_due` trouvé → écran bloquant avec bouton "S'abonner maintenant" (redirige vers Stripe Checkout). `past_due` reste volontairement autorisé (grâce le temps que Stripe relance automatiquement un paiement échoué), seuls `canceled`/`unpaid`/aucun abonnement bloquent réellement.
+- `api/create-checkout-session.js` : vérifie le token Supabase de l'utilisateur (jamais un user_id envoyé par le client), crée/retrouve son client Stripe, crée une session Checkout **sans période d'essai côté Stripe** (paiement immédiat — l'essai gratuit a déjà eu lieu côté app), redirige vers `?checkout=success`/`cancel`.
+- `api/create-portal-session.js` : ouvre le portail client Stripe (annuler, changer de carte) — évite de coder cette UI. Accessible depuis Paramètres → "Gérer mon abonnement" (`src/App.jsx`).
+- `api/stripe-webhook.js` : seule source de vérité qui écrit dans Supabase. Écoute `checkout.session.completed`, `customer.subscription.created/updated/deleted`, met à jour la table `subscriptions` (voir ci-dessous) via le `stripe_customer_id` (jamais un ID envoyé par le client). Nécessite `bodyParser: false` (signature Stripe calculée sur le corps brut de la requête).
+- `api/_lib.js` : utilitaires partagés (client Stripe, client Supabase `service_role` qui contourne RLS, vérification du token utilisateur). Préfixe `_` = pas déployé comme route par Vercel.
+- Dépendance npm `stripe` ajoutée à `package.json`.
+- Texte d'accroche de l'écran de connexion (`authSignupFreeNote`) mis à jour pour mentionner "7 jours d'essai gratuit" (avant : texte volontairement neutre en attendant que Stripe existe réellement — voir historique auth du 2026-08-02).
+
+**⚠️ ÉTAPES RESTANTES avant que ça fonctionne réellement (à faire en tout début de prochaine session, dans cet ordre) :**
+1. **Table Supabase `subscriptions`** — à créer via SQL Editor Supabase (donné à l'utilisateur le 2026-08-03, à ressortir si besoin) :
+   ```sql
+   create table if not exists subscriptions (
+     user_id uuid primary key references auth.users(id) on delete cascade,
+     stripe_customer_id text unique,
+     stripe_subscription_id text,
+     status text not null default 'none',
+     current_period_end timestamptz,
+     updated_at timestamptz not null default now()
+   );
+   alter table subscriptions enable row level security;
+   create policy "Users can read their own subscription" on subscriptions for select using (auth.uid() = user_id);
+   ```
+   Aucune policy insert/update/delete pour les utilisateurs normaux — par design, seule la clé `service_role` (jamais exposée au navigateur, utilisée uniquement par les fonctions serveur) peut écrire dans cette table.
+2. **Compte Stripe** : l'utilisateur n'en avait pas au 2026-08-03 ("pas encore, guide-moi") — créer le compte sur stripe.com (rester en **mode Test** au début), créer un produit "Chefup" avec un prix récurrent **39€/mois**, récupérer l'ID du prix (`price_...`) et la clé secrète (`sk_test_...`).
+3. Ajouter sur Vercel (Settings → Environment Variables) : `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `SUPABASE_SERVICE_ROLE_KEY` (Supabase → Project Settings → API → clé `service_role`, à garder strictement secrète).
+4. Déployer (push sur `main`), PUIS dans le dashboard Stripe → Développeurs → Webhooks → ajouter un endpoint pointant vers `https://getchefup.com/api/stripe-webhook`, événements : `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copier le "Signing secret" (`whsec_...`) obtenu à cette étape → l'ajouter comme `STRIPE_WEBHOOK_SECRET` sur Vercel, puis **redéployer une deuxième fois** (changer une variable d'env sur Vercel ne redéploie pas automatiquement le déploiement déjà en ligne).
+5. Tester en mode Test Stripe avec une carte de test (`4242 4242 4242 4242`) avant de basculer le compte Stripe en mode Live.
+
+**Risque à surveiller à cause de l'ordre de déploiement** : dès que ce code est en ligne, TOUT compte dont l'inscription date de plus de 7 jours sera bloqué par le paywall, même si les étapes 2-4 ci-dessus ne sont pas encore faites (le bouton "S'abonner" échouera proprement avec un message d'erreur tant que Stripe n'est pas configuré, mais l'accès à l'app restera coupé). Le compte de l'utilisateur (inscrit le 2026-08-02) a encore quelques jours de marge, mais ne pas laisser traîner cet état une fois déployé.
+
+**Simplifications assumées pour cette première version, à raffiner avec de vrais tests :** pas de gestion fine des statuts `incomplete`/`incomplete_expired` (traités comme "non actif", donc bloquants) ; pas de relance email automatique avant fin d'essai (Stripe ne le sait même pas, c'est un futur chantier côté app si besoin) ; le portail client Stripe gère déjà nativement l'annulation/changement de carte, rien codé à la main pour ça.
 
 **Ce qui a été fait le 2026-08-02 (authentification complète) :**
 - Dépendance `@supabase/supabase-js` ajoutée à `package.json`.

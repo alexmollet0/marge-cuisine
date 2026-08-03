@@ -484,6 +484,10 @@ export const TR = {
     allergensAutoBadge: "détecté auto", allergensReset: "Revenir à la détection auto",
     createdOn: "Créé le", settings: "Paramètres", logout: "Se déconnecter", defaultVat: "TVA par défaut",
     minMarginLabel: "Marge minimale souhaitée", close: "Fermer",
+    billingTrialBanner: (n) => n > 1 ? `Essai gratuit : ${n} jours restants` : n === 1 ? "Essai gratuit : dernier jour" : "Essai gratuit : se termine aujourd'hui",
+    billingPaywallTitle: "Ton essai gratuit est terminé", billingPaywallBody: "Abonne-toi pour continuer à utiliser Chefup — 39€/mois, résiliable à tout moment.",
+    billingSubscribeButton: "S'abonner maintenant", billingSecureNote: "Paiement sécurisé par Stripe.", billingCheckoutError: "Impossible d'ouvrir la page de paiement, réessaie dans un instant.",
+    billingManageSubscription: "Gérer mon abonnement", billingPortalError: "Impossible d'ouvrir le portail d'abonnement, réessaie dans un instant.",
     scanInvoice: "Scanner une facture", scanning: "Analyse de la facture en cours…",
     scanError: "Erreur pendant l'analyse", scanRetry: "Réessayer",
     scanResultTitle: "Résultat du scan", scanSupplier: "Fournisseur",
@@ -611,7 +615,7 @@ export const TR = {
     authErrorEmailNotConfirmed: "Confirme d'abord ton adresse email (vérifie ta boîte mail) avant de te connecter.",
     authErrorPasswordTooShort: "Le mot de passe doit contenir au moins 6 caractères.", authErrorInvalidEmail: "Adresse email invalide.",
     authErrorGeneric: "Une erreur est survenue. Réessaie.", authErrorPasswordMismatch: "Les deux mots de passe ne correspondent pas.",
-    authTagline: "Calcule tes marges en toute simplicité", authSignupFreeNote: "Gratuit, aucune carte bancaire requise.",
+    authTagline: "Calcule tes marges en toute simplicité", authSignupFreeNote: "7 jours d'essai gratuit, aucune carte bancaire requise.",
   },
   es: {
     appTitle: "Chefup", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef",
@@ -641,6 +645,10 @@ export const TR = {
     allergensAutoBadge: "detectado auto", allergensReset: "Volver a la detección automática",
     createdOn: "Creado el", settings: "Ajustes", logout: "Cerrar sesión", defaultVat: "IVA por defecto",
     minMarginLabel: "Margen mínimo deseado", close: "Cerrar",
+    billingTrialBanner: (n) => n > 1 ? `Prueba gratuita: quedan ${n} días` : n === 1 ? "Prueba gratuita: último día" : "Prueba gratuita: termina hoy",
+    billingPaywallTitle: "Tu prueba gratuita ha terminado", billingPaywallBody: "Suscríbete para seguir usando Chefup — 39€/mes, cancelable en cualquier momento.",
+    billingSubscribeButton: "Suscribirme ahora", billingSecureNote: "Pago seguro con Stripe.", billingCheckoutError: "No se pudo abrir la página de pago, inténtalo de nuevo en un momento.",
+    billingManageSubscription: "Gestionar mi suscripción", billingPortalError: "No se pudo abrir el portal de suscripción, inténtalo de nuevo en un momento.",
     scanInvoice: "Escanear una factura", scanning: "Analizando la factura…",
     scanError: "Error durante el análisis", scanRetry: "Reintentar",
     scanResultTitle: "Resultado del escaneo", scanSupplier: "Proveedor",
@@ -768,7 +776,7 @@ export const TR = {
     authErrorEmailNotConfirmed: "Confirma primero tu dirección de email (revisa tu correo) antes de iniciar sesión.",
     authErrorPasswordTooShort: "La contraseña debe tener al menos 6 caracteres.", authErrorInvalidEmail: "Dirección de email inválida.",
     authErrorGeneric: "Ha ocurrido un error. Inténtalo de nuevo.", authErrorPasswordMismatch: "Las dos contraseñas no coinciden.",
-    authTagline: "Calcula tus márgenes con toda sencillez", authSignupFreeNote: "Gratis, sin necesidad de tarjeta bancaria.",
+    authTagline: "Calcula tus márgenes con toda sencillez", authSignupFreeNote: "7 días de prueba gratuita, sin necesidad de tarjeta bancaria.",
   },
   en: {
     appTitle: "Chefup", saved: "Saved", loading: "Loading…", greeting: "Hello Chef",
@@ -798,6 +806,10 @@ export const TR = {
     allergensAutoBadge: "auto-detected", allergensReset: "Back to auto-detection",
     createdOn: "Created on", settings: "Settings", logout: "Log out", defaultVat: "Default tax rate",
     minMarginLabel: "Desired minimum margin", close: "Close",
+    billingTrialBanner: (n) => n > 1 ? `Free trial: ${n} days left` : n === 1 ? "Free trial: last day" : "Free trial: ends today",
+    billingPaywallTitle: "Your free trial has ended", billingPaywallBody: "Subscribe to keep using Chefup — €39/month, cancel anytime.",
+    billingSubscribeButton: "Subscribe now", billingSecureNote: "Secure payment by Stripe.", billingCheckoutError: "Couldn't open the payment page, try again in a moment.",
+    billingManageSubscription: "Manage my subscription", billingPortalError: "Couldn't open the subscription portal, try again in a moment.",
     scanInvoice: "Scan an invoice", scanning: "Analyzing the invoice…",
     scanError: "Error during analysis", scanRetry: "Retry",
     scanResultTitle: "Scan result", scanSupplier: "Supplier",
@@ -925,7 +937,7 @@ export const TR = {
     authErrorEmailNotConfirmed: "Confirm your email address first (check your inbox) before logging in.",
     authErrorPasswordTooShort: "Password must be at least 6 characters.", authErrorInvalidEmail: "Invalid email address.",
     authErrorGeneric: "Something went wrong. Please try again.", authErrorPasswordMismatch: "The two passwords don't match.",
-    authTagline: "Calculate your margins with ease", authSignupFreeNote: "Free, no credit card required.",
+    authTagline: "Calculate your margins with ease", authSignupFreeNote: "7-day free trial, no credit card required.",
   },
 };
 
@@ -1706,6 +1718,8 @@ export default function App() {
   const [lang, setLang] = useState("fr");
   const [showSettings, setShowSettings] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [portalErr, setPortalErr] = useState("");
   const [showMarginLegend, setShowMarginLegend] = useState(false);
   const [ready, setReady] = useState(false);
   const [loadErr, setLoadErr] = useState(false);
@@ -2021,6 +2035,27 @@ export default function App() {
     setResetConfirmOpen(false);
     setShowSettings(false);
     try { await storage.delete("ingredients"); await storage.delete("recipes"); await storage.delete("supplierMappings"); } catch (e) {}
+  };
+
+  // Ouvre le portail client Stripe (gérer carte/annuler) — appel serveur, jamais de clé Stripe
+  // exposée côté navigateur. Le token Supabase de la session prouve au serveur quel utilisateur
+  // (donc quel client Stripe) est concerné.
+  const manageSubscription = async () => {
+    setPortalErr("");
+    setPortalBusy(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/create-portal-session", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "portal error");
+      window.location.href = data.url;
+    } catch (e) {
+      setPortalErr(t("billingPortalError"));
+      setPortalBusy(false);
+    }
   };
 
   // Change la langue d'interface et, si LA recette de démo (r1) n'a jamais été touchée, met à jour
@@ -3044,6 +3079,17 @@ export default function App() {
                 : t("marginLegendNoOrange")(CRITICAL_MARGIN)}
             </p>
 
+            {portalErr && (
+              <div className="mb-3 text-[11px] rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">{portalErr}</div>
+            )}
+            <button
+              onClick={manageSubscription}
+              disabled={portalBusy}
+              className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] disabled:opacity-60 flex items-center justify-center gap-2 mb-2"
+            >
+              {portalBusy && <Loader2 size={12} className="animate-spin" />}
+              {t("billingManageSubscription")}
+            </button>
             <button onClick={() => setShowSettings(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]">
               {t("close")}
             </button>
