@@ -24,7 +24,10 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     if (!sub?.stripe_customer_id) {
-      return res.status(400).json({ error: "Aucun abonnement Stripe trouvé pour ce compte." });
+      // Code distinct (pas juste le message) pour que le frontend puisse basculer proprement vers
+      // la création d'un abonnement (create-checkout-session.js) sans avoir à deviner à partir
+      // d'un texte d'erreur, qui pourrait changer ou dépendre de la langue.
+      return res.status(400).json({ error: "Aucun abonnement Stripe trouvé pour ce compte.", code: "no_subscription" });
     }
 
     const origin = req.headers.origin || `https://${req.headers.host}`;

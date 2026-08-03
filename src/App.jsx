@@ -487,7 +487,7 @@ export const TR = {
     billingTrialBanner: (n) => n > 1 ? `Essai gratuit : ${n} jours restants` : n === 1 ? "Essai gratuit : dernier jour" : "Essai gratuit : se termine aujourd'hui",
     billingPaywallTitle: "Ton essai gratuit est terminé", billingPaywallBody: "Abonne-toi pour continuer à utiliser Chefup — 39€/mois, résiliable à tout moment.",
     billingSubscribeButton: "S'abonner maintenant", billingSecureNote: "Paiement sécurisé par Stripe.", billingCheckoutError: "Impossible d'ouvrir la page de paiement, réessaie dans un instant.",
-    billingManageSubscription: "Gérer mon abonnement", billingPortalError: "Impossible d'ouvrir le portail d'abonnement, réessaie dans un instant.",
+    billingManageSubscription: "Abonnement", billingPortalError: "Impossible d'ouvrir la page d'abonnement, réessaie dans un instant.",
     scanInvoice: "Scanner une facture", scanning: "Analyse de la facture en cours…",
     scanError: "Erreur pendant l'analyse", scanRetry: "Réessayer",
     scanResultTitle: "Résultat du scan", scanSupplier: "Fournisseur",
@@ -648,7 +648,7 @@ export const TR = {
     billingTrialBanner: (n) => n > 1 ? `Prueba gratuita: quedan ${n} días` : n === 1 ? "Prueba gratuita: último día" : "Prueba gratuita: termina hoy",
     billingPaywallTitle: "Tu prueba gratuita ha terminado", billingPaywallBody: "Suscríbete para seguir usando Chefup — 39€/mes, cancelable en cualquier momento.",
     billingSubscribeButton: "Suscribirme ahora", billingSecureNote: "Pago seguro con Stripe.", billingCheckoutError: "No se pudo abrir la página de pago, inténtalo de nuevo en un momento.",
-    billingManageSubscription: "Gestionar mi suscripción", billingPortalError: "No se pudo abrir el portal de suscripción, inténtalo de nuevo en un momento.",
+    billingManageSubscription: "Suscripción", billingPortalError: "No se pudo abrir la página de suscripción, inténtalo de nuevo en un momento.",
     scanInvoice: "Escanear una factura", scanning: "Analizando la factura…",
     scanError: "Error durante el análisis", scanRetry: "Reintentar",
     scanResultTitle: "Resultado del escaneo", scanSupplier: "Proveedor",
@@ -809,7 +809,7 @@ export const TR = {
     billingTrialBanner: (n) => n > 1 ? `Free trial: ${n} days left` : n === 1 ? "Free trial: last day" : "Free trial: ends today",
     billingPaywallTitle: "Your free trial has ended", billingPaywallBody: "Subscribe to keep using Chefup — €39/month, cancel anytime.",
     billingSubscribeButton: "Subscribe now", billingSecureNote: "Secure payment by Stripe.", billingCheckoutError: "Couldn't open the payment page, try again in a moment.",
-    billingManageSubscription: "Manage my subscription", billingPortalError: "Couldn't open the subscription portal, try again in a moment.",
+    billingManageSubscription: "Subscription", billingPortalError: "Couldn't open the subscription page, try again in a moment.",
     scanInvoice: "Scan an invoice", scanning: "Analyzing the invoice…",
     scanError: "Error during analysis", scanRetry: "Retry",
     scanResultTitle: "Scan result", scanSupplier: "Supplier",
@@ -2040,18 +2040,29 @@ export default function App() {
   // Ouvre le portail client Stripe (gérer carte/annuler) — appel serveur, jamais de clé Stripe
   // exposée côté navigateur. Le token Supabase de la session prouve au serveur quel utilisateur
   // (donc quel client Stripe) est concerné.
+  // Bouton unique "intelligent" : ouvre le portail Stripe (annuler, changer de carte) si un
+  // abonnement existe déjà ; sinon (encore en essai, aucun client Stripe créé) ouvre directement
+  // le paiement pour s'abonner tout de suite sans attendre la fin des 7 jours. Le serveur renvoie
+  // un code "no_subscription" (pas juste un message) pour distinguer ce cas d'une vraie erreur.
   const manageSubscription = async () => {
     setPortalErr("");
     setPortalBusy(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch("/api/create-portal-session", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const data = await res.json();
-      if (!res.ok || !data.url) throw new Error(data.error || "portal error");
-      window.location.href = data.url;
+      const authHeader = { Authorization: `Bearer ${session.access_token}` };
+
+      const portalRes = await fetch("/api/create-portal-session", { method: "POST", headers: authHeader });
+      const portalData = await portalRes.json();
+      if (portalRes.ok && portalData.url) {
+        window.location.href = portalData.url;
+        return;
+      }
+      if (portalData.code !== "no_subscription") throw new Error(portalData.error || "portal error");
+
+      const checkoutRes = await fetch("/api/create-checkout-session", { method: "POST", headers: authHeader });
+      const checkoutData = await checkoutRes.json();
+      if (!checkoutRes.ok || !checkoutData.url) throw new Error(checkoutData.error || "checkout error");
+      window.location.href = checkoutData.url;
     } catch (e) {
       setPortalErr(t("billingPortalError"));
       setPortalBusy(false);
