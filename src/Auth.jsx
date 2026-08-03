@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
+import Landing from "./Landing.jsx";
 
 // text-base (16px) plutôt que text-sm : en dessous de 16px, iOS/Android zooment
 // automatiquement l'écran au focus d'un champ, et ne rezooment pas toujours
@@ -73,6 +74,7 @@ function PasswordField({ label, value, onChange, placeholder, autoComplete }) {
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(undefined); // undefined = chargement initial
   const [recoveryMode, setRecoveryMode] = useState(false); // arrivée depuis le lien "mot de passe oublié"
+  const [showLanding, setShowLanding] = useState(true); // page d'accueil publique, avant le formulaire
   const [mode, setMode] = useState("login"); // "login" | "signup" | "forgot"
   const [authLang, setAuthLang] = useState(guessAuthLang);
   const [email, setEmail] = useState("");
@@ -249,6 +251,23 @@ export default function AuthGate({ children }) {
     );
   }
 
+  if (!session && showLanding) {
+    return (
+      <Landing
+        lang={authLang}
+        LangSwitcher={LangSwitcher}
+        onStart={() => {
+          setShowLanding(false);
+          switchMode("signup");
+        }}
+        onLogin={() => {
+          setShowLanding(false);
+          switchMode("login");
+        }}
+      />
+    );
+  }
+
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 font-body" style={{ background: "#1B1815" }}>
@@ -257,6 +276,13 @@ export default function AuthGate({ children }) {
           className="w-full max-w-sm rounded-2xl p-6 border border-white/10"
           style={{ background: "#26221C" }}
         >
+          <button
+            type="button"
+            onClick={() => setShowLanding(true)}
+            className="text-xs text-white/40 hover:text-white mb-3"
+          >
+            ← Chefup
+          </button>
           <div className="flex items-center gap-2 justify-center mb-2">
             <Logo size={30} />
             <h1 className="font-display text-white text-lg tracking-wide uppercase">Chefup</h1>
