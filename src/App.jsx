@@ -3023,18 +3023,37 @@ export default function App() {
         const msg = debugDetail ? `${data.error} (${debugDetail})` : data.error || "Échec de l'analyse";
         throw new Error(msg);
       }
+      // Filet de sécurité : sur une fiche complexe (plusieurs sous-recettes, ex: "pâte" / "garniture"
+      // / "sauce"), l'IA regroupe parfois les lignes par section au lieu d'un tableau plat malgré
+      // la consigne du prompt — on aplatit systématiquement plutôt que de planter sur une forme
+      // inattendue (`data.lines` objet de sections, ou toute valeur non-tableau).
+      let rawLines = [];
+      if (Array.isArray(data.lines)) rawLines = data.lines;
+      else if (data.lines && typeof data.lines === "object") {
+        rawLines = Object.values(data.lines).flatMap((v) => (Array.isArray(v) ? v : []));
+      }
+      // Coercion tolérante : sur une fiche complexe l'IA renvoie parfois un tableau (ex: étapes
+      // numérotées, plusieurs allergènes) là où le prompt demande une seule chaîne — on préserve
+      // l'information (jointure) plutôt que de la perdre silencieusement ou de planter dessus.
+      const asText = (v, sep = "\n") => {
+        if (typeof v === "string") return v;
+        if (Array.isArray(v)) return v.filter((x) => typeof x === "string").join(sep);
+        return "";
+      };
+
       // Rapproche chaque ligne détectée avec le garde-manger existant (même fonction que le
       // scanner de factures) — une correspondance non confiante reste modifiable via
       // ScanNameChoice dans l'écran de vérification, jamais assignée silencieusement.
-      const lines = (data.lines || [])
-        .filter((l) => l.name && l.name.trim())
+      const lines = rawLines
+        .filter((l) => l && typeof l === "object" && asText(l.name).trim())
         .map((l) => {
-          const match = guessIngredientId(l.name);
+          const name = asText(l.name);
+          const match = guessIngredientId(name);
           return {
-            rawText: l.rawText || l.name,
-            name: l.name,
+            rawText: asText(l.rawText) || name,
+            name,
             qty: typeof l.qty === "number" ? l.qty : null,
-            unit: normUnit(l.unit || "kg"),
+            unit: normUnit(asText(l.unit) || "kg"),
             impreciseQuantity: !!l.impreciseQuantity || typeof l.qty !== "number",
             // Un rapprochement douteux ne doit jamais pré-sélectionner l'ingrédient existant tout
             // seul (même règle que le scanner de factures, voir handleScanFile) : par défaut
@@ -3047,11 +3066,11 @@ export default function App() {
           };
         });
       setScanRecipeResult({
-        name: data.name || "",
+        name: asText(data.name),
         portions: typeof data.portions === "number" && data.portions > 0 ? data.portions : 4,
         sellPrice: typeof data.sellPrice === "number" ? data.sellPrice : 0,
-        allergens: data.allergens || "",
-        notes: data.notes || "",
+        allergens: asText(data.allergens, ", "),
+        notes: asText(data.notes),
         lines,
       });
     } catch (err) {

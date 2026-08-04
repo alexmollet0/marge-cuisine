@@ -38,6 +38,9 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de 
   ]
 }
 
+RÈGLE STRICTE — "lines" EST TOUJOURS UN TABLEAU PLAT, JAMAIS DE SOUS-GROUPES :
+Certaines fiches techniques comportent plusieurs sous-recettes (ex: "Pour la pâte", "Pour la garniture", "Pour la sauce", "Pour la finition"), chacune avec ses propres ingrédients. Même dans ce cas, "lines" doit rester un UNIQUE tableau plat contenant TOUTES les lignes de TOUTES les sous-recettes mises bout à bout — ne renvoie JAMAIS un objet groupé par section (ex: jamais {"pate": [...], "garniture": [...]}), et ne renvoie jamais un tableau de tableaux. Si tu veux garder une trace de la sous-recette d'origine, tu peux la préfixer dans "rawText" (ex: "Garniture — Beurre 50g"), mais jamais changer la forme globale de "lines".
+
 RÈGLE STRICTE — LA LISTE D'INGRÉDIENTS NE VIENT QUE DE LA LISTE/TABLEAU DÉDIÉ AUX INGRÉDIENTS :
 N'ajoute une ligne dans "lines" QUE si elle apparaît dans la liste ou le tableau des ingrédients de la fiche (généralement en haut du document, avec une quantité à côté de chaque nom). Ne crée JAMAIS de ligne supplémentaire à partir d'un ingrédient simplement mentionné dans le texte des instructions/étapes de préparation, même si son nom y réapparaît (ex: si "beurre" est déjà dans la liste d'ingrédients ET mentionné à nouveau dans une étape comme "faites fondre le beurre", ne crée surtout pas une deuxième ligne "beurre" — une seule ligne par ingrédient de la liste). Un ingrédient qui n'apparaît QUE dans le texte des instructions, sans être dans la liste dédiée, ne doit JAMAIS devenir une ligne non plus. Le texte des instructions est recopié uniquement dans le champ "notes", jamais redécomposé en lignes d'ingrédients.
 
