@@ -543,6 +543,8 @@ export const TR = {
     marginLegendToggle: "Que veulent dire les couleurs ?",
     deleteLineTooltip: "Retirer cet ingrédient de la recette",
     editLinePriceTooltip: "Corriger le prix (met à jour le garde-manger)",
+    lineUnitMismatchWarning: (oldU, newU) => `Cet ingrédient est passé de "${oldU}" à "${newU}" depuis la saisie de cette quantité — vérifie qu'elle est toujours correcte.`,
+    recipeUnitMismatchHint: "Une unité d'ingrédient a changé depuis la saisie — vérifie les quantités",
     ingredientsSectionLabel: "Ingrédients", pricingSectionLabel: "Prix & marge",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
@@ -726,6 +728,8 @@ export const TR = {
     marginLegendToggle: "¿Qué significan los colores?",
     deleteLineTooltip: "Quitar este ingrediente de la receta",
     editLinePriceTooltip: "Corregir el precio (actualiza el almacén)",
+    lineUnitMismatchWarning: (oldU, newU) => `Este ingrediente pasó de "${oldU}" a "${newU}" desde que se introdujo esta cantidad — comprueba que sigue siendo correcta.`,
+    recipeUnitMismatchHint: "La unidad de un ingrediente cambió desde que se introdujo — revisa las cantidades",
     ingredientsSectionLabel: "Ingredientes", pricingSectionLabel: "Precio y margen",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
@@ -909,6 +913,8 @@ export const TR = {
     marginLegendToggle: "What do the colors mean?",
     deleteLineTooltip: "Remove this ingredient from the recipe",
     editLinePriceTooltip: "Fix the price (updates the pantry)",
+    lineUnitMismatchWarning: (oldU, newU) => `This ingredient switched from "${oldU}" to "${newU}" since this quantity was entered — check it's still correct.`,
+    recipeUnitMismatchHint: "An ingredient's unit changed since it was entered — check the quantities",
     ingredientsSectionLabel: "Ingredients", pricingSectionLabel: "Price & margin",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
@@ -1920,6 +1926,15 @@ export default function App() {
     return ing ? effectiveUnitPrice(ing) * line.qty : 0;
   };
 
+  // Vrai si au moins une ligne de cette recette a une quantité saisie dans une unité qui a changé
+  // depuis (voir updateLineQty/changeLineIngredient) — sert à afficher un repère dans la liste des
+  // recettes, pour ne pas avoir à ouvrir chaque fiche pour le découvrir.
+  const recipeHasUnitMismatch = (r) =>
+    r.lines.some((l) => {
+      const ing = ingredientById(l.ingredientId);
+      return ing && l.unitAtEntry !== undefined && l.unitAtEntry !== ing.unit;
+    });
+
   const recipeCost = (r) => r.lines.reduce((s, l) => s + lineCost(l), 0);
   const recipeCostPerPortion = (r) => (r.portions > 0 ? recipeCost(r) / r.portions : 0);
   const vatRate = settings.vat ?? 10;
@@ -1961,7 +1976,16 @@ export default function App() {
     if (active.allergensAuto !== false) patch.allergens = detectAllergens(newLines, ingredients, lang);
     updateRecipe(patch);
   };
-  const updateLineQty = (idx, qty) => updateRecipe({ lines: active.lines.map((l, i) => (i === idx ? { ...l, qty } : l)) });
+  // `unitAtEntry` mémorise l'unité de l'ingrédient au moment où la quantité a été saisie/modifiée
+  // — si l'unité de l'ingrédient change ensuite (ex: un scan de facture retrouve "Ail" en kg alors
+  // qu'il était en "pièce"), la quantité déjà tapée n'a plus le même sens (2 gousses ≠ 2 kg) sans
+  // que rien ne le signale. Comparer `unitAtEntry` à l'unité actuelle permet d'avertir sur la ligne
+  // concernée. `undefined` (lignes déjà existantes avant ce correctif) ne déclenche jamais
+  // l'avertissement, pour ne pas signaler a posteriori tout le garde-manger existant.
+  const updateLineQty = (idx, qty) =>
+    updateRecipe({
+      lines: active.lines.map((l, i) => (i === idx ? { ...l, qty, unitAtEntry: ingredientById(l.ingredientId)?.unit } : l)),
+    });
   const removeLine = (idx) => applyLinesChange(active.lines.filter((_, i) => i !== idx));
   const addLine = () => {
     const newIdx = active.lines.length;
@@ -1969,7 +1993,7 @@ export default function App() {
     setAutoOpenIdx(newIdx);
   };
   const changeLineIngredient = (idx, ingredientId) =>
-    applyLinesChange(active.lines.map((l, i) => (i === idx ? { ...l, ingredientId } : l)));
+    applyLinesChange(active.lines.map((l, i) => (i === idx ? { ...l, ingredientId, unitAtEntry: ingredientById(ingredientId)?.unit } : l)));
   const resetAllergensAuto = () => {
     if (!active) return;
     updateRecipe({ allergens: detectAllergens(active.lines, ingredients, lang), allergensAuto: true });
@@ -3202,6 +3226,7 @@ export default function App() {
     const renameOps = []; // { id, name } — ingrédients existants à renommer (choix "renommer" dans ScanNameChoice)
     const resolvedLines = scanRecipeResult.lines.map((line) => {
       let ingredientId;
+      let unitAtEntry;
       if (line.assignTo === "new") {
         const catalogGuess = guessCatalogEntry(line.name);
         const category = catalogGuess ? catalogGuess.category : "autres";
@@ -3211,6 +3236,7 @@ export default function App() {
         // api/scan-recipe.js) — on préfère l'unité habituelle de la catégorie plutôt que de
         // suivre un "pièce" hasardeux pour un ingrédient normalement vendu au poids.
         const unit = line.impreciseQuantity ? CATEGORY_DEFAULT_UNIT[category] || "kg" : line.unit || "kg";
+        unitAtEntry = unit;
         newIngredients.push({
           id: ingredientId,
           name: line.name,
@@ -3225,8 +3251,9 @@ export default function App() {
       } else {
         ingredientId = line.assignTo;
         if (line.renameOnImport && line.name) renameOps.push({ id: ingredientId, name: line.name });
+        unitAtEntry = ingredients.find((i) => i.id === ingredientId)?.unit;
       }
-      return { ingredientId, qty: line.impreciseQuantity ? 0 : line.qty || 0 };
+      return { ingredientId, qty: line.impreciseQuantity ? 0 : line.qty || 0, unitAtEntry };
     });
 
     if (newIngredients.length || renameOps.length) {
@@ -4507,6 +4534,15 @@ export default function App() {
                           <Award size={10} />
                         </span>
                       )}
+                      {recipeHasUnitMismatch(r) && (
+                        <span
+                          className="absolute top-1.5 left-1.5 flex items-center justify-center w-5 h-5 rounded-full shrink-0"
+                          style={{ color: TIER_COLORS.mid, background: `${TIER_COLORS.mid}22` }}
+                          title={t("recipeUnitMismatchHint")}
+                        >
+                          <AlertTriangle size={10} />
+                        </span>
+                      )}
                       <div className="text-white font-medium text-[11px] leading-tight line-clamp-2 px-0.5">{r.name}</div>
                       {m !== null ? (
                         <span
@@ -4551,6 +4587,9 @@ export default function App() {
                               >
                                 <Award size={9} /> TOP{topRecipeIds.indexOf(r.id) + 1}
                               </span>
+                            )}
+                            {recipeHasUnitMismatch(r) && (
+                              <AlertTriangle size={12} className="shrink-0" style={{ color: TIER_COLORS.mid }} title={t("recipeUnitMismatchHint")} />
                             )}
                           </div>
                           <div className="text-white/40 text-[11px] font-mono mt-1">
@@ -4673,6 +4712,12 @@ export default function App() {
                   const ing = ingredientById(line.ingredientId);
                   const variation = ing ? priceVariation(ing) : null;
                   const loss = ing?.lossPercent || 0;
+                  // L'unité de cet ingrédient a changé depuis que cette quantité a été saisie
+                  // (ex: un scan de facture a fait basculer "Ail" de pièce à kg) — la quantité
+                  // affichée n'a peut-être plus le même sens, à revérifier. `unitAtEntry`
+                  // undefined (lignes déjà existantes avant ce correctif) ne déclenche jamais
+                  // l'avertissement.
+                  const unitMismatch = ing && line.unitAtEntry !== undefined && line.unitAtEntry !== ing.unit;
                   return (
                     <div key={idx}>
                       <div className="flex items-center gap-2 text-xs">
@@ -4727,6 +4772,15 @@ export default function App() {
                             </span>
                           )}
                           {loss > 0 && <span>{t("lossLineBadge")(loss)}</span>}
+                        </div>
+                      )}
+                      {unitMismatch && (
+                        <div
+                          className="flex items-center gap-1.5 text-[10px] font-semibold rounded px-2 py-1 mb-1.5 price-field"
+                          style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}
+                        >
+                          <AlertTriangle size={11} className="shrink-0" />
+                          {t("lineUnitMismatchWarning")(line.unitAtEntry, ing.unit)}
                         </div>
                       )}
                     </div>
