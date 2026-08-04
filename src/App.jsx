@@ -2673,15 +2673,15 @@ export default function App() {
       if (isPdf) {
         const pdfResult = await readPdfFile(file);
         if (pdfResult.text) {
-          payload = { text: pdfResult.text };
+          payload = { text: pdfResult.text, lang };
         } else {
           const ocrText = await runOcr(pdfResult.base64);
-          payload = { image: pdfResult.base64, mediaType: pdfResult.mediaType, ocrText };
+          payload = { image: pdfResult.base64, mediaType: pdfResult.mediaType, ocrText, lang };
         }
       } else {
         const { base64, mediaType } = await compressImageFile(file);
         const ocrText = await runOcr(base64);
-        payload = { image: base64, mediaType, ocrText };
+        payload = { image: base64, mediaType, ocrText, lang };
       }
       const res = await fetch("/api/scan-invoice", {
         method: "POST",

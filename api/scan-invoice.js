@@ -1,3 +1,20 @@
+// Lexique de référence par langue d'interface, pour aider l'IA à reconnaître de vraies
+// abréviations de facture plutôt que de deviner. Construit UNIQUEMENT à partir de sources
+// publiques vérifiées (jamais d'abréviation inventée) — voir `lang` plus bas pour l'isolation
+// stricte par langue (un seul bloc injecté par requête, jamais plusieurs langues mélangées).
+// Recherche faite le 2026-08-04 : seul METRO France publie un lexique officiel téléchargeable
+// (metro.fr/devenir-client/acceder-gerer-espace-client/comprendre-facture-metro) — aucune source
+// publique équivalente trouvée pour Promocash/Transgourmet (FR), Makro España (ES) ou
+// Bidfood/Brakes (EN) à cette date ; ES et EN restent donc vides plutôt que de deviner. À
+// compléter si une vraie source publique apparaît pour ces enseignes.
+const SUPPLIER_LEXICON = {
+  fr: `Lexique de référence (source officielle METRO France) pour t'aider à reconnaître des abréviations réelles de facture française — utilise-le uniquement comme aide à la lecture, si le document contredit ce lexique fais toujours confiance au document :
+ABRÉVIATIONS FRUITS & LÉGUMES : pom=pommes, champi=champignons, pdt=pommes de terre, tradit./tradition=traditionnel, PL. Terre=pleine terre, G COTE=grosses côtes, conso=consommation, ch/fer=chair ferme, feuil=feuille. Couleurs : blc=blanc, viol/viole=violet, pourpr=pourpre. Calibre/catégorie : cal/cl=calibre, C1/C2...=Catégorie 1/2..., ext=extra. Variétés : melod=melody, marab=marabella, monal=monalisa, victo=victoria, frline/fline=franceline, charlot/charl=charlotte, amandin/amand=amandine, bintj=bintje, natas=natacha, fonta=fontane, artem=artemis, caesa=caesar. Traitement : ct3=code traitement 3.
+CODES PAYS D'ORIGINE FRÉQUENTS sur une facture de fruits/légumes (à ne jamais garder comme s'ils faisaient partie du nom du produit) : FR=France, ES=Espagne, IT=Italie, MA=Maroc, BE=Belgique, NL=Pays-Bas, DE=Allemagne, PT=Portugal, TR=Turquie, PE=Pérou, CR=Costa Rica, EC=Équateur, KE=Kenya, SN=Sénégal, TN=Tunisie, GR=Grèce, PL=Pologne, GB=Royaume-Uni, CL=Chili, BR=Brésil, AR=Argentine, IN=Inde, CN=Chine, TH=Thaïlande, VN=Vietnam, US=États-Unis, IL=Israël, EG=Égypte.`,
+  es: null,
+  en: null,
+};
+
 // Fonction serveur Vercel (jamais exécutée dans le navigateur : la clé API
 // reste ici, côté serveur, et n'est jamais visible par le client).
 export default async function handler(req, res) {
@@ -12,7 +29,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { image, mediaType, text, ocrText } = req.body || {};
+  const { image, mediaType, text, ocrText, lang } = req.body || {};
   if (!image && !text) {
     return res.status(400).json({ error: "Aucune image ni texte reçu." });
   }
@@ -141,6 +158,13 @@ Autres règles :
       type: "text",
       text: `Voici le texte numérique natif extrait d'un PDF de facture (pas une image scannée, texte fiable et complet, aucune lecture visuelle à faire) :\n\n${text.trim().slice(0, 12000)}`,
     });
+  }
+  // Isolation stricte par langue : seul le bloc correspondant à `lang` peut être injecté,
+  // jamais plusieurs langues à la fois (éviterait qu'un mot anglais soit détecté à tort sur
+  // une facture en contexte français, ou l'inverse).
+  const lexicon = SUPPLIER_LEXICON[lang];
+  if (lexicon) {
+    content.push({ type: "text", text: lexicon });
   }
   content.push({ type: "text", text: prompt });
 
