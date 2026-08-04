@@ -94,10 +94,13 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Non autorisé" });
   }
   const dryRun = req.query?.dryRun === "1" || req.query?.dryRun === "true";
+  // Permet de tester la logique du digest marge un autre jour que le lundi (protégé par le
+  // même secret que le reste de la route — jamais utilisé par le vrai cron automatique).
+  const forceMarginCheck = req.query?.forceMarginCheck === "1";
 
   const admin = getSupabaseAdmin();
   const now = new Date();
-  const checkMarginToday = now.getUTCDay() === MARGIN_DIGEST_WEEKDAY;
+  const checkMarginToday = forceMarginCheck || now.getUTCDay() === MARGIN_DIGEST_WEEKDAY;
   const report = [];
 
   try {
