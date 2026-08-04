@@ -30,13 +30,16 @@ export async function requireUser(req) {
 
 // Envoi d'email via l'API Resend (pas les templates d'auth Supabase, qui ne servent qu'à
 // signup/reset/magic link) — partagé par api/send-reminders.js et api/contact.js.
-export async function sendEmail(to, subject, html) {
+// `attachments` (optionnel) : tableau au format Resend [{ filename, content (base64) }].
+export async function sendEmail(to, subject, html, attachments) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY manquant côté serveur.");
+  const body = { from: "Chefup <hello@getchefup.com>", to, subject, html };
+  if (attachments && attachments.length) body.attachments = attachments;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ from: "Chefup <hello@getchefup.com>", to, subject, html }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Resend a refusé l'envoi (${res.status}) : ${await res.text()}`);
 }

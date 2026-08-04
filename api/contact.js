@@ -13,7 +13,7 @@ export default async function handler(req, res) {
   const user = await requireUser(req);
   if (!user) return res.status(401).json({ error: "Non authentifié." });
 
-  const { message } = req.body || {};
+  const { message, attachment } = req.body || {};
   if (!message || typeof message !== "string" || !message.trim()) {
     return res.status(400).json({ error: "Message vide." });
   }
@@ -30,8 +30,16 @@ export default async function handler(req, res) {
     <p style="white-space:pre-wrap;background:#F3EBDA;padding:12px;border-radius:8px;">${trimmed.replace(/</g, "&lt;")}</p>
   </div>`;
 
+  // Pièce jointe optionnelle (ex: capture d'écran d'un bug) — déjà compressée côté client, on la
+  // transmet telle quelle à Resend, sans jamais l'écrire nulle part côté serveur.
+  let attachments;
+  if (attachment && attachment.base64 && typeof attachment.base64 === "string") {
+    const ext = (attachment.mediaType || "image/jpeg").split("/")[1] || "jpg";
+    attachments = [{ filename: attachment.fileName || `capture.${ext}`, content: attachment.base64 }];
+  }
+
   try {
-    await sendEmail(contactEmail, `Chefup — message de ${user.email}`, html);
+    await sendEmail(contactEmail, `Chefup — message de ${user.email}`, html, attachments);
     return res.status(200).json({ ok: true });
   } catch (e) {
     return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
