@@ -541,6 +541,7 @@ export const TR = {
     firstIngredientPrompt: "Ajoute ton premier ingrédient",
     marginLegendToggle: "Que veulent dire les couleurs ?",
     deleteLineTooltip: "Retirer cet ingrédient de la recette",
+    editLinePriceTooltip: "Corriger le prix (met à jour le garde-manger)",
     ingredientsSectionLabel: "Ingrédients", pricingSectionLabel: "Prix & marge",
     scanStackProgress: (cur, total) => `${cur} / ${total} à vérifier`,
     scanAllReviewed: "Tout est vérifié !", scanAllReviewedDetail: "Les mises à jour sont prêtes à être importées au garde-manger.", scanContinue: "Continuer",
@@ -722,6 +723,7 @@ export const TR = {
     firstIngredientPrompt: "Añade tu primer ingrediente",
     marginLegendToggle: "¿Qué significan los colores?",
     deleteLineTooltip: "Quitar este ingrediente de la receta",
+    editLinePriceTooltip: "Corregir el precio (actualiza el almacén)",
     ingredientsSectionLabel: "Ingredientes", pricingSectionLabel: "Precio y margen",
     scanStackProgress: (cur, total) => `${cur} / ${total} a verificar`,
     scanAllReviewed: "¡Todo verificado!", scanAllReviewedDetail: "Las actualizaciones están listas para importar a la despensa.", scanContinue: "Continuar",
@@ -903,6 +905,7 @@ export const TR = {
     firstIngredientPrompt: "Add your first ingredient",
     marginLegendToggle: "What do the colors mean?",
     deleteLineTooltip: "Remove this ingredient from the recipe",
+    editLinePriceTooltip: "Fix the price (updates the pantry)",
     ingredientsSectionLabel: "Ingredients", pricingSectionLabel: "Price & margin",
     scanStackProgress: (cur, total) => `${cur} / ${total} to check`,
     scanAllReviewed: "All checked!", scanAllReviewedDetail: "The updates are ready to be imported to the pantry.", scanContinue: "Continue",
@@ -1809,6 +1812,10 @@ export default function App() {
   const [autoOpenIdx, setAutoOpenIdx] = useState(null);
   const [lossModalOpen, setLossModalOpen] = useState(false);
   const [showQtyHint, setShowQtyHint] = useState(false);
+  // Index de la ligne de recette dont le prix (du fournisseur actif) est en cours d'édition
+  // directement depuis la fiche recette — demandé par l'utilisateur pour corriger rapidement un
+  // prix estimé faux (ex: import scan) sans devoir aller jusqu'au garde-manger.
+  const [editingLinePriceIdx, setEditingLinePriceIdx] = useState(null);
 
   const [addWizardOpen, setAddWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1); // 1 nom/recherche, 2 prix+unité, 3 catégorie (création only), "success"
@@ -1993,6 +2000,30 @@ export default function App() {
     setIngredients((ings) => ings.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
   const updateIngredientName = (id, value) =>
     setIngredients((ings) => ings.map((i) => (i.id === id ? { ...i, name: value, catalogId: null } : i)));
+
+  // Corrige le prix du fournisseur actif directement depuis une ligne de recette — même
+  // ingrédient partagé que le garde-manger, donc le changement s'y répercute automatiquement.
+  // Utile en particulier pour corriger vite un prix estimé faux (ex: ingrédient créé par erreur
+  // via le scanner de fiche recette) sans devoir naviguer jusqu'au garde-manger.
+  const updateActiveSupplierPrice = (ingredientId, newPrice) => {
+    setIngredients((ings) =>
+      ings.map((ing) => {
+        if (ing.id !== ingredientId) return ing;
+        const sup = activeSupplier(ing);
+        if (!sup) return ing;
+        const history =
+          newPrice !== sup.price
+            ? [...(ing.history || []), { date: today(), price: newPrice, supplierName: sup.name }].slice(-15)
+            : ing.history;
+        return {
+          ...ing,
+          suppliers: ing.suppliers.map((s) => (s.id === sup.id ? { ...s, price: newPrice, priceSource: "manual" } : s)),
+          history,
+          lastUpdated: today(),
+        };
+      })
+    );
+  };
 
   const openAddWizard = (returnToLineIdx = null, prefillName = "") => {
     setWizardData({ name: prefillName, catalogId: null, unit: "kg", category: "autres", price: 0 });
@@ -3052,6 +3083,23 @@ export default function App() {
         return "";
       };
 
+      // Filet de sécurité déterministe : le prompt demande à l'IA de toujours convertir
+      // g→kg/mL→L/cl→L elle-même, mais elle ne le fait pas toujours (ex: "Cognac 20cl" renvoyé
+      // avec unit:"g" ou "cl" tel quel) — l'app ne comprend QUE kg/L/pièce, donc une unité brute
+      // non convertie doit être rattrapée ici plutôt que de rester une valeur invalide et bloquée.
+      const normalizeScanUnit = (qty, rawUnit) => {
+        const u = (rawUnit || "").toString().trim().toLowerCase();
+        if (typeof qty === "number") {
+          if (["g", "gramme", "grammes"].includes(u)) return { qty: qty / 1000, unit: "kg" };
+          if (["ml", "millilitre", "millilitres"].includes(u)) return { qty: qty / 1000, unit: "L" };
+          if (["cl", "centilitre", "centilitres"].includes(u)) return { qty: qty / 100, unit: "L" };
+        }
+        if (u === "kg") return { qty, unit: "kg" };
+        if (["l", "litre", "litres"].includes(u)) return { qty, unit: "L" };
+        if (["pièce", "piece", "pieces", "pièces", "u", "pc"].includes(u)) return { qty, unit: "pièce" };
+        return { qty: null, unit: null }; // unité non reconnue : traitée comme imprécise ci-dessous
+      };
+
       // Rapproche chaque ligne détectée avec le garde-manger existant (même fonction que le
       // scanner de factures) — une correspondance non confiante reste modifiable via
       // ScanNameChoice dans l'écran de vérification, jamais assignée silencieusement.
@@ -3060,20 +3108,24 @@ export default function App() {
         .map((l) => {
           const name = asText(l.name);
           const match = guessIngredientId(name);
-          const impreciseQuantity = !!l.impreciseQuantity || typeof l.qty !== "number";
+          const rawQty = typeof l.qty === "number" ? l.qty : null;
+          const normalized = normalizeScanUnit(rawQty, asText(l.unit));
+          let qty = normalized.unit ? normalized.qty : null;
+          let unit = normalized.unit;
+          const impreciseQuantity = !!l.impreciseQuantity || qty === null || unit === null;
           // Sur une quantité imprécise, l'unité proposée par l'IA n'est pas fiable (ex: "pièce"
-          // hasardeux pour de la viande sans poids écrit) — préférer l'unité habituelle de la
-          // catégorie devinée, affichée dès la vérification pour rester cohérente avec ce qui
-          // sera réellement créé (voir createRecipeFromScan).
-          let unit = normUnit(asText(l.unit) || "kg");
+          // hasardeux pour de la viande sans poids écrit, ou unité non reconnue) — préférer
+          // l'unité habituelle de la catégorie devinée, affichée dès la vérification pour rester
+          // cohérente avec ce qui sera réellement créé (voir createRecipeFromScan).
           if (impreciseQuantity) {
+            qty = null;
             const catalogGuess = guessCatalogEntry(name);
             unit = CATEGORY_DEFAULT_UNIT[catalogGuess ? catalogGuess.category : "autres"] || "kg";
           }
           return {
             rawText: asText(l.rawText) || name,
             name,
-            qty: typeof l.qty === "number" ? l.qty : null,
+            qty,
             unit,
             impreciseQuantity,
             // Un rapprochement douteux ne doit jamais pré-sélectionner l'ingrédient existant tout
@@ -3548,7 +3600,7 @@ export default function App() {
                               onChange={(e) => updateScanRecipeLine(idx, { name: e.target.value })}
                               className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#8B5CF6] pb-0.5"
                             />
-                            <div className="text-[10px] text-white/25 mt-1 truncate">{line.rawText}</div>
+                            <div className="text-[11px] text-white/45 mt-1 truncate">{line.rawText}</div>
                           </div>
                           <button
                             onClick={() => removeScanRecipeLine(idx)}
@@ -3568,13 +3620,29 @@ export default function App() {
                           </div>
                         )}
 
-                        <QtyField
-                          qty={line.qty || 0}
-                          unit={line.unit}
-                          onChange={(v) => updateScanRecipeLine(idx, { qty: v, impreciseQuantity: false })}
-                          className="w-28 bg-black/20 text-white text-sm rounded px-2 py-1.5 outline-none mb-2"
-                          t={t}
-                        />
+                        <div className="flex items-center gap-2 mb-2">
+                          <QtyField
+                            qty={line.qty || 0}
+                            unit={line.unit}
+                            onChange={(v) => updateScanRecipeLine(idx, { qty: v, impreciseQuantity: false })}
+                            className="w-24 bg-black/20 text-white text-sm rounded px-2 py-1.5 outline-none"
+                            t={t}
+                          />
+                          {/* Unité toujours modifiable à la main : filet de sécurité si l'unité
+                              devinée (IA ou repli par catégorie) ne convient pas — signalé comme
+                              bloquant par l'utilisateur en test réel (ex: cognac deviné en "g"). */}
+                          <select
+                            value={line.unit}
+                            onChange={(e) => updateScanRecipeLine(idx, { unit: e.target.value })}
+                            title={t("unitFieldLabel")}
+                            className="bg-black/20 text-white text-sm rounded px-2 py-1.5 outline-none"
+                            style={{ colorScheme: "dark" }}
+                          >
+                            <option value="kg">kg</option>
+                            <option value="L">L</option>
+                            <option value="pièce">{t("unitPieceLabel")}</option>
+                          </select>
+                        </div>
 
                         <ScanNameChoice
                           item={line}
@@ -4593,7 +4661,24 @@ export default function App() {
                         {activeSupplier(ing)?.priceSource === "estimate" && (
                           <span className="w-1.5 h-1.5 rounded-full shrink-0 price-field" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
                         )}
-                        <span className="w-14 shrink-0 text-right price-field">{lineCost(line).toFixed(2)}€</span>
+                        {editingLinePriceIdx === idx && ing ? (
+                          <NumField
+                            value={activeSupplier(ing)?.price || 0}
+                            onChange={(v) => updateActiveSupplierPrice(ing.id, v)}
+                            className="w-16 shrink-0 bg-black/5 text-right outline-none rounded px-1 price-field"
+                          />
+                        ) : (
+                          <span className="w-14 shrink-0 text-right price-field">{lineCost(line).toFixed(2)}€</span>
+                        )}
+                        {ing && (
+                          <button
+                            onClick={() => setEditingLinePriceIdx((v) => (v === idx ? null : idx))}
+                            className="text-black/25 hover:text-black print:hidden shrink-0 price-field"
+                            title={t("editLinePriceTooltip")}
+                          >
+                            <Pencil size={11} />
+                          </button>
+                        )}
                         <button onClick={() => removeLine(idx)} className="text-black/25 hover:text-red-600 print:hidden shrink-0" title={t("deleteLineTooltip")}><Trash2 size={12} /></button>
                       </div>
                       {ing && (variation || loss > 0) && (
