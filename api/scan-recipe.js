@@ -49,6 +49,9 @@ RÈGLE — CONVERSION D'UNITÉS ET QUANTITÉS IMPRÉCISES :
 - Si la quantité est donnée dans une unité qui ne peut PAS être convertie avec certitude en poids/volume (cuillère à soupe/à café, pincée, "au goût", "un peu de", botte, gousse, branche, tranche, verre, sachet sans poids précisé...), ou si aucune quantité n'est écrite du tout pour cette ligne : mets qty: null et impreciseQuantity: true. N'invente JAMAIS une conversion approximative (ex: ne devine jamais combien pèse "une pincée" ou "une gousse") — mieux vaut laisser le champ vide que faux.
 - Sinon (quantité déjà en kg/g/L/mL/pièce, ou un nombre de pièces claire comme "2 œufs"), remplis qty/unit normalement avec impreciseQuantity: false.
 
+RÈGLE STRICTE — UN NOMBRE DE PIÈCES NE SUFFIT PAS POUR LA VIANDE/POISSON/FROMAGE/LÉGUME/LIQUIDE SANS POIDS ÉCRIT :
+Pour tout ingrédient normalement vendu et facturé au poids ou au volume (viande, poisson, fromage, légume, liquide/sauce...), un simple nombre de pièces SANS aucun poids/volume écrit à côté (ex: "2 faux filets", "4 escalopes de poulet", "1 filet de saumon", "3 tomates" sans grammage) N'EST PAS une quantité utilisable — le poids réel d'une pièce est bien trop variable pour être deviné. Dans ce cas : qty: null, unit: null, impreciseQuantity: true, exactement comme pour une pincée ou une gousse. Ne renvoie "pièce" avec impreciseQuantity: false QUE pour un ingrédient réellement compté à l'unité fixe et non ambiguë (œuf, citron entier, boîte de conserve, sachet au poids imprimé...), jamais pour approximer le poids d'une portion de viande/poisson/fromage/légume.
+
 Réponds toujours avec un JSON valide, même sur une fiche manuscrite, mal cadrée ou partiellement illisible — n'invente aucune ligne qui n'existe pas réellement sur le document, et ignore silencieusement ce qui est vraiment illisible plutôt que de bloquer toute la réponse.`;
 
   const content = [];

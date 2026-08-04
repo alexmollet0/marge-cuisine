@@ -83,6 +83,16 @@ const CATEGORY_ESTIMATE_PRICE = {
   epicerie: 4, epices: 20, boissons: 5, autres: 5,
 };
 
+// Unité par défaut par catégorie pour un ingrédient créé depuis le scanner de fiche recette
+// quand la quantité est imprécise (voir impreciseQuantity, api/scan-recipe.js) — sert de
+// garde-fou pour ne jamais suivre aveuglément une unité "pièce" hasardeuse proposée par l'IA
+// pour un ingrédient normalement vendu au poids (ex: "faux filet" ne doit jamais partir en
+// pièce). Uniquement utilisé dans ce cas précis, jamais pour une quantité déjà précise.
+const CATEGORY_DEFAULT_UNIT = {
+  viandes: "kg", poissons: "kg", legumes: "kg", fruits: "kg", cremerie: "kg",
+  epicerie: "kg", epices: "kg", boissons: "L", autres: "pièce",
+};
+
 const CATALOG = [
   // Viandes
   { id: "boeuf", fr: "Bœuf (paleron / gîte)", es: "Ternera (paletilla)", en: "Beef (chuck / shin)", unit: "kg", cat: "viandes" },
@@ -3049,12 +3059,22 @@ export default function App() {
         .map((l) => {
           const name = asText(l.name);
           const match = guessIngredientId(name);
+          const impreciseQuantity = !!l.impreciseQuantity || typeof l.qty !== "number";
+          // Sur une quantité imprécise, l'unité proposée par l'IA n'est pas fiable (ex: "pièce"
+          // hasardeux pour de la viande sans poids écrit) — préférer l'unité habituelle de la
+          // catégorie devinée, affichée dès la vérification pour rester cohérente avec ce qui
+          // sera réellement créé (voir createRecipeFromScan).
+          let unit = normUnit(asText(l.unit) || "kg");
+          if (impreciseQuantity) {
+            const catalogGuess = guessCatalogEntry(name);
+            unit = CATEGORY_DEFAULT_UNIT[catalogGuess ? catalogGuess.category : "autres"] || "kg";
+          }
           return {
             rawText: asText(l.rawText) || name,
             name,
             qty: typeof l.qty === "number" ? l.qty : null,
-            unit: normUnit(asText(l.unit) || "kg"),
-            impreciseQuantity: !!l.impreciseQuantity || typeof l.qty !== "number",
+            unit,
+            impreciseQuantity,
             // Un rapprochement douteux ne doit jamais pré-sélectionner l'ingrédient existant tout
             // seul (même règle que le scanner de factures, voir handleScanFile) : par défaut
             // "créer séparément" tant que le match n'est pas confiant, la suggestion reste
@@ -3108,10 +3128,14 @@ export default function App() {
         const category = catalogGuess ? catalogGuess.category : "autres";
         const sId = uid();
         ingredientId = uid();
+        // Sur une quantité imprécise, l'unité proposée par l'IA n'est pas fiable (voir
+        // api/scan-recipe.js) — on préfère l'unité habituelle de la catégorie plutôt que de
+        // suivre un "pièce" hasardeux pour un ingrédient normalement vendu au poids.
+        const unit = line.impreciseQuantity ? CATEGORY_DEFAULT_UNIT[category] || "kg" : line.unit || "kg";
         newIngredients.push({
           id: ingredientId,
           name: line.name,
-          unit: line.unit || "kg",
+          unit,
           catalogId: catalogGuess?.confident ? catalogGuess.catalogId : null,
           category,
           selectedSupplierId: sId,
