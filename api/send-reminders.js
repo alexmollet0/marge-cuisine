@@ -107,6 +107,8 @@ export default async function handler(req, res) {
   // Permet de tester la logique du digest marge un autre jour que le lundi (protégé par le
   // même secret que le reste de la route — jamais utilisé par le vrai cron automatique).
   const forceMarginCheck = req.query?.forceMarginCheck === "1";
+  // Idem pour tester l'email de fin d'essai sans attendre 7 vrais jours.
+  const forceTrialCheck = req.query?.forceTrialCheck === "1";
 
   const admin = getSupabaseAdmin();
   const now = new Date();
@@ -157,11 +159,13 @@ export default async function handler(req, res) {
 
       // --- Essai gratuit terminé sans abonnement (un seul envoi, jamais répété) ---
       const daysSinceSignup = daysBetween(new Date(user.created_at), now);
-      if (daysSinceSignup >= TRIAL_DAYS && !notifState.trialEndedEmailSentAt) {
+      let trialDebug = null;
+      if ((forceTrialCheck || daysSinceSignup >= TRIAL_DAYS) && !notifState.trialEndedEmailSentAt) {
         const { data: sub } = await admin.from("subscriptions").select("status").eq("user_id", user.id).maybeSingle();
         // Même règle que src/Billing.jsx : past_due reste toléré (Stripe relance le paiement
         // automatiquement), seuls canceled/unpaid/aucun abonnement comptent comme "pas abonné".
         const isActive = !!sub && ["active", "trialing", "past_due"].includes(sub.status);
+        if (dryRun) trialDebug = { daysSinceSignup: Math.round(daysSinceSignup * 10) / 10, subscriptionStatus: sub?.status || null, isActive };
         if (!isActive) {
           actions.push("trial_ended_reminder");
           if (!dryRun) {
@@ -210,8 +214,8 @@ export default async function handler(req, res) {
         );
       }
 
-      if (actions.length || (dryRun && marginDebug)) {
-        report.push({ email, actions, daysSinceScan: Math.round(daysSinceScan * 10) / 10, checkMarginToday, marginDebug });
+      if (actions.length || (dryRun && (marginDebug || trialDebug))) {
+        report.push({ email, actions, daysSinceScan: Math.round(daysSinceScan * 10) / 10, checkMarginToday, marginDebug, trialDebug });
       }
     }
 
