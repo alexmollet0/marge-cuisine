@@ -182,8 +182,15 @@ export default async function handler(req, res) {
         const ingredients = kv.ingredients || [];
         const ingredientsById = new Map(ingredients.map((i) => [i.id, i]));
         const minMargin = settings.minMargin ?? 75;
-        const allMargins = recipes.map((r) => ({ id: r.id, name: r.name, margin: recipeMarginPercent(r, ingredientsById, settings.vat) }));
-        const belowTarget = allMargins.filter((r) => r.margin !== null && r.margin < minMargin);
+        // L'objectif propre à la recette (`targetMargin`, éditable dans la fiche) prévaut sur le
+        // réglage global s'il a été personnalisé — même règle que côté app (src/App.jsx).
+        const allMargins = recipes.map((r) => ({
+          id: r.id,
+          name: r.name,
+          margin: recipeMarginPercent(r, ingredientsById, settings.vat),
+          target: r.targetMargin ?? minMargin,
+        }));
+        const belowTarget = allMargins.filter((r) => r.margin !== null && r.margin < r.target);
         if (dryRun) {
           marginDebug = { recipesCount: recipes.length, ingredientsCount: ingredients.length, minMargin, allMargins };
         }

@@ -1913,11 +1913,12 @@ export default function App() {
     return ht > 0 ? ((ht - cpp) / ht) * 100 : null;
   };
 
-  // Classement TOP1/2/3 : uniquement les recettes déjà au-dessus de l'objectif de marge
-  // global (réglage minMargin, même seuil que la couleur verte), classées par marge % décroissante.
+  // Classement TOP1/2/3 : uniquement les recettes déjà au-dessus de leur objectif de marge
+  // (objectif propre à la recette si réglé, sinon le réglage global — même seuil que la
+  // couleur verte), classées par marge % décroissante.
   const topRecipeIds = recipes
-    .map((r) => ({ id: r.id, m: recipeMargin(r) }))
-    .filter((x) => x.m !== null && marginTier(x.m, settings.minMargin) === "high")
+    .map((r) => ({ id: r.id, m: recipeMargin(r), target: r.targetMargin ?? settings.minMargin }))
+    .filter((x) => x.m !== null && marginTier(x.m, x.target) === "high")
     .sort((a, b) => b.m - a.m)
     .slice(0, 3)
     .map((x) => x.id);
@@ -3179,7 +3180,9 @@ export default function App() {
     closeScanRecipe();
   };
 
-  const tier = marginTier(margin, settings.minMargin);
+  // L'objectif propre à la recette (`targetMargin`, éditable dans la fiche) prévaut sur le
+  // réglage global s'il a été personnalisé — sinon retombe sur le même seuil que partout ailleurs.
+  const tier = marginTier(margin, active?.targetMargin ?? settings.minMargin);
   const marginLow = tier === "low";
   // Suggestion contextuelle : uniquement quand la marge est sous l'objectif (mid/low),
   // jamais sur une recette déjà au-dessus (pas de conseil "à corriger" quand tout va bien).
@@ -4387,7 +4390,7 @@ export default function App() {
               <div className="grid grid-cols-3 gap-2">
                 {recipes.map((r) => {
                   const m = recipeMargin(r);
-                  const rt = marginTier(m, settings.minMargin);
+                  const rt = marginTier(m, r.targetMargin ?? settings.minMargin);
                   return (
                     <button
                       key={r.id}
@@ -4423,7 +4426,7 @@ export default function App() {
                 {recipes.map((r) => {
                   const cpp = recipeCostPerPortion(r);
                   const m = recipeMargin(r);
-                  const rt = marginTier(m, settings.minMargin);
+                  const rt = marginTier(m, r.targetMargin ?? settings.minMargin);
                   return (
                     <div
                       key={r.id}
