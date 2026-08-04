@@ -31,6 +31,7 @@ import {
   Tags,
   LayoutGrid,
   List,
+  ClipboardList,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -588,6 +589,12 @@ export const TR = {
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer ces lignes",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
+    scanRecipeButton: "Scanner une fiche", scanningRecipe: "Lecture de la fiche en cours…",
+    scanRecipeResultTitle: "Fiche recette scannée",
+    scanRecipeHint: "Vérifie le nom des ingrédients, les quantités et les rapprochements avant de créer la recette — l'IA peut se tromper.",
+    scanRecipeIngredientsLabel: "Ingrédients détectés", scanRecipeNoLines: "Aucun ingrédient détecté — tu pourras les ajouter manuellement.",
+    scanRecipeImpreciseWarning: (raw) => `Quantité imprécise sur la fiche ("${raw}") — indique le poids/volume réel`,
+    scanRecipeCreateButton: "Créer la recette", scanRecipeRemoveLine: "Retirer cette ligne",
     scanTab: "Scanner", scanTabHint: "Importe le PDF de ta facture Métro, Promocash, Transgourmet (ou prends-la en photo) — l'IA s'occupe du reste.",
     scanTakePhoto: "Prendre une photo", scanUploadFile: "Importer un fichier (PDF, photo...)",
     scanRecommendedBadge: "Recommandé — plus précis",
@@ -763,6 +770,12 @@ export const TR = {
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar estas líneas",
     scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
+    scanRecipeButton: "Escanear una ficha", scanningRecipe: "Leyendo la ficha…",
+    scanRecipeResultTitle: "Ficha de receta escaneada",
+    scanRecipeHint: "Revisa el nombre de los ingredientes, las cantidades y las coincidencias antes de crear la receta — la IA puede equivocarse.",
+    scanRecipeIngredientsLabel: "Ingredientes detectados", scanRecipeNoLines: "No se detectó ningún ingrediente — podrás añadirlos manualmente.",
+    scanRecipeImpreciseWarning: (raw) => `Cantidad imprecisa en la ficha ("${raw}") — indica el peso/volumen real`,
+    scanRecipeCreateButton: "Crear la receta", scanRecipeRemoveLine: "Quitar esta línea",
     scanTab: "Escanear", scanTabHint: "Importa el PDF de tu factura de Makro, Gros Mercat o cualquier otro proveedor (o hazle una foto) — la IA se encarga del resto.",
     scanTakePhoto: "Tomar una foto", scanUploadFile: "Importar un archivo (PDF, foto...)",
     scanRecommendedBadge: "Recomendado — más preciso",
@@ -938,6 +951,12 @@ export const TR = {
     scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import these lines",
     scanPriceIncrease: "Price up", scanNoItems: "No item detected.",    scanHint: "Check and correct each line before importing — the AI can make mistakes.",
     scanWeightLabel: "Weight of 1 piece (leave at 0 if truly priced by unit):",
+    scanRecipeButton: "Scan a recipe sheet", scanningRecipe: "Reading the recipe sheet…",
+    scanRecipeResultTitle: "Scanned recipe sheet",
+    scanRecipeHint: "Check the ingredient names, quantities and matches before creating the recipe — the AI can make mistakes.",
+    scanRecipeIngredientsLabel: "Detected ingredients", scanRecipeNoLines: "No ingredient detected — you'll be able to add them manually.",
+    scanRecipeImpreciseWarning: (raw) => `Imprecise quantity on the sheet ("${raw}") — enter the real weight/volume`,
+    scanRecipeCreateButton: "Create the recipe", scanRecipeRemoveLine: "Remove this line",
     scanTab: "Scanner", scanTabHint: "Import your invoice as a PDF from Bidfood, Brakes or any other supplier (or take a photo) — the AI takes care of the rest.",
     scanTakePhoto: "Take a photo", scanUploadFile: "Import a file (PDF, photo...)",
     scanRecommendedBadge: "Recommended — more accurate",
@@ -1800,6 +1819,15 @@ export default function App() {
   const [expandedReviewIdx, setExpandedReviewIdx] = useState(null);
   const fileInputRef = useRef(null);
   const fileInputLibraryRef = useRef(null);
+
+  // Scanner de fiche recette : état totalement séparé du scanner de factures ci-dessus (autre
+  // fichier serveur, autre écran de vérification) pour ne jamais risquer de régresser le scanner
+  // de factures existant en le touchant.
+  const [scanRecipeOpen, setScanRecipeOpen] = useState(false);
+  const [scanningRecipe, setScanningRecipe] = useState(false);
+  const [scanRecipeErr, setScanRecipeErr] = useState(null);
+  const [scanRecipeResult, setScanRecipeResult] = useState(null); // { name, portions, sellPrice, allergens, notes, lines: [...] }
+  const fileInputRecipeLibraryRef = useRef(null);
 
 
   const t = useCallback((key) => TR[lang][key] ?? TR.fr[key] ?? key, [lang]);
@@ -2957,6 +2985,157 @@ export default function App() {
     setExpandedReviewIdx(null);
   };
 
+  // ---------------- Scanner de fiche recette (photo/PDF -> pré-remplissage d'une recette) ----------------
+  // Fonctionnalité totalement séparée du scanner de factures ci-dessus : autre endpoint serveur
+  // (api/scan-recipe.js), autre état, aucune fonction du scanner de factures touchée.
+  const handleScanRecipeFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setScanRecipeOpen(true);
+    setScanningRecipe(true);
+    setScanRecipeErr(null);
+    setScanRecipeResult(null);
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+    try {
+      let payload;
+      if (isPdf) {
+        const pdfResult = await readPdfFile(file);
+        if (pdfResult.text) {
+          payload = { text: pdfResult.text, lang };
+        } else {
+          const ocrText = await runOcr(pdfResult.base64);
+          payload = { image: pdfResult.base64, mediaType: pdfResult.mediaType, ocrText, lang };
+        }
+      } else {
+        const { base64, mediaType } = await compressImageFile(file);
+        const ocrText = await runOcr(base64);
+        payload = { image: base64, mediaType, ocrText, lang };
+      }
+      const res = await fetch("/api/scan-recipe", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const debugDetail = data.detail || data.raw;
+        const msg = debugDetail ? `${data.error} (${debugDetail})` : data.error || "Échec de l'analyse";
+        throw new Error(msg);
+      }
+      // Rapproche chaque ligne détectée avec le garde-manger existant (même fonction que le
+      // scanner de factures) — une correspondance non confiante reste modifiable via
+      // ScanNameChoice dans l'écran de vérification, jamais assignée silencieusement.
+      const lines = (data.lines || [])
+        .filter((l) => l.name && l.name.trim())
+        .map((l) => {
+          const match = guessIngredientId(l.name);
+          return {
+            rawText: l.rawText || l.name,
+            name: l.name,
+            qty: typeof l.qty === "number" ? l.qty : null,
+            unit: normUnit(l.unit || "kg"),
+            impreciseQuantity: !!l.impreciseQuantity || typeof l.qty !== "number",
+            // Un rapprochement douteux ne doit jamais pré-sélectionner l'ingrédient existant tout
+            // seul (même règle que le scanner de factures, voir handleScanFile) : par défaut
+            // "créer séparément" tant que le match n'est pas confiant, la suggestion reste
+            // disponible via guessedMatchId pour que l'utilisateur l'accepte explicitement.
+            assignTo: match && match.confident ? match.id : "new",
+            guessedMatchId: match ? match.id : null,
+            matchConfident: match ? match.confident : false,
+            renameOnImport: false,
+          };
+        });
+      setScanRecipeResult({
+        name: data.name || "",
+        portions: typeof data.portions === "number" && data.portions > 0 ? data.portions : 4,
+        sellPrice: typeof data.sellPrice === "number" ? data.sellPrice : 0,
+        allergens: data.allergens || "",
+        notes: data.notes || "",
+        lines,
+      });
+    } catch (err) {
+      setScanRecipeErr(err.message || "Erreur inattendue");
+    } finally {
+      setScanningRecipe(false);
+    }
+  };
+
+  const updateScanRecipeLine = (idx, patch) => {
+    setScanRecipeResult((r) => ({ ...r, lines: r.lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)) }));
+  };
+  const updateScanRecipeField = (patch) => setScanRecipeResult((r) => ({ ...r, ...patch }));
+  const removeScanRecipeLine = (idx) => setScanRecipeResult((r) => ({ ...r, lines: r.lines.filter((_, i) => i !== idx) }));
+
+  const closeScanRecipe = () => {
+    setScanRecipeOpen(false);
+    setScanRecipeResult(null);
+    setScanRecipeErr(null);
+  };
+
+  // Construit la recette (et les ingrédients manquants) à partir du résultat vérifié, puis ouvre
+  // la fiche recette créée. Même logique de création d'ingrédient que le scanner de factures
+  // (guessCatalogEntry pour catégorie/catalogId), mais avec un prix ESTIMÉ par catégorie plutôt
+  // qu'un vrai prix fournisseur (aucune facture ici) — priceSource "estimate", modifiable ensuite
+  // dans le garde-manger comme n'importe quel ingrédient créé via l'assistant.
+  const createRecipeFromScan = () => {
+    if (!scanRecipeResult) return;
+    const newIngredients = [];
+    const renameOps = []; // { id, name } — ingrédients existants à renommer (choix "renommer" dans ScanNameChoice)
+    const resolvedLines = scanRecipeResult.lines.map((line) => {
+      let ingredientId;
+      if (line.assignTo === "new") {
+        const catalogGuess = guessCatalogEntry(line.name);
+        const category = catalogGuess ? catalogGuess.category : "autres";
+        const sId = uid();
+        ingredientId = uid();
+        newIngredients.push({
+          id: ingredientId,
+          name: line.name,
+          unit: line.unit || "kg",
+          catalogId: catalogGuess?.confident ? catalogGuess.catalogId : null,
+          category,
+          selectedSupplierId: sId,
+          suppliers: [{ id: sId, name: t("supplier"), price: CATEGORY_ESTIMATE_PRICE[category] || 5, priceSource: "estimate" }],
+          history: [],
+          lastUpdated: today(),
+        });
+      } else {
+        ingredientId = line.assignTo;
+        if (line.renameOnImport && line.name) renameOps.push({ id: ingredientId, name: line.name });
+      }
+      return { ingredientId, qty: line.impreciseQuantity ? 0 : line.qty || 0 };
+    });
+
+    if (newIngredients.length || renameOps.length) {
+      setIngredients((ings) => {
+        const renamed = ings.map((ing) => {
+          const r = renameOps.find((x) => x.id === ing.id);
+          return r ? { ...ing, name: r.name, catalogId: null } : ing;
+        });
+        return [...renamed, ...newIngredients];
+      });
+    }
+
+    const newRecipe = {
+      id: uid(),
+      name: scanRecipeResult.name || t("newRecipeName"),
+      portions: scanRecipeResult.portions || 4,
+      sellPrice: scanRecipeResult.sellPrice || 0,
+      targetMargin: 75,
+      notes: scanRecipeResult.notes || "",
+      allergens: scanRecipeResult.allergens || "",
+      allergensAuto: !scanRecipeResult.allergens,
+      createdAt: today(),
+      lines: resolvedLines.filter((l) => l.ingredientId),
+    };
+    setRecipes((rs) => [...rs, newRecipe]);
+    setActiveId(newRecipe.id);
+    setActiveTab("recipes");
+    setRecipeSubView("detail");
+    closeScanRecipe();
+  };
+
   const tier = marginTier(margin, settings.minMargin);
   const marginLow = tier === "low";
   // Suggestion contextuelle : uniquement quand la marge est sous l'objectif (mid/low),
@@ -3239,6 +3418,155 @@ export default function App() {
             >
               {t("close")}
             </button>
+          </div>
+        </div>
+      )}
+
+      {scanRecipeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeScanRecipe}>
+          <div
+            className="rounded-2xl p-5 w-full max-w-xl max-h-[85vh] overflow-y-auto font-body border border-white/10"
+            style={{ background: "#26221C" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("scanRecipeResultTitle")}</h3>
+              <button onClick={closeScanRecipe} className="text-white/50 hover:text-white">
+                <X size={18} />
+              </button>
+            </div>
+
+            {scanningRecipe && (
+              <div className="flex flex-col items-center justify-center py-10 text-white/60 text-sm gap-3">
+                <Loader2 size={26} className="animate-spin" style={{ color: BRAND_SOLID }} />
+                {t("scanningRecipe")}
+              </div>
+            )}
+
+            {scanRecipeErr && !scanningRecipe && (
+              <div className="text-center py-6">
+                <div className="text-[#B23A2E] text-sm mb-3">{t("scanError")} : {scanRecipeErr}</div>
+                <button
+                  onClick={() => fileInputRecipeLibraryRef.current?.click()}
+                  className="text-xs uppercase tracking-wide px-3 py-1.5 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                >
+                  {t("scanRetry")}
+                </button>
+              </div>
+            )}
+
+            {scanRecipeResult && !scanningRecipe && (
+              <div>
+                <p className="text-[11px] text-white/40 mb-3">{t("scanRecipeHint")}</p>
+
+                <label className="text-xs text-white/60 block mb-1">{t("newRecipeName")}</label>
+                <input
+                  value={scanRecipeResult.name}
+                  onChange={(e) => updateScanRecipeField({ name: e.target.value })}
+                  className="w-full bg-black/20 text-white text-sm rounded px-2.5 py-2 outline-none mb-3"
+                />
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="text-xs text-white/60 block mb-1">{t("portions")}</label>
+                    <NumField
+                      allowDecimal={false}
+                      value={scanRecipeResult.portions}
+                      onChange={(v) => updateScanRecipeField({ portions: Math.max(v, 1) })}
+                      className="w-full bg-black/20 text-white text-sm rounded px-2.5 py-2 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/60 block mb-1">{t("sellPriceHT")}</label>
+                    <NumField
+                      value={scanRecipeResult.sellPrice}
+                      onChange={(v) => updateScanRecipeField({ sellPrice: Math.max(v, 0) })}
+                      className="w-full bg-black/20 text-white text-sm rounded px-2.5 py-2 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <label className="text-xs text-white/60 block mb-1">{t("scanRecipeIngredientsLabel")}</label>
+                {scanRecipeResult.lines.length === 0 && (
+                  <p className="text-white/30 text-xs mb-3">{t("scanRecipeNoLines")}</p>
+                )}
+                <div className="space-y-2 mb-4">
+                  {scanRecipeResult.lines.map((line, idx) => {
+                    const guessedIng = line.guessedMatchId ? ingredients.find((i) => i.id === line.guessedMatchId) : null;
+                    return (
+                      <div key={idx} className="rounded-lg p-3 border border-white/10 bg-black/10">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="min-w-0 flex-1">
+                            <input
+                              value={line.name}
+                              onChange={(e) => updateScanRecipeLine(idx, { name: e.target.value })}
+                              className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#8B5CF6] pb-0.5"
+                            />
+                            <div className="text-[10px] text-white/25 mt-1 truncate">{line.rawText}</div>
+                          </div>
+                          <button
+                            onClick={() => removeScanRecipeLine(idx)}
+                            title={t("scanRecipeRemoveLine")}
+                            className="shrink-0 text-white/25 hover:text-[#EF4444] p-1"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+
+                        {line.impreciseQuantity && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <AlertTriangle size={13} className="shrink-0" style={{ color: TIER_COLORS.mid }} />
+                            <span className="text-[11px]" style={{ color: TIER_COLORS.mid }}>
+                              {t("scanRecipeImpreciseWarning")(line.rawText)}
+                            </span>
+                          </div>
+                        )}
+
+                        <QtyField
+                          qty={line.qty || 0}
+                          unit={line.unit}
+                          onChange={(v) => updateScanRecipeLine(idx, { qty: v, impreciseQuantity: false })}
+                          className="w-28 bg-black/20 text-white text-sm rounded px-2 py-1.5 outline-none mb-2"
+                          t={t}
+                        />
+
+                        <ScanNameChoice
+                          item={line}
+                          guessedIng={guessedIng}
+                          ingredientDisplayName={ingredientDisplayName}
+                          onUpdate={(patch) => updateScanRecipeLine(idx, patch)}
+                          t={t}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <label className="text-xs text-white/60 block mb-1">{t("notes")}</label>
+                <textarea
+                  value={scanRecipeResult.notes}
+                  onChange={(e) => updateScanRecipeField({ notes: e.target.value })}
+                  rows={4}
+                  className="w-full bg-black/20 text-white text-sm rounded p-2.5 outline-none mb-3"
+                />
+
+                <label className="text-xs text-white/60 block mb-1">{t("allergens")}</label>
+                <input
+                  value={scanRecipeResult.allergens}
+                  onChange={(e) => updateScanRecipeField({ allergens: e.target.value })}
+                  placeholder={t("allergensPlaceholder")}
+                  className="w-full bg-black/20 text-white text-sm rounded px-2.5 py-2 outline-none mb-4"
+                />
+
+                <button
+                  onClick={createRecipeFromScan}
+                  className="w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                  style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+                >
+                  <Check size={15} /> {t("scanRecipeCreateButton")}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3958,9 +4286,16 @@ export default function App() {
               </div>
             )}
 
-            <div className="flex items-center justify-between mb-4">
+            <input
+              ref={fileInputRecipeLibraryRef}
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={handleScanRecipeFile}
+            />
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-y-2">
               <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">{t("recipes")}</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
                 <div className="flex items-center rounded-full border border-white/15 overflow-hidden shrink-0">
                   <button
                     onClick={() => { setRecipeListLayout("list"); try { localStorage.setItem("chefup:recipeListLayout", "list"); } catch {} }}
@@ -3979,6 +4314,13 @@ export default function App() {
                     <LayoutGrid size={13} />
                   </button>
                 </div>
+                <button
+                  onClick={() => fileInputRecipeLibraryRef.current?.click()}
+                  className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/60 hover:text-white px-3 py-1.5 rounded-full border border-white/15 hover:border-white/30 transition-colors"
+                >
+                  <ClipboardList size={12} />
+                  {t("scanRecipeButton")}
+                </button>
                 <button
                   onClick={() => setAllergenSheetOpen(true)}
                   className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/60 hover:text-white px-3 py-1.5 rounded-full border border-white/15 hover:border-white/30 transition-colors"
