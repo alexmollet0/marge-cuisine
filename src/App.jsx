@@ -29,6 +29,8 @@ import {
   Award,
   Percent,
   Tags,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -466,6 +468,7 @@ export const TR = {
     noFilterMatch: "Aucun ingrédient ne correspond.",
     supplier: "fournisseur", newSupplier: "Nouveau fournisseur",
     recipes: "Recettes", newRecipe: "Nouvelle recette", newRecipeName: "Nouvelle recette",
+    recipeListViewTooltip: "Vue liste", recipeGridViewTooltip: "Vue grille",
     ticket: "Ticket", overview: "Vue d'ensemble", recipeCol: "Recette", costPortionCol: "Coût/portion",
     sellPriceCol: "Prix vente TTC", marginCol: "Marge", noRecipes: "Aucune recette pour l'instant.",
     overviewHint: "Touche une ligne pour ouvrir le ticket. Couleur = distance à ta marge cible.",
@@ -638,6 +641,7 @@ export const TR = {
     noFilterMatch: "Ningún ingrediente coincide.",
     supplier: "proveedor", newSupplier: "Nuevo proveedor",
     recipes: "Recetas", newRecipe: "Nueva receta", newRecipeName: "Nueva receta",
+    recipeListViewTooltip: "Vista lista", recipeGridViewTooltip: "Vista cuadrícula",
     ticket: "Ticket", overview: "Resumen", recipeCol: "Receta", costPortionCol: "Coste/ración",
     sellPriceCol: "Precio venta IVA inc.", marginCol: "Margen", noRecipes: "Todavía no hay recetas.",
     overviewHint: "Toca una fila para abrir el ticket. Color = distancia a tu margen objetivo.",
@@ -810,6 +814,7 @@ export const TR = {
     noFilterMatch: "No ingredient matches.",
     supplier: "supplier", newSupplier: "New supplier",
     recipes: "Recipes", newRecipe: "New recipe", newRecipeName: "New recipe",
+    recipeListViewTooltip: "List view", recipeGridViewTooltip: "Grid view",
     ticket: "Ticket", overview: "Overview", recipeCol: "Recipe", costPortionCol: "Cost/portion",
     sellPriceCol: "Sell price (incl. tax)", marginCol: "Margin", noRecipes: "No recipes yet.",
     overviewHint: "Tap a row to open the ticket. Color = distance to your target margin.",
@@ -992,6 +997,8 @@ const SEED_INGREDIENTS = [
     selectedSupplierId: "s7",
     suppliers: [{ id: "s7", name: "Métro", price: 7.5, priceSource: "estimate" }, { id: "s7b", name: "Transgourmet", price: 7.1, priceSource: "estimate" }],
     history: [] },
+  { id: "i8", name: "Tagliatelles", unit: "kg", catalogId: "tagliatelles", category: "epicerie",
+    selectedSupplierId: "s8", suppliers: [{ id: "s8", name: "Métro", price: 2.8, priceSource: "estimate" }], history: [] },
 ];
 
 // La recette de démo doit rester lisible quelle que soit la langue d'interface choisie dès le
@@ -1001,9 +1008,9 @@ const SEED_INGREDIENTS = [
 // tel quel), le "(recette exemple)" redondant avec le badge déjà traduit "RECETTE EXEMPLE" a été
 // retiré plutôt que traduit.
 const SEED_RECIPE_NOTES = {
-  fr: "Détaillez le bœuf en cubes de 4-5 cm, salez, poivrez. Faites-le mariner 12h au frais dans le vin rouge avec thym, laurier et un oignon émincé. Égouttez la viande en réservant la marinade, épongez-la bien avant de la saisir à feu vif dans un mélange beurre/huile jusqu'à belle coloration ; réservez. Faites revenir les lardons, puis les oignons et les carottes coupés en rondelles. Remettez la viande, saupoudrez d'une cuillère de farine, mouillez avec la marinade filtrée et complétez avec un peu d'eau ou de fond si besoin pour bien couvrir. Portez à frémissement, couvrez et laissez mijoter 3h à feu très doux. Ajoutez les champignons 30 min avant la fin de cuisson. Rectifiez l'assaisonnement, montez la sauce au beurre froid hors du feu pour la lier et la lustrer. Dressez avec du persil frais ciselé ; accompagnez de pommes de terre vapeur ou de tagliatelles fraîches.",
-  es: "Corta la carne de vacuno en dados de 4-5 cm, sala y pimienta. Déjala marinar 12h en la nevera en el vino tinto con tomillo, laurel y una cebolla picada. Escurre la carne reservando la marinada, sécala bien antes de sellarla a fuego fuerte en una mezcla de mantequilla/aceite hasta que quede bien dorada; reserva. Sofríe el bacon, luego la cebolla y las zanahorias cortadas en rodajas. Vuelve a añadir la carne, espolvorea con una cucharada de harina, moja con la marinada colada y completa con un poco de agua o caldo si hace falta para cubrir bien. Lleva a ebullición suave, tapa y cocina a fuego muy bajo durante 3h. Añade los champiñones 30 min antes de terminar la cocción. Rectifica la sazón, liga la salsa con mantequilla fría fuera del fuego para espesarla y darle brillo. Sirve con perejil fresco picado; acompaña con patatas al vapor o tallarines frescos.",
-  en: "Cut the beef into 4-5 cm cubes, season with salt and pepper. Marinate for 12h in the fridge in the red wine with thyme, bay leaf and a chopped onion. Drain the meat, keeping the marinade, and pat it dry before searing it over high heat in a butter/oil mix until nicely browned; set aside. Sauté the lardons, then the onions and carrots cut into rounds. Add the meat back in, sprinkle with a spoonful of flour, moisten with the strained marinade and top up with a little water or stock if needed to cover well. Bring to a gentle simmer, cover and cook on very low heat for 3h. Add the mushrooms 30 min before the end of cooking. Adjust the seasoning, then swirl in cold butter off the heat to thicken and give the sauce a glossy finish. Plate with freshly chopped parsley; serve with steamed potatoes or fresh tagliatelle.",
+  fr: "Détaillez le bœuf en cubes de 4-5 cm, salez, poivrez. Faites-le mariner 12h au frais dans le vin rouge avec thym, laurier et un oignon émincé. Égouttez la viande en réservant la marinade, épongez-la bien avant de la saisir à feu vif dans un mélange beurre/huile jusqu'à belle coloration ; réservez. Faites revenir les lardons, puis les oignons et les carottes coupés en rondelles. Remettez la viande, saupoudrez d'une cuillère de farine, mouillez avec la marinade filtrée et complétez avec un peu d'eau ou de fond si besoin pour bien couvrir. Portez à frémissement, couvrez et laissez mijoter 3h à feu très doux. Ajoutez les champignons 30 min avant la fin de cuisson. Rectifiez l'assaisonnement, montez la sauce avec le reste du beurre bien froid hors du feu pour la lier et la lustrer. Pendant ce temps, faites cuire les tagliatelles al dente dans l'eau bouillante salée, égouttez-les. Dressez le bœuf bourguignon et sa sauce sur les tagliatelles, parsemez de persil frais ciselé.",
+  es: "Corta la carne de vacuno en dados de 4-5 cm, sala y pimienta. Déjala marinar 12h en la nevera en el vino tinto con tomillo, laurel y una cebolla picada. Escurre la carne reservando la marinada, sécala bien antes de sellarla a fuego fuerte en una mezcla de mantequilla/aceite hasta que quede bien dorada; reserva. Sofríe el bacon, luego la cebolla y las zanahorias cortadas en rodajas. Vuelve a añadir la carne, espolvorea con una cucharada de harina, moja con la marinada colada y completa con un poco de agua o caldo si hace falta para cubrir bien. Lleva a ebullición suave, tapa y cocina a fuego muy bajo durante 3h. Añade los champiñones 30 min antes de terminar la cocción. Rectifica la sazón, liga la salsa con el resto de la mantequilla bien fría fuera del fuego para espesarla y darle brillo. Mientras tanto, cuece los tallarines al dente en agua hirviendo con sal y escúrrelos. Sirve la carne y su salsa sobre los tallarines, espolvoreada con perejil fresco picado.",
+  en: "Cut the beef into 4-5 cm cubes, season with salt and pepper. Marinate for 12h in the fridge in the red wine with thyme, bay leaf and a chopped onion. Drain the meat, keeping the marinade, and pat it dry before searing it over high heat in a butter/oil mix until nicely browned; set aside. Sauté the lardons, then the onions and carrots cut into rounds. Add the meat back in, sprinkle with a spoonful of flour, moisten with the strained marinade and top up with a little water or stock if needed to cover well. Bring to a gentle simmer, cover and cook on very low heat for 3h. Add the mushrooms 30 min before the end of cooking. Adjust the seasoning, then swirl in the rest of the cold butter off the heat to thicken and give the sauce a glossy finish. Meanwhile, cook the tagliatelle al dente in salted boiling water and drain. Plate the beef and its sauce over the tagliatelle, sprinkled with freshly chopped parsley.",
 };
 const SEED_RECIPE_ALLERGENS = { fr: "Sulfites (vin)", es: "Sulfitos (vino)", en: "Sulfites (wine)" };
 
@@ -1022,14 +1029,14 @@ function isPristineSeedRecipe(r) {
 function buildSeedRecipes(lang) {
   return [
     {
-      id: "r1", name: "Bœuf bourguignon", portions: 6, sellPrice: 19.9, targetMargin: 75, isExample: true,
+      id: "r1", name: "Bœuf bourguignon", portions: 6, sellPrice: 20.9, targetMargin: 75, isExample: true,
       notes: SEED_RECIPE_NOTES[lang] || SEED_RECIPE_NOTES.fr,
       allergens: SEED_RECIPE_ALLERGENS[lang] || SEED_RECIPE_ALLERGENS.fr,
       allergensAuto: false, createdAt: "2026-06-10",
       lines: [
         { ingredientId: "i1", qty: 1.2 }, { ingredientId: "i2", qty: 0.4 }, { ingredientId: "i3", qty: 0.3 },
         { ingredientId: "i4", qty: 0.75 }, { ingredientId: "i5", qty: 0.15 }, { ingredientId: "i6", qty: 0.25 },
-        { ingredientId: "i7", qty: 0.05 },
+        { ingredientId: "i7", qty: 0.08 }, { ingredientId: "i8", qty: 0.6 },
       ],
     },
   ];
@@ -1748,6 +1755,9 @@ export default function App() {
   const [allergenSheetOpen, setAllergenSheetOpen] = useState(false);
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
   const [recipeSubView, setRecipeSubView] = useState("list"); // 'list' | 'detail'
+  const [recipeListLayout, setRecipeListLayout] = useState(() => {
+    try { return localStorage.getItem("chefup:recipeListLayout") || "list"; } catch { return "list"; }
+  }); // 'list' | 'grid' — préférence d'affichage locale, pas une donnée métier (pas de sync compte)
   const [lang, setLang] = useState("fr");
   const [showSettings, setShowSettings] = useState(false);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -3929,6 +3939,24 @@ export default function App() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">{t("recipes")}</h2>
               <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-full border border-white/15 overflow-hidden shrink-0">
+                  <button
+                    onClick={() => { setRecipeListLayout("list"); try { localStorage.setItem("chefup:recipeListLayout", "list"); } catch {} }}
+                    title={t("recipeListViewTooltip")}
+                    className="p-1.5 transition-colors"
+                    style={recipeListLayout === "list" ? { background: BRAND_GRADIENT, color: "#fff" } : { color: "rgba(255,255,255,0.5)" }}
+                  >
+                    <List size={13} />
+                  </button>
+                  <button
+                    onClick={() => { setRecipeListLayout("grid"); try { localStorage.setItem("chefup:recipeListLayout", "grid"); } catch {} }}
+                    title={t("recipeGridViewTooltip")}
+                    className="p-1.5 transition-colors"
+                    style={recipeListLayout === "grid" ? { background: BRAND_GRADIENT, color: "#fff" } : { color: "rgba(255,255,255,0.5)" }}
+                  >
+                    <LayoutGrid size={13} />
+                  </button>
+                </div>
                 <button
                   onClick={() => setAllergenSheetOpen(true)}
                   className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/60 hover:text-white px-3 py-1.5 rounded-full border border-white/15 hover:border-white/30 transition-colors"
@@ -3948,6 +3976,41 @@ export default function App() {
 
             {recipes.length === 0 ? (
               <div className="text-white/40 text-sm text-center py-16 font-body">{t("noRecipeYet")}</div>
+            ) : recipeListLayout === "grid" ? (
+              <div className="grid grid-cols-3 gap-2">
+                {recipes.map((r) => {
+                  const m = recipeMargin(r);
+                  const rt = marginTier(m, settings.minMargin);
+                  return (
+                    <button
+                      key={r.id}
+                      onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossModalOpen(false); }}
+                      className="relative aspect-square rounded-2xl p-2 flex flex-col items-center justify-center gap-1.5 text-center font-body transition hover:brightness-110 hover:-translate-y-0.5 hover:shadow-lg border border-white/10 active:scale-95"
+                      style={{ background: "#26221C" }}
+                    >
+                      {topRecipeIds.includes(r.id) && (
+                        <span
+                          className="absolute top-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded-full shrink-0"
+                          style={{ color: TOP_BADGE_COLORS[topRecipeIds.indexOf(r.id)], background: `${TOP_BADGE_COLORS[topRecipeIds.indexOf(r.id)]}22` }}
+                        >
+                          <Award size={10} />
+                        </span>
+                      )}
+                      <div className="text-white font-medium text-[11px] leading-tight line-clamp-2 px-0.5">{r.name}</div>
+                      {m !== null ? (
+                        <span
+                          className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full"
+                          style={{ color: TIER_COLORS[rt], background: `${TIER_COLORS[rt]}22` }}
+                        >
+                          {Math.round(m)}%
+                        </span>
+                      ) : (
+                        <span className="text-white/20 text-[11px]">—</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             ) : (
               <div className="space-y-2">
                 {recipes.map((r) => {
