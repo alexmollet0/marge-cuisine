@@ -19,11 +19,16 @@ export default async function handler(req, res) {
   try {
     const { data: sub } = await supabaseAdmin
       .from("subscriptions")
-      .select("stripe_customer_id")
+      .select("stripe_customer_id, stripe_subscription_id")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (!sub?.stripe_customer_id) {
+    // stripe_customer_id seul ne suffit pas : create-checkout-session.js crée déjà un client
+    // Stripe AVANT même que le paiement soit tenté, donc un client peut exister sans qu'aucun
+    // abonnement n'ait jamais été réellement créé (ex : session Checkout ouverte puis abandonnée).
+    // stripe_subscription_id n'est écrit que par le webhook, une fois un abonnement confirmé —
+    // c'est le vrai signal qu'il y a quelque chose à gérer dans le portail.
+    if (!sub?.stripe_customer_id || !sub?.stripe_subscription_id) {
       // Code distinct (pas juste le message) pour que le frontend puisse basculer proprement vers
       // la création d'un abonnement (create-checkout-session.js) sans avoir à deviner à partir
       // d'un texte d'erreur, qui pourrait changer ou dépendre de la langue.
