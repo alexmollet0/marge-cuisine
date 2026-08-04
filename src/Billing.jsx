@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
 
-const TRIAL_DAYS = 7;
+const TRIAL_DAYS = 0; // TEMPORAIRE — pour prévisualiser l'écran de fin d'essai, remettre à 7 juste après
 const AUTH_LANG_KEY = "chefup:authLang";
 
 function daysLeft(createdAt) {
@@ -86,7 +86,17 @@ export default function SubscriptionGate({ children }) {
             <h1 className="font-display text-white text-lg tracking-wide uppercase">Chefup</h1>
           </div>
           <h2 className="text-white font-display uppercase text-sm tracking-wide mb-3">{t("billingPaywallTitle")}</h2>
-          <p className="text-white/60 text-sm mb-5">{t("billingPaywallBody")}</p>
+          <p className="text-white/60 text-sm mb-4">{t("billingPaywallBody")}</p>
+          <p className="text-white/40 text-xs italic mb-5">{t("billingFounderStory")}</p>
+          <ul className="text-left text-white/80 text-sm space-y-2 mb-5">
+            {[t("billingBenefit1"), t("billingBenefit2"), t("billingBenefit3")].map((benefit, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <Check size={15} className="shrink-0 mt-0.5" style={{ color: BRAND_SOLID }} />
+                <span>{benefit}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-white/50 text-xs mb-5">{t("billingPaywallReminder")}</p>
           {err && (
             <div className="mb-4 text-xs rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">{err}</div>
           )}
