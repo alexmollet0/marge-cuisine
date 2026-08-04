@@ -146,14 +146,17 @@ export default async function handler(req, res) {
       }
 
       // --- Marge sous objectif (digest hebdomadaire, un seul jour fixe) ---
+      let marginDebug = null;
       if (checkMarginToday) {
         const recipes = kv.recipes || [];
         const ingredients = kv.ingredients || [];
         const ingredientsById = new Map(ingredients.map((i) => [i.id, i]));
         const minMargin = settings.minMargin ?? 75;
-        const belowTarget = recipes
-          .map((r) => ({ id: r.id, name: r.name, margin: recipeMarginPercent(r, ingredientsById, settings.vat) }))
-          .filter((r) => r.margin !== null && r.margin < minMargin);
+        const allMargins = recipes.map((r) => ({ id: r.id, name: r.name, margin: recipeMarginPercent(r, ingredientsById, settings.vat) }));
+        const belowTarget = allMargins.filter((r) => r.margin !== null && r.margin < minMargin);
+        if (dryRun) {
+          marginDebug = { recipesCount: recipes.length, ingredientsCount: ingredients.length, minMargin, allMargins };
+        }
 
         const belowIds = belowTarget.map((r) => r.id).sort();
         const lastKnownIds = (notifState.marginLastKnownRecipeIds || []).slice().sort();
@@ -181,7 +184,9 @@ export default async function handler(req, res) {
         );
       }
 
-      if (actions.length) report.push({ email, actions });
+      if (actions.length || (dryRun && marginDebug)) {
+        report.push({ email, actions, daysSinceScan: Math.round(daysSinceScan * 10) / 10, checkMarginToday, marginDebug });
+      }
     }
 
     return res.status(200).json({ dryRun, checkedUsers: usersData.users.length, notified: report });
