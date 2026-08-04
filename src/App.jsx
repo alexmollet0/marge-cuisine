@@ -602,7 +602,7 @@ export const TR = {
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
     scanRecipeButton: "Scanner une fiche", scanningRecipe: "Lecture de la fiche en cours…",
     scanRecipeResultTitle: "Fiche recette scannée",
-    scanRecipeHint: "Vérifie le nom des ingrédients, les quantités et les rapprochements avant de créer la recette — l'IA peut se tromper.",
+    scanRecipeHint: "Vérifie le nom des ingrédients, les quantités et les rapprochements avant de créer la recette — l'IA peut se tromper. Fonctionne mieux sur une fiche recette simple (liste d'ingrédients directe) ; une fiche pro très détaillée avec plusieurs sous-recettes (sauces, bases...) demandera plus de vérification.",
     scanRecipeIngredientsLabel: "Ingrédients détectés", scanRecipeNoLines: "Aucun ingrédient détecté — tu pourras les ajouter manuellement.",
     scanRecipeImpreciseWarning: (raw) => `Quantité imprécise sur la fiche ("${raw}") — indique le poids/volume réel`,
     scanRecipeCreateButton: "Créer la recette", scanRecipeRemoveLine: "Retirer cette ligne",
@@ -784,7 +784,7 @@ export const TR = {
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
     scanRecipeButton: "Escanear una ficha", scanningRecipe: "Leyendo la ficha…",
     scanRecipeResultTitle: "Ficha de receta escaneada",
-    scanRecipeHint: "Revisa el nombre de los ingredientes, las cantidades y las coincidencias antes de crear la receta — la IA puede equivocarse.",
+    scanRecipeHint: "Revisa el nombre de los ingredientes, las cantidades y las coincidencias antes de crear la receta — la IA puede equivocarse. Funciona mejor con una ficha de receta simple (lista de ingredientes directa); una ficha profesional muy detallada con varias subrecetas (salsas, bases...) necesitará más revisión.",
     scanRecipeIngredientsLabel: "Ingredientes detectados", scanRecipeNoLines: "No se detectó ningún ingrediente — podrás añadirlos manualmente.",
     scanRecipeImpreciseWarning: (raw) => `Cantidad imprecisa en la ficha ("${raw}") — indica el peso/volumen real`,
     scanRecipeCreateButton: "Crear la receta", scanRecipeRemoveLine: "Quitar esta línea",
@@ -966,7 +966,7 @@ export const TR = {
     scanWeightLabel: "Weight of 1 piece (leave at 0 if truly priced by unit):",
     scanRecipeButton: "Scan a recipe sheet", scanningRecipe: "Reading the recipe sheet…",
     scanRecipeResultTitle: "Scanned recipe sheet",
-    scanRecipeHint: "Check the ingredient names, quantities and matches before creating the recipe — the AI can make mistakes.",
+    scanRecipeHint: "Check the ingredient names, quantities and matches before creating the recipe — the AI can make mistakes. Works best on a simple recipe sheet (a direct ingredient list); a very detailed pro sheet with several sub-recipes (sauces, bases...) will need more review.",
     scanRecipeIngredientsLabel: "Detected ingredients", scanRecipeNoLines: "No ingredient detected — you'll be able to add them manually.",
     scanRecipeImpreciseWarning: (raw) => `Imprecise quantity on the sheet ("${raw}") — enter the real weight/volume`,
     scanRecipeCreateButton: "Create the recipe", scanRecipeRemoveLine: "Remove this line",
@@ -4430,6 +4430,7 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => fileInputRecipeLibraryRef.current?.click()}
+                  title={t("scanRecipeHint")}
                   className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/60 hover:text-white px-3 py-1.5 rounded-full border border-white/15 hover:border-white/30 transition-colors"
                 >
                   <ClipboardList size={12} />
