@@ -9,6 +9,7 @@ const INACTIVITY_DAYS = 21; // 3 semaines sans scan
 const INACTIVITY_RENOTIFY_DAYS = 14; // ne relance pas avant ce délai après un 1er rappel
 const MARGIN_DIGEST_WEEKDAY = 1; // lundi (0=dimanche, UTC)
 const MARGIN_DIGEST_STALE_DAYS = 28; // relance même sans changement après ce délai (~1 mois)
+const TRIAL_DAYS = 7; // doit rester synchronisé avec TRIAL_DAYS dans src/Billing.jsx
 
 function daysBetween(from, to) {
   return (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24);
@@ -41,6 +42,9 @@ const EMAIL_COPY = {
       `<p>Ça fait plus de 3 semaines que tu n'as pas scanné de facture sur Chefup. Un petit scan aujourd'hui garde tes marges à jour.</p>`,
     marginSubject: "Des recettes sous ton objectif de marge",
     marginIntro: "Ces recettes sont actuellement sous ton objectif de marge :",
+    trialEndedSubject: "Ton essai gratuit est terminé",
+    trialEndedBody:
+      `<p>Ton essai gratuit de 7 jours sur Chefup est terminé. Abonne-toi pour continuer à garder un œil sur tes marges, ton garde-manger et tes fiches recettes — rien n'a été perdu, tout t'attend.</p>`,
     cta: "Ouvrir Chefup",
     settingsHint: "Tu peux désactiver ces rappels à tout moment dans Chefup → Paramètres.",
   },
@@ -50,6 +54,9 @@ const EMAIL_COPY = {
       `<p>Hace más de 3 semanas que no escaneas ninguna factura en Chefup. Un escaneo rápido hoy mantiene tus márgenes al día.</p>`,
     marginSubject: "Recetas por debajo de tu margen objetivo",
     marginIntro: "Estas recetas están actualmente por debajo de tu margen objetivo:",
+    trialEndedSubject: "Tu prueba gratuita ha terminado",
+    trialEndedBody:
+      `<p>Tu prueba gratuita de 7 días en Chefup ha terminado. Suscríbete para seguir controlando tus márgenes, tu almacén y tus fichas de recetas — no se ha perdido nada, todo te espera.</p>`,
     cta: "Abrir Chefup",
     settingsHint: "Puedes desactivar estos avisos en cualquier momento en Chefup → Ajustes.",
   },
@@ -59,6 +66,9 @@ const EMAIL_COPY = {
       `<p>It's been over 3 weeks since you last scanned an invoice on Chefup. A quick scan today keeps your margins up to date.</p>`,
     marginSubject: "Recipes below your target margin",
     marginIntro: "These recipes are currently below your target margin:",
+    trialEndedSubject: "Your free trial has ended",
+    trialEndedBody:
+      `<p>Your 7-day free trial on Chefup has ended. Subscribe to keep an eye on your margins, pantry and recipe sheets — nothing was lost, it's all waiting for you.</p>`,
     cta: "Open Chefup",
     settingsHint: "You can turn off these reminders anytime in Chefup → Settings.",
   },
@@ -143,6 +153,22 @@ export default async function handler(req, res) {
           await sendEmail(email, copy.inactivitySubject, wrapEmailHtml(copy.inactivityBody, copy.cta, copy.settingsHint));
         }
         nextState.lastInactivityReminderAt = now.toISOString();
+      }
+
+      // --- Essai gratuit terminé sans abonnement (un seul envoi, jamais répété) ---
+      const daysSinceSignup = daysBetween(new Date(user.created_at), now);
+      if (daysSinceSignup >= TRIAL_DAYS && !notifState.trialEndedEmailSentAt) {
+        const { data: sub } = await admin.from("subscriptions").select("status").eq("user_id", user.id).maybeSingle();
+        // Même règle que src/Billing.jsx : past_due reste toléré (Stripe relance le paiement
+        // automatiquement), seuls canceled/unpaid/aucun abonnement comptent comme "pas abonné".
+        const isActive = !!sub && ["active", "trialing", "past_due"].includes(sub.status);
+        if (!isActive) {
+          actions.push("trial_ended_reminder");
+          if (!dryRun) {
+            await sendEmail(email, copy.trialEndedSubject, wrapEmailHtml(copy.trialEndedBody, copy.cta, copy.settingsHint));
+          }
+          nextState.trialEndedEmailSentAt = now.toISOString();
+        }
       }
 
       // --- Marge sous objectif (digest hebdomadaire, un seul jour fixe) ---
