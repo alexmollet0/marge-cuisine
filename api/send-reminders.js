@@ -3,7 +3,7 @@
 // automatiquement en en-tête Authorization pour l'appel cron ; pour un test manuel, passer
 // ?secret=... dans l'URL). Ajouter ?dryRun=1 pour voir ce qui SERAIT envoyé sans rien envoyer
 // ni écrire dans Supabase — à utiliser en premier avant tout vrai envoi.
-import { getSupabaseAdmin } from "./_lib.js";
+import { getSupabaseAdmin, sendEmail } from "./_lib.js";
 
 const INACTIVITY_DAYS = 21; // 3 semaines sans scan
 const INACTIVITY_RENOTIFY_DAYS = 14; // ne relance pas avant ce délai après un 1er rappel
@@ -83,17 +83,6 @@ function wrapEmailHtml(bodyHtml, ctaLabel, settingsHint) {
       <p style="color:#2B2620;opacity:0.4;font-size:11px;margin-top:24px;">${settingsHint}</p>
     </div>
   </div>`;
-}
-
-async function sendEmail(to, subject, html) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY manquant côté serveur.");
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ from: "Chefup <hello@getchefup.com>", to, subject, html }),
-  });
-  if (!res.ok) throw new Error(`Resend a refusé l'envoi (${res.status}) : ${await res.text()}`);
 }
 
 export default async function handler(req, res) {

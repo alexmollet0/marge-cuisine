@@ -32,6 +32,7 @@ import {
   LayoutGrid,
   List,
   ClipboardList,
+  Mail,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -507,6 +508,11 @@ export const TR = {
     billingPaywallReminder: "Tes recettes et leurs marges déjà calculées t'attendent — ne perds pas ce que tu as construit.",
     billingSubscribeButton: "S'abonner maintenant", billingSecureNote: "Paiement sécurisé par Stripe.", billingCheckoutError: "Impossible d'ouvrir la page de paiement, réessaie dans un instant.",
     billingManageSubscription: "Abonnement", billingPortalError: "Impossible d'ouvrir la page d'abonnement, réessaie dans un instant.",
+    contactButton: "Nous contacter", contactModalTitle: "Nous contacter",
+    contactHint: "Un bug, une idée d'amélioration ? Écris-nous, on te répond directement par email.",
+    contactPlaceholder: "Décris ton problème ou ta suggestion...",
+    contactSendButton: "Envoyer", contactSuccessMessage: "Message envoyé ! On te répond généralement sous 24-48h.",
+    contactError: "Erreur pendant l'envoi, réessaie.",
     scanInvoice: "Scanner une facture", scanning: "Analyse de la facture en cours…",
     scanError: "Erreur pendant l'analyse", scanRetry: "Réessayer",
     scanResultTitle: "Résultat du scan", scanSupplier: "Fournisseur",
@@ -695,6 +701,11 @@ export const TR = {
     billingPaywallReminder: "Tus recetas y sus márgenes ya calculados te esperan — no pierdas lo que has construido.",
     billingSubscribeButton: "Suscribirme ahora", billingSecureNote: "Pago seguro con Stripe.", billingCheckoutError: "No se pudo abrir la página de pago, inténtalo de nuevo en un momento.",
     billingManageSubscription: "Suscripción", billingPortalError: "No se pudo abrir la página de suscripción, inténtalo de nuevo en un momento.",
+    contactButton: "Contáctanos", contactModalTitle: "Contáctanos",
+    contactHint: "¿Un fallo, una idea de mejora? Escríbenos, te respondemos directamente por email.",
+    contactPlaceholder: "Describe tu problema o tu sugerencia...",
+    contactSendButton: "Enviar", contactSuccessMessage: "¡Mensaje enviado! Normalmente respondemos en 24-48h.",
+    contactError: "Error al enviar, inténtalo de nuevo.",
     scanInvoice: "Escanear una factura", scanning: "Analizando la factura…",
     scanError: "Error durante el análisis", scanRetry: "Reintentar",
     scanResultTitle: "Resultado del escaneo", scanSupplier: "Proveedor",
@@ -883,6 +894,11 @@ export const TR = {
     billingPaywallReminder: "Your recipes and their already-calculated margins are waiting — don't lose what you've built.",
     billingSubscribeButton: "Subscribe now", billingSecureNote: "Secure payment by Stripe.", billingCheckoutError: "Couldn't open the payment page, try again in a moment.",
     billingManageSubscription: "Subscription", billingPortalError: "Couldn't open the subscription page, try again in a moment.",
+    contactButton: "Contact us", contactModalTitle: "Contact us",
+    contactHint: "A bug, an idea to improve Chefup? Write to us, we'll reply directly by email.",
+    contactPlaceholder: "Describe your issue or suggestion...",
+    contactSendButton: "Send", contactSuccessMessage: "Message sent! We usually reply within 24-48h.",
+    contactError: "Error sending the message, try again.",
     scanInvoice: "Scan an invoice", scanning: "Analyzing the invoice…",
     scanError: "Error during analysis", scanRetry: "Retry",
     scanResultTitle: "Scan result", scanSupplier: "Supplier",
@@ -1842,6 +1858,13 @@ export default function App() {
   // prix estimé faux (ex: import scan) sans devoir aller jusqu'au garde-manger.
   const [editingLinePriceIdx, setEditingLinePriceIdx] = useState(null);
 
+  // Formulaire de contact/réclamation (Paramètres) : état totalement indépendant du reste.
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [contactMessage, setContactMessage] = useState("");
+  const [contactSending, setContactSending] = useState(false);
+  const [contactSent, setContactSent] = useState(false);
+  const [contactErr, setContactErr] = useState(null);
+
   const [addWizardOpen, setAddWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1); // 1 nom/recherche, 2 prix+unité, 3 catégorie (création only), "success"
   const [wizardQuery, setWizardQuery] = useState("");
@@ -2228,6 +2251,30 @@ export default function App() {
     } catch (e) {
       setPortalErr(t("billingPortalError"));
       setPortalBusy(false);
+    }
+  };
+
+  // Formulaire de contact/réclamation : l'adresse de réception vit uniquement côté serveur
+  // (CONTACT_EMAIL), jamais transmise ni visible côté client — seul le message est envoyé.
+  const sendContactMessage = async () => {
+    if (!contactMessage.trim()) return;
+    setContactErr(null);
+    setContactSending(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ message: contactMessage.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "contact error");
+      setContactSent(true);
+      setContactMessage("");
+    } catch (e) {
+      setContactErr(t("contactError"));
+    } finally {
+      setContactSending(false);
     }
   };
 
@@ -3505,12 +3552,70 @@ export default function App() {
               {portalBusy && <Loader2 size={12} className="animate-spin" />}
               {t("billingManageSubscription")}
             </button>
+            <button
+              onClick={() => { setContactModalOpen(true); setContactSent(false); setContactErr(null); }}
+              className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] flex items-center justify-center gap-2 mb-2"
+            >
+              <Mail size={12} /> {t("contactButton")}
+            </button>
             <button onClick={() => setShowSettings(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]">
               {t("close")}
             </button>
             <button onClick={clearAll} className="w-full text-center mt-3 text-[11px] text-white/30 hover:text-[#B23A2E] underline">
               {t("resetData")}
             </button>
+          </div>
+        </div>
+      )}
+
+      {contactModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setContactModalOpen(false)}>
+          <div
+            className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10"
+            style={{ background: "#26221C" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-display text-white uppercase tracking-wide text-sm mb-3">{t("contactModalTitle")}</h3>
+            {contactSent ? (
+              <>
+                <p className="text-white/70 text-sm mb-5">{t("contactSuccessMessage")}</p>
+                <button
+                  onClick={() => setContactModalOpen(false)}
+                  className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                >
+                  {t("close")}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-white/50 text-xs mb-3">{t("contactHint")}</p>
+                <textarea
+                  value={contactMessage}
+                  onChange={(e) => setContactMessage(e.target.value)}
+                  placeholder={t("contactPlaceholder")}
+                  rows={5}
+                  className="w-full bg-black/20 text-white text-sm rounded p-2.5 outline-none mb-3"
+                />
+                {contactErr && (
+                  <div className="mb-3 text-[11px] rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">{contactErr}</div>
+                )}
+                <button
+                  onClick={sendContactMessage}
+                  disabled={contactSending || !contactMessage.trim()}
+                  className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full flex items-center justify-center gap-2 disabled:opacity-50 mb-2"
+                  style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+                >
+                  {contactSending && <Loader2 size={12} className="animate-spin" />}
+                  {t("contactSendButton")}
+                </button>
+                <button
+                  onClick={() => setContactModalOpen(false)}
+                  className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                >
+                  {t("close")}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
