@@ -519,6 +519,7 @@ export const TR = {
     scanPriceInconsistent: "Écart avec le total imprimé, vérifie",
     scanExpectedTotal: "attendu", scanPrintedTotal: "imprimé :",
     scanLowConfidence: "Lecture incertaine (document flou/dense) — compare avec le papier avant de valider",
+    scanUnitChangeWarning: (oldU, newU) => `Cet ingrédient est utilisé dans au moins une recette en "${oldU}" — passer à "${newU}" changerait le sens des quantités déjà saisies. Vérifie ces recettes après import.`,
     scanConfirmUncertain: "Confirmer malgré le doute",
     scanPriceDoubtLabel: "Vérifie ce prix avant d'importer",
     scanManyUpWarning: "Plusieurs prix semblent en forte hausse par rapport à tes prix connus — vérifie que le document est bien net avant d'importer.",
@@ -701,6 +702,7 @@ export const TR = {
     scanPriceInconsistent: "Diferencia con el total impreso, verifica",
     scanExpectedTotal: "esperado", scanPrintedTotal: "impreso:",
     scanLowConfidence: "Lectura incierta (documento borroso/denso) — compara con el papel antes de validar",
+    scanUnitChangeWarning: (oldU, newU) => `Este ingrediente se usa en al menos una receta en "${oldU}" — cambiar a "${newU}" cambiaría el sentido de las cantidades ya introducidas. Revisa esas recetas después de importar.`,
     scanConfirmUncertain: "Confirmar a pesar de la duda",
     scanPriceDoubtLabel: "Comprueba este precio antes de importar",
     scanManyUpWarning: "Varios precios parecen estar muy al alza respecto a tus precios conocidos — verifica que el documento esté bien nítido antes de importar.",
@@ -883,6 +885,7 @@ export const TR = {
     scanPriceInconsistent: "Mismatch with the printed total, please check",
     scanExpectedTotal: "expected", scanPrintedTotal: "printed:",
     scanLowConfidence: "Uncertain reading (blurry/dense document) — compare with the paper before validating",
+    scanUnitChangeWarning: (oldU, newU) => `This ingredient is used in at least one recipe in "${oldU}" — switching to "${newU}" would change the meaning of quantities already entered. Check those recipes after importing.`,
     scanConfirmUncertain: "Confirm despite the uncertainty",
     scanPriceDoubtLabel: "Check this price before importing",
     scanManyUpWarning: "Several prices seem sharply up compared to your known prices — check that the document is sharp before importing.",
@@ -1517,7 +1520,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
       : t("scanSummaryUpdate")(targetName || "?", (item.unitPriceHT || 0).toFixed(2), item.unit);
   // Doute sur le PRIX (incohérent/illisible/IA peu sûre) : ne se résout jamais tout seul, reste
   // affiché jusqu'à l'import quel que soit le chemin emprunté (pile ou liste directe).
-  const hasPriceDoubt = item.pricingUnknown || item.priceInconsistent || item.lowConfidence;
+  const hasPriceDoubt = item.pricingUnknown || item.priceInconsistent || item.lowConfidence || item.unitChangeAffectsRecipes;
   // Doute sur le NOM (rapprochement pas confiant) : une fois que l'utilisateur a explicitement
   // tranché et validé dans la pile (item.reviewed), ce doute est résolu — le réafficher au moment
   // du clic final n'a plus de sens, ça ferait revivre une décision déjà prise (repéré en test réel,
@@ -1692,6 +1695,13 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             <div className="flex items-center gap-1.5 text-[10px] rounded px-2 py-1" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
               <AlertTriangle size={11} className="shrink-0" />
               <span>{t("scanLowConfidence")}</span>
+            </div>
+          )}
+
+          {item.unitChangeAffectsRecipes && (
+            <div className="flex items-center gap-1.5 text-[10px] rounded px-2 py-1" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+              <AlertTriangle size={11} className="shrink-0" />
+              <span>{t("scanUnitChangeWarning")(item.previousUnit, item.unit)}</span>
             </div>
           )}
 
@@ -2813,6 +2823,20 @@ export default function App() {
         const currentPrice = activeSup?.price ?? null;
         const currentPriceIsReal = activeSup?.priceSource && activeSup.priceSource !== "estimate";
 
+        // Un changement d'unité sur un ingrédient déjà utilisé dans une recette est dangereux :
+        // la quantité déjà saisie dans cette recette (comprise dans l'ANCIENNE unité) serait
+        // silencieusement réinterprétée dans la nouvelle unité au moment de l'import (ex: "2"
+        // gousses d'ail en "pièce" deviendrait "2 kg" si l'unité bascule en kg) — cas réel
+        // remonté par l'utilisateur (ingrédient créé en "pièce" via le scanner de fiche recette,
+        // puis retrouvé en kg sur une vraie facture). Ne bloque pas l'import, mais retire la
+        // ligne de "sûr" pour forcer une vérification humaine plutôt qu'une bascule silencieuse.
+        const unitChangeAffectsRecipes =
+          !!matchedIng &&
+          matchedIng.unit &&
+          finalUnit &&
+          matchedIng.unit !== finalUnit &&
+          recipes.some((r) => r.lines.some((l) => l.ingredientId === matchedIng.id));
+
         // Grosse variation à confirmer explicitement — uniquement si on la compare à un
         // VRAI prix déjà observé (jamais contre une simple estimation de départ non vérifiée).
         const bigChange =
@@ -2854,6 +2878,8 @@ export default function App() {
           pricingUnknown,
           priceUnusable,
           bigChange,
+          unitChangeAffectsRecipes,
+          previousUnit: matchedIng?.unit || null,
           // Seuil aligné sur celui déjà utilisé par priceVariation() (fiche recette) : sous 1%,
           // c'est du bruit d'arrondi, pas une vraie variation. Avant ce correctif le seuil était
           // à 2%, ce qui masquait des hausses/baisses réelles mais modestes (ex: 9.40€ -> 9.60€,
@@ -2971,7 +2997,7 @@ export default function App() {
   // est peut-être seulement en train de choisir "créer séparément" dans le picker sans avoir
   // encore validé — la ligne doit rester dans "à vérifier" jusqu'au clic explicite sur Valider.
   const isSafeScanItem = (item) =>
-    !item.priceInconsistent && !item.bigChange && !item.priceUnusable && !item.lowConfidence &&
+    !item.priceInconsistent && !item.bigChange && !item.priceUnusable && !item.lowConfidence && !item.unitChangeAffectsRecipes &&
     (item.matchConfident || (item.assignTo === "new" && !item.guessedMatchId));
 
   // Une ligne rejoint la section "sûr" (éditable, coche pour importer) si elle est intrinsèquement
@@ -4005,6 +4031,12 @@ export default function App() {
                                   {current.item.lowConfidence && (
                                     <div className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1.5 mt-3" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
                                       <AlertTriangle size={11} className="shrink-0" /> {t("scanLowConfidence")}
+                                    </div>
+                                  )}
+
+                                  {current.item.unitChangeAffectsRecipes && (
+                                    <div className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1.5 mt-3" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+                                      <AlertTriangle size={11} className="shrink-0" /> {t("scanUnitChangeWarning")(current.item.previousUnit, current.item.unit)}
                                     </div>
                                   )}
 
