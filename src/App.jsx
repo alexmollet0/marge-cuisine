@@ -605,6 +605,9 @@ export const TR = {
     wizardExistingSection: "Ingrédients existants — modifier le prix", wizardCatalogSection: "Suggestions",
     wizardSearchHint: "Tape le nom d'un ingrédient pour le chercher ou en créer un nouveau.",
     recentIngredients: "Récents", noRecentIngredients: "Aucun ingrédient scanné ou modifié récemment.",
+    selectAllRecent: "Tout sélectionner", deselectAll: "Tout désélectionner",
+    deleteSelectedButton: (n) => `Supprimer (${n})`,
+    deleteSelectedConfirm: (n) => `Supprimer définitivement ${n} ingrédient${n > 1 ? "s" : ""} sélectionné${n > 1 ? "s" : ""} ? Cette action est irréversible.`,
     pantryOnboardingHint: "Ces prix sont juste des exemples pour la recette de démonstration. Scanne tes propres factures pour remplir ton garde-manger avec tes vrais prix fournisseurs.",
     pantryReclassifyHint: (n) => `${n} ingrédient${n > 1 ? "s" : ""} dans "Autres" peuvent être classés automatiquement.`,
     pantryReclassifyButton: "Classer maintenant",
@@ -800,6 +803,9 @@ export const TR = {
     wizardExistingSection: "Ingredientes existentes — modificar el precio", wizardCatalogSection: "Sugerencias",
     wizardSearchHint: "Escribe el nombre de un ingrediente para buscarlo o crear uno nuevo.",
     recentIngredients: "Recientes", noRecentIngredients: "Ningún ingrediente escaneado o modificado recientemente.",
+    selectAllRecent: "Seleccionar todo", deselectAll: "Deseleccionar todo",
+    deleteSelectedButton: (n) => `Eliminar (${n})`,
+    deleteSelectedConfirm: (n) => `¿Eliminar definitivamente ${n} ingrediente${n > 1 ? "s" : ""} seleccionado${n > 1 ? "s" : ""}? Esta acción es irreversible.`,
     pantryOnboardingHint: "Estos precios son solo ejemplos para la receta de demostración. Escanea tus propias facturas para llenar tu despensa con tus precios reales de proveedor.",
     pantryReclassifyHint: (n) => `${n} ingrediente${n > 1 ? "s" : ""} en "Otros" se pueden clasificar automáticamente.`,
     pantryReclassifyButton: "Clasificar ahora",
@@ -995,6 +1001,9 @@ export const TR = {
     wizardExistingSection: "Existing ingredients — edit price", wizardCatalogSection: "Suggestions",
     wizardSearchHint: "Type an ingredient's name to search it or create a new one.",
     recentIngredients: "Recent", noRecentIngredients: "No ingredient scanned or edited recently.",
+    selectAllRecent: "Select all", deselectAll: "Deselect all",
+    deleteSelectedButton: (n) => `Delete (${n})`,
+    deleteSelectedConfirm: (n) => `Permanently delete ${n} selected ingredient${n > 1 ? "s" : ""}? This action is irreversible.`,
     pantryOnboardingHint: "These prices are just examples for the demo recipe. Scan your own invoices to fill your pantry with your real supplier prices.",
     pantryReclassifyHint: (n) => `${n} ingredient${n > 1 ? "s" : ""} in "Other" can be classified automatically.`,
     pantryReclassifyButton: "Classify now",
@@ -1858,6 +1867,14 @@ export default function App() {
   const [pantryQuery, setPantryQuery] = useState("");
   const [pantryCategory, setPantryCategory] = useState("none");
   const [expandedIngId, setExpandedIngId] = useState(null);
+  // Sélection multiple dans la vue "Récents" uniquement — pour qu'un client qui a ajouté/scanné
+  // une cinquantaine d'ingrédients par erreur (bug utilisateur réel évoqué par l'utilisateur)
+  // puisse les retirer lui-même en un clic, sans dépendre d'une intervention manuelle sur sa
+  // base de données. Réinitialisée en changeant de catégorie pour ne jamais garder une sélection
+  // périmée (ex: sur des ingrédients qui ne sont plus dans "Récents" après suppression d'un autre).
+  const [selectedRecentIds, setSelectedRecentIds] = useState(() => new Set());
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
+  useEffect(() => { setSelectedRecentIds(new Set()); }, [pantryCategory]);
   const [autoOpenIdx, setAutoOpenIdx] = useState(null);
   const [lossModalOpen, setLossModalOpen] = useState(false);
   const [showQtyHint, setShowQtyHint] = useState(false);
@@ -2188,6 +2205,20 @@ export default function App() {
   };
 
   const deleteIngredient = (id) => setIngredients((ings) => ings.filter((i) => i.id !== id));
+
+  const toggleRecentSelection = (id) =>
+    setSelectedRecentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const deleteSelectedRecentIngredients = () => {
+    setIngredients((ings) => ings.filter((i) => !selectedRecentIds.has(i.id)));
+    setSelectedRecentIds(new Set());
+    setBulkDeleteConfirmOpen(false);
+  };
   const addSupplier = (ingId) => {
     setIngredients((ings) => ings.map((i) => {
       if (i.id !== ingId) return i;
@@ -3711,6 +3742,37 @@ export default function App() {
               </button>
               <button
                 onClick={performReset}
+                className="flex-1 text-xs font-display uppercase tracking-wide py-2.5 rounded text-white"
+                style={{ background: TIER_COLORS.low }}
+              >
+                {t("resetConfirmButton")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bulkDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setBulkDeleteConfirmOpen(false)}>
+          <div
+            className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10"
+            style={{ background: "#26221C" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-3" style={{ color: TIER_COLORS.low }}>
+              <AlertTriangle size={18} className="shrink-0" />
+              <h3 className="font-display uppercase tracking-wide text-sm">{t("deleteSelectedButton")(selectedRecentIds.size)}</h3>
+            </div>
+            <p className="text-white/70 text-sm mb-5">{t("deleteSelectedConfirm")(selectedRecentIds.size)}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBulkDeleteConfirmOpen(false)}
+                className="flex-1 text-xs font-display uppercase tracking-wide py-2.5 rounded border border-white/20 text-white/70 hover:border-white/40"
+              >
+                {t("cancelLabel")}
+              </button>
+              <button
+                onClick={deleteSelectedRecentIngredients}
                 className="flex-1 text-xs font-display uppercase tracking-wide py-2.5 rounded text-white"
                 style={{ background: TIER_COLORS.low }}
               >
@@ -5300,6 +5362,29 @@ export default function App() {
               ))}
             </div>
 
+            {pantryCategory === "recent" && recentGrouped && recentGrouped.length > 0 && (
+              <div className="flex items-center justify-between mb-2 px-1">
+                <button
+                  onClick={() => {
+                    const allIds = recentGrouped.flatMap((g) => g.items.map((i) => i.id));
+                    const allSelected = allIds.length > 0 && allIds.every((id) => selectedRecentIds.has(id));
+                    setSelectedRecentIds(allSelected ? new Set() : new Set(allIds));
+                  }}
+                  className="text-[11px] text-white/50 hover:text-white underline decoration-dotted"
+                >
+                  {recentGrouped.flatMap((g) => g.items).every((i) => selectedRecentIds.has(i.id)) ? t("deselectAll") : t("selectAllRecent")}
+                </button>
+                {selectedRecentIds.size > 0 && (
+                  <button
+                    onClick={() => setBulkDeleteConfirmOpen(true)}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-[#EF4444] hover:text-[#B23A2E]"
+                  >
+                    <Trash2 size={12} /> {t("deleteSelectedButton")(selectedRecentIds.size)}
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="rounded-xl overflow-hidden font-body border border-white/10" style={{ background: "#26221C" }}>
               {(() => {
                 const displayGroups = pantryCategory === "recent" ? recentGrouped || [] : pantryGrouped;
@@ -5325,6 +5410,14 @@ export default function App() {
                     return (
                       <div key={ing.id} className="border-t border-white/5">
                         <div className="w-full flex items-center gap-2 px-3 py-2.5">
+                          {pantryCategory === "recent" && (
+                            <input
+                              type="checkbox"
+                              checked={selectedRecentIds.has(ing.id)}
+                              onChange={() => toggleRecentSelection(ing.id)}
+                              className="shrink-0"
+                            />
+                          )}
                           <button
                             onClick={() => setExpandedIngId(isOpen ? null : ing.id)}
                             className="flex-1 min-w-0 flex items-center gap-2 text-left"
