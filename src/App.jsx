@@ -487,6 +487,8 @@ export const TR = {
     allergensAutoBadge: "détecté auto", allergensReset: "Revenir à la détection auto",
     createdOn: "Créé le", settings: "Paramètres", logout: "Se déconnecter", defaultVat: "TVA par défaut",
     minMarginLabel: "Marge minimale souhaitée", close: "Fermer",
+    emailRemindersLabel: "Recevoir les rappels par email",
+    emailRemindersHint: "Un rappel si tu n'as rien scanné depuis un moment, ou si une recette passe sous ta marge cible.",
     billingTrialBanner: (n) => n > 1 ? `Essai gratuit : ${n} jours restants` : n === 1 ? "Essai gratuit : dernier jour" : "Essai gratuit : se termine aujourd'hui",
     billingPaywallTitle: "Ton essai gratuit est terminé", billingPaywallBody: "Abonne-toi pour continuer à utiliser Chefup — 39€/mois, résiliable à tout moment.",
     billingSubscribeButton: "S'abonner maintenant", billingSecureNote: "Paiement sécurisé par Stripe.", billingCheckoutError: "Impossible d'ouvrir la page de paiement, réessaie dans un instant.",
@@ -660,6 +662,8 @@ export const TR = {
     allergensAutoBadge: "detectado auto", allergensReset: "Volver a la detección automática",
     createdOn: "Creado el", settings: "Ajustes", logout: "Cerrar sesión", defaultVat: "IVA por defecto",
     minMarginLabel: "Margen mínimo deseado", close: "Cerrar",
+    emailRemindersLabel: "Recibir recordatorios por email",
+    emailRemindersHint: "Un aviso si hace tiempo que no escaneas nada, o si una receta baja de tu margen objetivo.",
     billingTrialBanner: (n) => n > 1 ? `Prueba gratuita: quedan ${n} días` : n === 1 ? "Prueba gratuita: último día" : "Prueba gratuita: termina hoy",
     billingPaywallTitle: "Tu prueba gratuita ha terminado", billingPaywallBody: "Suscríbete para seguir usando Chefup — 39€/mes, cancelable en cualquier momento.",
     billingSubscribeButton: "Suscribirme ahora", billingSecureNote: "Pago seguro con Stripe.", billingCheckoutError: "No se pudo abrir la página de pago, inténtalo de nuevo en un momento.",
@@ -833,6 +837,8 @@ export const TR = {
     allergensAutoBadge: "auto-detected", allergensReset: "Back to auto-detection",
     createdOn: "Created on", settings: "Settings", logout: "Log out", defaultVat: "Default tax rate",
     minMarginLabel: "Desired minimum margin", close: "Close",
+    emailRemindersLabel: "Receive email reminders",
+    emailRemindersHint: "A nudge if you haven't scanned anything in a while, or if a recipe drops below your target margin.",
     billingTrialBanner: (n) => n > 1 ? `Free trial: ${n} days left` : n === 1 ? "Free trial: last day" : "Free trial: ends today",
     billingPaywallTitle: "Your free trial has ended", billingPaywallBody: "Subscribe to keep using Chefup — €39/month, cancel anytime.",
     billingSubscribeButton: "Subscribe now", billingSecureNote: "Secure payment by Stripe.", billingCheckoutError: "Couldn't open the payment page, try again in a moment.",
@@ -1042,7 +1048,7 @@ function buildSeedRecipes(lang) {
   ];
 }
 
-const DEFAULT_SETTINGS = { vat: 10, minMargin: 75 };
+const DEFAULT_SETTINGS = { vat: 10, minMargin: 75, emailRemindersEnabled: true };
 
 function useDebouncedSave(key, value, ready) {
   useEffect(() => {
@@ -2694,6 +2700,9 @@ export default function App() {
         const msg = debugDetail ? `${data.error} (${debugDetail})` : data.error || "Échec de l'analyse";
         throw new Error(msg);
       }
+      // Date du dernier scan réussi, utilisée uniquement par le rappel d'inactivité par email
+      // (api/send-reminders.js) — fire-and-forget, un échec ici ne doit jamais bloquer le scan.
+      storage.set("lastScanAt", JSON.stringify(new Date().toISOString())).catch(() => {});
       // Filet de sécurité : une remise/récapitulatif/ligne de règlement doit être exclue par
       // l'IA elle-même (voir prompt), mais des tests réels ont montré qu'elle laisse parfois
       // passer ce type de ligne avec tous les champs à null au lieu de l'omettre — un vrai
@@ -3132,6 +3141,19 @@ export default function App() {
                 ? t("marginLegendWithOrange")(effectiveGreenTarget, CRITICAL_MARGIN)
                 : t("marginLegendNoOrange")(CRITICAL_MARGIN)}
             </p>
+
+            <label className="flex items-start gap-2 mb-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.emailRemindersEnabled !== false}
+                onChange={(e) => setSettings({ ...settings, emailRemindersEnabled: e.target.checked })}
+                className="mt-0.5 shrink-0"
+              />
+              <span>
+                <span className="text-xs text-white/70 block">{t("emailRemindersLabel")}</span>
+                <span className="text-[10px] text-white/30 block mt-0.5">{t("emailRemindersHint")}</span>
+              </span>
+            </label>
 
             {portalErr && (
               <div className="mb-3 text-[11px] rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">{portalErr}</div>
