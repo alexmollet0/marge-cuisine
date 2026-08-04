@@ -3,7 +3,7 @@ import { Loader2, Check } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
 
-const TRIAL_DAYS = 0; // TEMPORAIRE — pour prévisualiser l'écran de fin d'essai, remettre à 7 juste après
+const TRIAL_DAYS = 7;
 const AUTH_LANG_KEY = "chefup:authLang";
 
 function daysLeft(createdAt) {
