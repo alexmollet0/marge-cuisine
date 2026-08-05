@@ -1917,6 +1917,7 @@ export default function App() {
   // inspecter directement ce qui était envoyé. Permet à l'utilisateur de voir lui-même si l'image
   // est nette/bien orientée avant de suspecter le modèle d'IA.
   const [scanImagePreview, setScanImagePreview] = useState(null);
+  const [scanImageZoomed, setScanImageZoomed] = useState(false);
   const [reviewStackOpen, setReviewStackOpen] = useState(false);
   const [stackTotal, setStackTotal] = useState(0);
   const [expandedReviewIdx, setExpandedReviewIdx] = useState(null);
@@ -3245,6 +3246,7 @@ export default function App() {
     setScanResult(null);
     setScanErr(null);
     setScanImagePreview(null);
+    setScanImageZoomed(false);
     setReviewStackOpen(false);
     setExpandedReviewIdx(null);
   };
@@ -4055,10 +4057,28 @@ export default function App() {
                 <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-white/50 hover:text-white/80 select-none">
                   {t("scanImagePreviewLabel")}
                 </summary>
-                <a href={scanImagePreview} target="_blank" rel="noopener noreferrer">
-                  <img src={scanImagePreview} alt="" className="w-full max-h-64 object-contain bg-black/30" />
-                </a>
+                <img
+                  src={scanImagePreview}
+                  alt=""
+                  onClick={() => setScanImageZoomed(true)}
+                  className="w-full max-h-64 object-contain bg-black/30 cursor-zoom-in"
+                />
               </details>
+            )}
+
+            {scanImageZoomed && scanImagePreview && (
+              <div
+                className="fixed inset-0 z-[60] bg-black overflow-auto"
+                onClick={() => setScanImageZoomed(false)}
+              >
+                <img src={scanImagePreview} alt="" className="w-full h-auto" />
+                <button
+                  onClick={() => setScanImageZoomed(false)}
+                  className="fixed top-4 right-4 text-white bg-black/60 rounded-full p-2"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             )}
 
             {scanning && (
