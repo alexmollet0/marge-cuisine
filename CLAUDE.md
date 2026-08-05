@@ -16,6 +16,7 @@ traduire ce nom, dans aucune langue). React + Vite, déployée sur Vercel, code 
 - `src/Billing.jsx` — porte d'abonnement (`SubscriptionGate`), imbriquée DANS `AuthGate` (`src/main.jsx` : `AuthGate > SubscriptionGate > App`). Voir section Stripe ci-dessous.
 - `api/_lib.js` — utilitaires serveur partagés (client Stripe, client Supabase admin service_role, vérification du token utilisateur, envoi d'email via Resend `sendEmail`). Préfixé `_` pour que Vercel ne le déploie pas comme route.
 - `api/contact.js` — formulaire de contact/réclamation in-app (Paramètres) : envoie un email via Resend à `CONTACT_EMAIL` (variable serveur, jamais exposée au client).
+- `api/log-scan-event.js` / `api/scan-stats.js` — journal statistique agrégé du scanner (2026-08), voir section EN COURS pour la mise en place Supabase/Vercel restante. Écrit dans la table `scan_events` (fire-and-forget depuis `runScanPipeline`, `src/App.jsx`) ; lecture protégée par `ADMIN_SECRET`, jamais exposée dans l'app. Sert uniquement à ce que Claude puisse répondre à "comment se passe le scan chez les autres utilisateurs ?" dans une future conversation, sans que l'utilisateur ait à aller chercher lui-même dans Supabase.
 - `api/create-checkout-session.js`, `api/create-portal-session.js`, `api/stripe-webhook.js` — fonctions serveur Stripe (voir section Stripe ci-dessous).
 
 ## Déploiement
@@ -25,6 +26,7 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environ
 - **À ajouter pour Stripe (2026-08-03, voir section EN COURS)** : `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` (secrètes, jamais préfixées `VITE_`), `SUPABASE_SERVICE_ROLE_KEY` (clé admin Supabase qui contourne RLS — jamais dans le bundle frontend, utilisée uniquement par `api/_lib.js`).
 - **À ajouter pour les alertes email (2026-08-04, voir section EN COURS)** : `RESEND_API_KEY` (clé API Resend, distincte des identifiants SMTP déjà configurés côté Supabase) et `CRON_SECRET` (protège `api/send-reminders.js` contre un déclenchement par n'importe qui).
 - **À ajouter pour le formulaire de contact (2026-08-04)** : `CONTACT_EMAIL` (adresse qui reçoit les messages envoyés depuis Paramètres → Nous contacter — volontairement gardée hors du bundle client, l'utilisateur ne veut pas que son adresse perso soit visible ; changeable à tout moment sans toucher au code).
+- **À ajouter pour les statistiques du scanner (2026-08-05, voir section EN COURS)** : `ADMIN_SECRET` — valeur déjà générée : `e7708dfa55e49626e03b41bd22fb355e6cc9d87f3d56b5c7`. Protège `api/scan-stats.js` (lecture agrégée), à ne jamais confondre avec `CRON_SECRET` (usage différent).
 
 **Nom de domaine (2026-08-02)** : `getchefup.com` acheté directement via Vercel (Settings → Domains) et connecté automatiquement — `chefup.com` était déjà pris. C'est maintenant l'adresse de référence de l'app (Site URL Supabase pointe dessus). L'ancienne adresse `marge-cuisine.vercel.app` reste fonctionnelle en parallèle (toujours dans les Redirect URLs Supabase), mais `getchefup.com` est l'adresse à utiliser/donner aux utilisateurs. Le nom du dépôt GitHub et du projet Vercel restent `marge-cuisine` (voir note de renommage plus bas, inchangée).
 
@@ -268,6 +270,31 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environ
   **Poussé en production le 2026-08-05.** Cette fois, l'ensemble de la chaîne a été confirmé fonctionnel de bout en bout par l'utilisateur sur son propre téléphone avec une vraie facture. Reste à vérifier avec un nouvel usage réel que le bouton pivoter (nouveau flux, pas encore testé après son ajout) fonctionne bien lui aussi en conditions réelles.
 
 ## EN COURS
+
+### ⚠️ ACTION IMMÉDIATE REQUISE (2026-08-05) : mise en place Supabase + Vercel pour les stats du scanner
+Le code (`api/log-scan-event.js`, `api/scan-stats.js`) est déployé mais **ne fonctionne pas encore** tant que ces 2 étapes ne sont pas faites par l'utilisateur (je n'ai accès ni à Supabase ni à Vercel directement) :
+1. **Créer la table dans Supabase** (SQL Editor) :
+   ```sql
+   create table scan_events (
+     id uuid primary key default gen_random_uuid(),
+     created_at timestamptz not null default now(),
+     user_id uuid,
+     scanner text,
+     supplier_known boolean,
+     total_items int,
+     food_items int,
+     excluded_items int,
+     zero_items boolean,
+     low_confidence_items int,
+     many_low_confidence boolean,
+     price_inconsistent_items int,
+     pricing_unknown_items int
+   );
+   alter table scan_events enable row level security;
+   ```
+   Volontairement **aucune policy RLS ajoutée** : avec RLS activé et zéro policy, ni un utilisateur anonyme ni un utilisateur connecté ne peut lire/écrire cette table depuis le navigateur — seul le service_role (utilisé uniquement côté serveur par `api/log-scan-event.js`/`api/scan-stats.js`) peut y toucher, en contournant RLS comme d'habitude sur ce projet.
+2. **Ajouter la variable Vercel `ADMIN_SECRET`** (Production + Preview), valeur déjà générée : `e7708dfa55e49626e03b41bd22fb355e6cc9d87f3d56b5c7` — puis redéployer (comme pour les autres variables ajoutées sur ce projet, l'ajout seul ne suffit pas).
+Une fois fait, l'utilisateur peut demander dans n'importe quelle future conversation "comment se passent les scans ?" — la requête à lancer est `https://getchefup.com/api/scan-stats?secret=e7708dfa55e49626e03b41bd22fb355e6cc9d87f3d56b5c7` (ajouter `&days=7` pour changer la fenêtre, `&raw=1` pour le détail ligne par ligne). Pas encore testé de bout en bout (dépend des 2 étapes ci-dessus).
 
 ### 🎯 PROCHAINE ÉTAPE EXPLICITEMENT DEMANDÉE PAR L'UTILISATEUR POUR LA PROCHAINE SESSION (2026-08-04→05) : recette utilisable comme ingrédient d'une autre recette
 
