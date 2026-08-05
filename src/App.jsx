@@ -519,7 +519,7 @@ export const TR = {
     contactError: "Erreur pendant l'envoi, réessaie.",
     scanInvoice: "Scanner une facture", scanning: "Analyse de la facture en cours…",
     scanError: "Erreur pendant l'analyse", scanRetry: "Réessayer",
-    scanResultTitle: "Résultat du scan", scanSupplier: "Fournisseur",
+    scanResultTitle: "Résultat du scan", scanImagePreviewLabel: "Voir l'image envoyée à l'IA (diagnostic)", scanSupplier: "Fournisseur",
     scanDate: "Date", scanAssignTo: "Associer à", scanNewIngredient: "🆕 Nouvel ingrédient",
     scanLinkedSure: "Ingrédient existant", scanLinkedGuess: "Suggestion, vérifie",
     scanRenameWarning: (n) => `Remplace "${n}" partout où il est utilisé`,
@@ -717,7 +717,7 @@ export const TR = {
     contactError: "Error al enviar, inténtalo de nuevo.",
     scanInvoice: "Escanear una factura", scanning: "Analizando la factura…",
     scanError: "Error durante el análisis", scanRetry: "Reintentar",
-    scanResultTitle: "Resultado del escaneo", scanSupplier: "Proveedor",
+    scanResultTitle: "Resultado del escaneo", scanImagePreviewLabel: "Ver la imagen enviada a la IA (diagnóstico)", scanSupplier: "Proveedor",
     scanDate: "Fecha", scanAssignTo: "Asociar a", scanNewIngredient: "🆕 Nuevo ingrediente",
     scanLinkedSure: "Ingrediente existente", scanLinkedGuess: "Sugerencia, verifica",
     scanRenameWarning: (n) => `Reemplaza "${n}" en todos los sitios donde se usa`,
@@ -915,7 +915,7 @@ export const TR = {
     contactError: "Error sending the message, try again.",
     scanInvoice: "Scan an invoice", scanning: "Analyzing the invoice…",
     scanError: "Error during analysis", scanRetry: "Retry",
-    scanResultTitle: "Scan result", scanSupplier: "Supplier",
+    scanResultTitle: "Scan result", scanImagePreviewLabel: "View the image sent to the AI (diagnostic)", scanSupplier: "Supplier",
     scanDate: "Date", scanAssignTo: "Assign to", scanNewIngredient: "🆕 New ingredient",
     scanLinkedSure: "Existing ingredient", scanLinkedGuess: "Suggestion, please check",
     scanRenameWarning: (n) => `Replaces "${n}" everywhere it's used`,
@@ -1911,6 +1911,12 @@ export default function App() {
   const [scanning, setScanning] = useState(false);
   const [scanErr, setScanErr] = useState(null);
   const [scanResult, setScanResult] = useState(null); // { supplier, date, items: [...] }
+  // Aperçu de l'image EXACTE (déjà compressée) envoyée à l'IA — outil de diagnostic (2026-08) suite
+  // à un cas réel où le scanner échouait systématiquement sur un téléphone précis alors qu'il
+  // fonctionnait sur ordinateur avec la même facture papier, sans pouvoir accéder au téléphone pour
+  // inspecter directement ce qui était envoyé. Permet à l'utilisateur de voir lui-même si l'image
+  // est nette/bien orientée avant de suspecter le modèle d'IA.
+  const [scanImagePreview, setScanImagePreview] = useState(null);
   const [reviewStackOpen, setReviewStackOpen] = useState(false);
   const [stackTotal, setStackTotal] = useState(0);
   const [expandedReviewIdx, setExpandedReviewIdx] = useState(null);
@@ -2937,6 +2943,7 @@ export default function App() {
     setScanning(true);
     setScanErr(null);
     setScanResult(null);
+    setScanImagePreview(null);
     setReviewStackOpen(false);
     setExpandedReviewIdx(null);
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
@@ -2949,9 +2956,11 @@ export default function App() {
         } else {
           const ocrText = await runOcr(pdfResult.base64);
           payload = { image: pdfResult.base64, mediaType: pdfResult.mediaType, ocrText, lang };
+          setScanImagePreview(`data:${pdfResult.mediaType};base64,${pdfResult.base64}`);
         }
       } else {
         const { base64, mediaType } = await compressImageFile(file);
+        setScanImagePreview(`data:${mediaType};base64,${base64}`);
         const ocrText = await runOcr(base64);
         payload = { image: base64, mediaType, ocrText, lang };
       }
@@ -3235,6 +3244,7 @@ export default function App() {
     setScanOpen(false);
     setScanResult(null);
     setScanErr(null);
+    setScanImagePreview(null);
     setReviewStackOpen(false);
     setExpandedReviewIdx(null);
   };
@@ -4039,6 +4049,15 @@ export default function App() {
                 <X size={18} />
               </button>
             </div>
+
+            {scanImagePreview && (
+              <details open className="mb-3 rounded-lg border border-white/10 overflow-hidden">
+                <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-white/50 hover:text-white/80 select-none">
+                  {t("scanImagePreviewLabel")}
+                </summary>
+                <img src={scanImagePreview} alt="" className="w-full max-h-64 object-contain bg-black/30" />
+              </details>
+            )}
 
             {scanning && (
               <div className="flex flex-col items-center justify-center py-10 text-white/60 text-sm gap-3">
