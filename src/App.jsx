@@ -3222,6 +3222,32 @@ export default function App() {
       const manyLowConfidence = foodItems.length >= 2 && foodItems.filter((i) => i.lowConfidence).length / foodItems.length > 0.3;
 
       setScanResult({ supplier: data.supplier || null, date: data.date || null, items: foodItems, excludedItems, manyUp, manyLowConfidence });
+      // Statistiques agrégées du scanner (2026-08, fire-and-forget) : jamais de contenu de
+      // facture, juste des compteurs — voir api/log-scan-event.js. Sert uniquement à surveiller
+      // la fiabilité réelle du scan sur l'ensemble des comptes (interrogeable via api/scan-stats.js,
+      // protégé par ADMIN_SECRET), invisible dans l'app pour tout utilisateur.
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) return;
+          await fetch("/api/log-scan-event", {
+            method: "POST",
+            headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({
+              scanner: "invoice",
+              supplierKnown: !!data.supplier,
+              totalItems: foodItems.length + excludedItems.length,
+              foodItems: foodItems.length,
+              excludedItems: excludedItems.length,
+              zeroItems: foodItems.length + excludedItems.length === 0,
+              lowConfidenceItems: foodItems.filter((i) => i.lowConfidence).length,
+              manyLowConfidence,
+              priceInconsistentItems: foodItems.filter((i) => i.priceInconsistent).length,
+              pricingUnknownItems: foodItems.filter((i) => i.pricingUnknown).length,
+            }),
+          });
+        } catch (e) {}
+      })();
       // Vérification "un par un" par défaut dès qu'il y a quelque chose à vérifier — demandé
       // explicitement par l'utilisateur (2026-08) : la liste groupée restait trop facile à
       // survoler sans vraiment regarder chaque ligne. Le mode liste reste accessible via "Fermer".
