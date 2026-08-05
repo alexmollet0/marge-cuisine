@@ -4055,7 +4055,9 @@ export default function App() {
                 <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-white/50 hover:text-white/80 select-none">
                   {t("scanImagePreviewLabel")}
                 </summary>
-                <img src={scanImagePreview} alt="" className="w-full max-h-64 object-contain bg-black/30" />
+                <a href={scanImagePreview} target="_blank" rel="noopener noreferrer">
+                  <img src={scanImagePreview} alt="" className="w-full max-h-64 object-contain bg-black/30" />
+                </a>
               </details>
             )}
 
