@@ -2655,32 +2655,62 @@ export default function App() {
     setSupplierMappings((maps) => [...maps.filter((m) => m.key !== key), { key, rawLabel, ingredientId, updatedAt: today() }]);
   };
 
-  const compressImageFile = (file) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("Lecture du fichier impossible"));
-      reader.onload = () => {
-        const img = new Image();
-        img.onerror = () => reject(new Error("Image illisible"));
-        img.onload = () => {
-          const maxDim = 1400;
-          let { width, height } = img;
-          if (width > maxDim || height > maxDim) {
-            const scale = maxDim / Math.max(width, height);
-            width = Math.round(width * scale);
-            height = Math.round(height * scale);
-          }
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
-          resolve({ base64: dataUrl.split(",")[1], mediaType: "image/jpeg" });
+  // Redimensionne ET compresse une photo avant envoi à l'IA. Passe par createImageBitmap avec
+  // imageOrientation: "from-image" plutôt que new Image()+canvas classique : un `<img>` respecte
+  // automatiquement le drapeau de rotation EXIF d'une photo de téléphone, mais canvas.drawImage()
+  // NE LE FAIT PAS — il dessine la grille de pixels brute du capteur, ignorant le drapeau qui dit
+  // "affiche ceci tourné". Une fois réexportée via toDataURL, l'image perd tout EXIF : la mauvaise
+  // orientation est alors gravée en dur, sans aucun moyen de la corriger plus tard en aval. Bug réel
+  // trouvé en test (2026-08) : une vraie facture prise en photo sur iPhone repartait pivotée à 90°
+  // vers l'IA — repéré grâce à l'aperçu de diagnostic ajouté ce jour-là, qui montrait l'image
+  // exactement telle qu'envoyée (donc déjà tournée, puisque réencodée à partir du canvas). Un
+  // tableau dense et tourné est nettement plus dur à lire correctement pour un modèle de vision
+  // qu'un tableau droit, même si un humain peut toujours pencher la tête pour compenser.
+  const compressImageFile = async (file) => {
+    const maxDim = 1568; // plafond effectif de résolution appliqué par Claude de toute façon
+    const drawToCanvas = (source, width, height) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(source, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      return { base64: dataUrl.split(",")[1], mediaType: "image/jpeg" };
+    };
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      let { width, height } = bitmap;
+      if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const result = drawToCanvas(bitmap, width, height);
+      bitmap.close();
+      return result;
+    } catch (e) {
+      // Repli sur l'ancien chemin si createImageBitmap échoue/n'existe pas sur ce navigateur —
+      // perd la correction d'orientation dans ce cas précis, mais ne bloque jamais un scan.
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Lecture du fichier impossible"));
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = () => reject(new Error("Image illisible"));
+          img.onload = () => {
+            let { width, height } = img;
+            if (width > maxDim || height > maxDim) {
+              const scale = maxDim / Math.max(width, height);
+              width = Math.round(width * scale);
+              height = Math.round(height * scale);
+            }
+            resolve(drawToCanvas(img, width, height));
+          };
+          img.src = reader.result;
         };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
+        reader.readAsDataURL(file);
+      });
+    }
+  };
 
   // Lit un PDF : si c'est une vraie facture numérique (texte natif, pas un scan), on récupère ce
   // texte directement — plus fiable que n'importe quelle lecture visuelle, puisqu'il n'y a rien à
