@@ -2904,8 +2904,22 @@ export default function App() {
     // (2026-08, "4,12 KG" lu "412 KG", et une contamination par une ligne voisine) ont montré que
     // ça fait vérifier l'utilisateur pour rien alors que le prix importé était déjà correct.
     const pricingDependsOnPackageContent = printedUnit !== "kg" && printedUnit !== "L";
-    const expectedTotal = packageCount * packageContent * finalUnitPrice;
     const printedTotal = it.totalPriceHT || 0;
+    // Certaines factures ont DEUX colonnes de comptage distinctes (ex: "Colis" ET "Quantité"
+    // séparées — cas réel du vin 2026-08 : 2 colis de 6 bouteilles de 75cl = 12 bouteilles, prix
+    // imprimé au format bouteille). L'IA peut alors renvoyer packageCount = nombre de colis (2)
+    // au lieu du vrai multiplicateur de prix (12), ce qui fait échouer ce contrôle même quand le
+    // prix final importé est déjà correct (packageContent s'annule de toute façon dans le calcul
+    // ci-dessous dès que le prix imprimé est "par pièce"). printedUnitPriceHT et totalPriceHT
+    // sont deux nombres indépendants lus sur la même cellule, généralement plus fiables qu'un
+    // choix entre deux colonnes de comptage ambiguës : quand leur ratio ne colle pas du tout à
+    // packageCount, on lui fait confiance à la place plutôt que de déclencher une fausse alerte.
+    const impliedCount = printedPrice > 0 && printedTotal > 0 ? printedTotal / printedPrice : 0;
+    const countForCheck =
+      impliedCount >= 0.5 && Math.abs(impliedCount - packageCount) / Math.max(impliedCount, packageCount) > 0.05
+        ? impliedCount
+        : packageCount;
+    const expectedTotal = countForCheck * packageContent * finalUnitPrice;
     let priceInconsistent = unitMisclassified;
     if (pricingDependsOnPackageContent && !pricingUnknown && printedTotal > 0 && expectedTotal > 0) {
       const diff = Math.abs(expectedTotal - printedTotal) / Math.max(printedTotal, 0.01);
