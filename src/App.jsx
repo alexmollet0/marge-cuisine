@@ -2881,7 +2881,6 @@ export default function App() {
 
     let finalUnit;
     let finalUnitPrice;
-    let unitMisclassified = false;
     if (printedUnit === "kg" || printedUnit === "L") {
       // Le prix imprimé est déjà un prix au kilo/litre selon l'IA. Recoupement systématique quand
       // on a une contenance fiable trouvée nous-mêmes dans le texte (ex: "75 CL" dans le titre) :
@@ -2903,11 +2902,17 @@ export default function App() {
           finalUnit = printedUnit;
           finalUnitPrice = Math.round((printedPrice / deterministicContent) * 10000) / 10000;
         } else {
+          // Ni l'une ni l'autre hypothèse ne colle au total imprimé : on ne force PAS de
+          // vérification ici, contrairement à une première version de ce correctif — cas réel
+          // trouvé en test (2026-08) où "NUGGETS VOLAILLE CUIT 22G" a fait extraire
+          // `deterministicContent` = 0,022kg à partir du "22G" (poids d'UN nugget, pas une
+          // contenance de colis), faisant échouer les deux hypothèses pour un prix qui était en
+          // fait déjà correct tel qu'imprimé (4,95€/kg). `deterministicContent` peut provenir d'un
+          // nombre qui n'a rien à voir avec le conditionnement (grammage d'un produit dans son
+          // nom) : sans confirmation positive (diffPerPiece < 0.05 ci-dessus), mieux vaut faire
+          // confiance à la classification kg/L de l'IA telle quelle, comme avant ce correctif.
           finalUnit = printedUnit;
           finalUnitPrice = printedPrice;
-          // Ni l'une ni l'autre hypothèse ne colle au total imprimé : plutôt que de choisir en
-          // silence, on force une vérification manuelle.
-          if (diffNormalized > 0.15 && diffPerPiece > 0.15) unitMisclassified = true;
         }
       } else {
         finalUnit = printedUnit;
@@ -2957,7 +2962,7 @@ export default function App() {
         ? impliedCount
         : packageCount;
     const expectedTotal = countForCheck * packageContent * finalUnitPrice;
-    let priceInconsistent = unitMisclassified;
+    let priceInconsistent = false;
     if (pricingDependsOnPackageContent && !pricingUnknown && printedTotal > 0 && expectedTotal > 0) {
       const diff = Math.abs(expectedTotal - printedTotal) / Math.max(printedTotal, 0.01);
       if (diff > 0.15) priceInconsistent = true;
