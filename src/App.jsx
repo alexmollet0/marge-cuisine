@@ -35,6 +35,8 @@ import {
   Mail,
   User,
   Paperclip,
+  RotateCcw,
+  RotateCw,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -519,7 +521,7 @@ export const TR = {
     contactError: "Erreur pendant l'envoi, réessaie.",
     scanInvoice: "Scanner une facture", scanning: "Analyse de la facture en cours…",
     scanError: "Erreur pendant l'analyse", scanRetry: "Réessayer",
-    scanResultTitle: "Résultat du scan", scanImagePreviewLabel: "Voir l'image envoyée à l'IA (diagnostic)", scanSupplier: "Fournisseur",
+    scanResultTitle: "Résultat du scan", scanImagePreviewLabel: "Voir l'image envoyée à l'IA (diagnostic)", scanRotateHint: "Photo de travers ? Pivote-la avant d'analyser.", scanAnalyzeButton: "Analyser", scanSupplier: "Fournisseur",
     scanDate: "Date", scanAssignTo: "Associer à", scanNewIngredient: "🆕 Nouvel ingrédient",
     scanLinkedSure: "Ingrédient existant", scanLinkedGuess: "Suggestion, vérifie",
     scanRenameWarning: (n) => `Remplace "${n}" partout où il est utilisé`,
@@ -717,7 +719,7 @@ export const TR = {
     contactError: "Error al enviar, inténtalo de nuevo.",
     scanInvoice: "Escanear una factura", scanning: "Analizando la factura…",
     scanError: "Error durante el análisis", scanRetry: "Reintentar",
-    scanResultTitle: "Resultado del escaneo", scanImagePreviewLabel: "Ver la imagen enviada a la IA (diagnóstico)", scanSupplier: "Proveedor",
+    scanResultTitle: "Resultado del escaneo", scanImagePreviewLabel: "Ver la imagen enviada a la IA (diagnóstico)", scanRotateHint: "¿Foto torcida? Gírala antes de analizar.", scanAnalyzeButton: "Analizar", scanSupplier: "Proveedor",
     scanDate: "Fecha", scanAssignTo: "Asociar a", scanNewIngredient: "🆕 Nuevo ingrediente",
     scanLinkedSure: "Ingrediente existente", scanLinkedGuess: "Sugerencia, verifica",
     scanRenameWarning: (n) => `Reemplaza "${n}" en todos los sitios donde se usa`,
@@ -915,7 +917,7 @@ export const TR = {
     contactError: "Error sending the message, try again.",
     scanInvoice: "Scan an invoice", scanning: "Analyzing the invoice…",
     scanError: "Error during analysis", scanRetry: "Retry",
-    scanResultTitle: "Scan result", scanImagePreviewLabel: "View the image sent to the AI (diagnostic)", scanSupplier: "Supplier",
+    scanResultTitle: "Scan result", scanImagePreviewLabel: "View the image sent to the AI (diagnostic)", scanRotateHint: "Photo sideways? Rotate it before analyzing.", scanAnalyzeButton: "Analyze", scanSupplier: "Supplier",
     scanDate: "Date", scanAssignTo: "Assign to", scanNewIngredient: "🆕 New ingredient",
     scanLinkedSure: "Existing ingredient", scanLinkedGuess: "Suggestion, please check",
     scanRenameWarning: (n) => `Replaces "${n}" everywhere it's used`,
@@ -1918,6 +1920,15 @@ export default function App() {
   // est nette/bien orientée avant de suspecter le modèle d'IA.
   const [scanImagePreview, setScanImagePreview] = useState(null);
   const [scanImageZoomed, setScanImageZoomed] = useState(false);
+  // Photo en attente de confirmation avant l'envoi à l'IA (2026-08) : une photo transmise par une
+  // appli de messagerie a souvent perdu son étiquette de rotation EXIF (beaucoup d'applis la
+  // suppriment ou l'altèrent en compressant à l'envoi) — dans ce cas `compressImageFile` n'a plus
+  // rien à corriger automatiquement, la photo peut repartir tournée. Cas réel confirmé en test :
+  // une vraie facture, envoyée par un tiers, restait tournée malgré le correctif d'orientation
+  // automatique, et l'IA inventait des produits n'ayant aucun rapport avec le document plutôt que
+  // d'admettre ne pas pouvoir le lire. Un bouton pivoter manuel avant analyse règle ce cas
+  // universellement, sans dépendre de la fiabilité de la métadonnée EXIF.
+  const [scanPendingImage, setScanPendingImage] = useState(null); // { base64, mediaType }
   const [reviewStackOpen, setReviewStackOpen] = useState(false);
   const [stackTotal, setStackTotal] = useState(0);
   const [expandedReviewIdx, setExpandedReviewIdx] = useState(null);
@@ -2712,6 +2723,28 @@ export default function App() {
     }
   };
 
+  // Pivote manuellement une image déjà compressée (base64), pour le cas où l'EXIF ne suffit pas à
+  // remettre une photo droite (métadonnée perdue/altérée en transitant par une appli de
+  // messagerie avant d'arriver dans Chefup — voir `scanPendingImage`).
+  const rotateImageBase64 = (base64, mediaType, degrees) =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Image illisible"));
+      img.onload = () => {
+        const swap = ((degrees % 180) + 180) % 180 !== 0;
+        const canvas = document.createElement("canvas");
+        canvas.width = swap ? img.height : img.width;
+        canvas.height = swap ? img.width : img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((degrees * Math.PI) / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        resolve({ base64: dataUrl.split(",")[1], mediaType: "image/jpeg" });
+      };
+      img.src = `data:${mediaType};base64,${base64}`;
+    });
+
   // Lit un PDF : si c'est une vraie facture numérique (texte natif, pas un scan), on récupère ce
   // texte directement — plus fiable que n'importe quelle lecture visuelle, puisqu'il n'y a rien à
   // "lire", juste du texte déjà exact. Sinon (PDF composé uniquement d'une image scannée, texte
@@ -2971,35 +3004,82 @@ export default function App() {
     return { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal, pricingUnknown };
   };
 
+  // Photo (pas PDF) : compresse, affiche l'aperçu, et ATTEND une confirmation explicite avant
+  // d'envoyer à l'IA — laisse une chance de pivoter la photo si elle ressort de travers (voir
+  // `scanPendingImage`). Le chemin PDF (texte natif ou page rendue en image) reste automatique
+  // comme avant : un PDF n'a pas ce problème de rotation de photo.
   const handleScanFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = ""; // permet de re-sélectionner le même fichier plus tard
     if (!file) return;
     setScanOpen(true);
-    setScanning(true);
     setScanErr(null);
     setScanResult(null);
     setScanImagePreview(null);
+    setScanPendingImage(null);
     setReviewStackOpen(false);
     setExpandedReviewIdx(null);
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
-    try {
-      let payload;
-      if (isPdf) {
-        const pdfResult = await readPdfFile(file);
-        if (pdfResult.text) {
-          payload = { text: pdfResult.text, lang };
-        } else {
-          const ocrText = await runOcr(pdfResult.base64);
-          payload = { image: pdfResult.base64, mediaType: pdfResult.mediaType, ocrText, lang };
-          setScanImagePreview(`data:${pdfResult.mediaType};base64,${pdfResult.base64}`);
-        }
-      } else {
+    if (!isPdf) {
+      setScanning(true);
+      try {
         const { base64, mediaType } = await compressImageFile(file);
         setScanImagePreview(`data:${mediaType};base64,${base64}`);
-        const ocrText = await runOcr(base64);
-        payload = { image: base64, mediaType, ocrText, lang };
+        setScanPendingImage({ base64, mediaType });
+      } catch (err) {
+        setScanErr(err.message || "Erreur inconnue");
+      } finally {
+        setScanning(false);
       }
+      return;
+    }
+    setScanning(true);
+    try {
+      const pdfResult = await readPdfFile(file);
+      let payload;
+      if (pdfResult.text) {
+        payload = { text: pdfResult.text, lang };
+      } else {
+        const ocrText = await runOcr(pdfResult.base64);
+        payload = { image: pdfResult.base64, mediaType: pdfResult.mediaType, ocrText, lang };
+        setScanImagePreview(`data:${pdfResult.mediaType};base64,${pdfResult.base64}`);
+      }
+      await runScanPipeline(payload);
+    } catch (err) {
+      setScanErr(err.message || "Erreur inconnue");
+      setScanning(false);
+    }
+  };
+
+  // Pivote la photo en attente de 90° (sens indiqué) — met à jour à la fois l'aperçu et l'image
+  // qui sera réellement envoyée au clic sur "Analyser".
+  const rotateScanPendingImage = async (degrees) => {
+    if (!scanPendingImage) return;
+    const rotated = await rotateImageBase64(scanPendingImage.base64, scanPendingImage.mediaType, degrees);
+    setScanPendingImage(rotated);
+    setScanImagePreview(`data:${rotated.mediaType};base64,${rotated.base64}`);
+  };
+
+  // Lance réellement l'analyse de la photo en attente (OCR + appel IA), une fois que
+  // l'utilisateur a confirmé (éventuellement après l'avoir pivotée).
+  const confirmScanImage = async () => {
+    if (!scanPendingImage) return;
+    const { base64, mediaType } = scanPendingImage;
+    setScanning(true);
+    setScanPendingImage(null);
+    try {
+      const ocrText = await runOcr(base64);
+      await runScanPipeline({ image: base64, mediaType, ocrText, lang });
+    } catch (err) {
+      setScanErr(err.message || "Erreur inconnue");
+      setScanning(false);
+    }
+  };
+
+  // Envoie le payload à l'IA et traite le résultat — partagé par le chemin PDF (automatique) et
+  // le chemin photo (après confirmation/rotation éventuelle via confirmScanImage).
+  const runScanPipeline = async (payload) => {
+    try {
       const res = await fetch("/api/scan-invoice", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -3282,6 +3362,7 @@ export default function App() {
     setScanErr(null);
     setScanImagePreview(null);
     setScanImageZoomed(false);
+    setScanPendingImage(null);
     setReviewStackOpen(false);
     setExpandedReviewIdx(null);
   };
@@ -4087,7 +4168,35 @@ export default function App() {
               </button>
             </div>
 
-            {scanImagePreview && (
+            {scanPendingImage && !scanning && (
+              <div className="mb-3 rounded-lg border border-white/10 overflow-hidden">
+                <img src={scanImagePreview} alt="" className="w-full max-h-72 object-contain bg-black/30" />
+                <div className="flex items-center gap-2 p-2.5">
+                  <button
+                    onClick={() => rotateScanPendingImage(-90)}
+                    className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                  <button
+                    onClick={() => rotateScanPendingImage(90)}
+                    className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30"
+                  >
+                    <RotateCw size={16} />
+                  </button>
+                  <span className="text-[11px] text-white/40 flex-1">{t("scanRotateHint")}</span>
+                  <button
+                    onClick={confirmScanImage}
+                    className="text-xs font-display uppercase tracking-wide px-4 py-2 rounded-full shrink-0"
+                    style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+                  >
+                    {t("scanAnalyzeButton")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {scanImagePreview && !scanPendingImage && (
               <details open className="mb-3 rounded-lg border border-white/10 overflow-hidden">
                 <summary className="cursor-pointer px-2.5 py-1.5 text-[11px] text-white/50 hover:text-white/80 select-none">
                   {t("scanImagePreviewLabel")}
