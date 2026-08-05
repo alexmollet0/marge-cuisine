@@ -63,7 +63,7 @@ Sur un document flou, peu contrasté, incliné, ou avec un tableau dense où plu
 - le chiffre est flou, à la limite du lisible, ou tu as dû deviner entre deux lectures possibles (ex: "3" ou "8", "50" ou "80") ;
 - la ligne fait partie d'un tableau dense avec plusieurs lignes très similaires en mise en page, où une confusion avec la ligne voisine est plausible ;
 - tu as dû reconstituer un chiffre à partir d'un fragment coupé par un pli, une ombre, ou le bord de l'image.
-Mets lowConfidence: false uniquement quand les chiffres de cette ligne sont nets, isolés, sans ambiguïté possible. Ce champ ne remplace pas ta rigueur habituelle (recopie toujours ta MEILLEURE lecture, ne mets jamais null par facilité) : c'est un signal honnête en plus, pas un prétexte pour moins bien lire.
+Mets aussi lowConfidence: true si le NOM du produit lui-même est incertain (texte flou/partiellement caché par un filigrane ou une ombre, lecture devinée plutôt que sûre) — ce signal ne concerne pas que les chiffres. Mets lowConfidence: false uniquement quand les chiffres ET le nom de cette ligne sont nets, isolés, sans ambiguïté possible. Ce champ ne remplace pas ta rigueur habituelle (recopie toujours ta MEILLEURE lecture, ne mets jamais null par facilité) : c'est un signal honnête en plus, pas un prétexte pour moins bien lire.
 
 COMMENT REMPLIR packageContent / packageContentUnit (le point le plus important, lis bien) :
 Chaque ligne de facture décrit un conditionnement entre parenthèses ou dans le libellé : "Sac 10kg", "Caisse 4kg", "Bidon 5L", "Plateau de 30", "Carton 6x75cl", "Plaque 2kg", "Filet 5kg", "Brick 1L", "Caisse 20pcs"...
@@ -137,7 +137,10 @@ Autres règles :
 - Pour un champ isolé illisible sur une ligne par ailleurs lisible, mets null pour ce champ uniquement (jamais de valeur inventée).
 - Les prix sont toujours HT (hors taxes) si la facture les distingue, sinon utilise le prix affiché.
 - N'invente aucune ligne qui n'est pas visible sur le document.
-- Réponds TOUJOURS avec un JSON valide, même si l'image est floue, partiellement illisible ou de mauvaise qualité. Ne refuse jamais de répondre et n'ajoute aucun commentaire, explication ou avertissement en dehors du JSON.`;
+
+RÈGLE ABSOLUE — NE JAMAIS INVENTER UN PRODUIT POUR "AVOIR UNE RÉPONSE" :
+Le champ "name" d'un item doit TOUJOURS correspondre à du texte que tu peux réellement voir sur le document, jamais à un produit plausible deviné parce que le document est flou/illisible/de mauvaise qualité. Si tu ne parviens à identifier AUCUN nom de produit lisible sur le document (photo trop floue, trop dégradée, texte totalement illisible), la bonne réponse est "items": [] (tableau vide) — ce n'est PAS un refus de répondre, c'est une réponse honnête et valide. Un tableau vide accompagné de "supplier": null et "date": null est largement préférable à un ou plusieurs produits inventés : un faux ingrédient créé dans le garde-manger d'un restaurateur avec un prix fictif est une erreur bien plus grave qu'une réponse vide qui l'invite à reprendre une meilleure photo.
+- Réponds TOUJOURS avec un JSON valide syntaxiquement (structure "{...}" correcte), même si l'image est floue, partiellement illisible ou de mauvaise qualité — "toujours répondre" signifie "toujours renvoyer un JSON bien formé", PAS "toujours trouver au moins un produit". Un JSON avec "items": [] est une réponse tout aussi valide qu'un JSON avec des produits. N'ajoute aucun commentaire, explication ou avertissement en dehors du JSON.`;
 
   // Contenu du message envoyé à Claude : soit une image (+ éventuellement une transcription OCR
   // indépendante en indice), soit du texte natif déjà extrait d'un PDF numérique (pas de scan

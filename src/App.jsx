@@ -617,7 +617,7 @@ export const TR = {
     allergenSheetLink: "Fiche allergènes", allergenSheetTitle: "Fiche allergènes — toutes les recettes",
     allergenSheetNone: "Aucun allergène renseigné",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer ces lignes",
-    scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun article détecté.",    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
+    scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun produit identifié avec certitude sur ce document — plutôt que d'inventer, l'app préfère ne rien proposer. Réessaie avec une photo plus nette, mieux cadrée sur le tableau des produits (sans le reste de la page), ou envoie un PDF si tu en as un.",    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
     scanRecipeButton: "Scanner une fiche", scanningRecipe: "Lecture de la fiche en cours…",
     scanRecipeResultTitle: "Fiche recette scannée",
@@ -815,7 +815,7 @@ export const TR = {
     allergenSheetLink: "Ficha de alérgenos", allergenSheetTitle: "Ficha de alérgenos — todas las recetas",
     allergenSheetNone: "Sin alérgenos indicados",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar estas líneas",
-    scanPriceIncrease: "Precio en alza", scanNoItems: "No se detectó ningún artículo.",    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
+    scanPriceIncrease: "Precio en alza", scanNoItems: "Ningún producto identificado con certeza en este documento — en vez de inventar, la app prefiere no proponer nada. Intenta con una foto más nítida, mejor encuadrada en la tabla de productos (sin el resto de la página), o envía un PDF si tienes uno.",    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
     scanRecipeButton: "Escanear una ficha", scanningRecipe: "Leyendo la ficha…",
     scanRecipeResultTitle: "Ficha de receta escaneada",
@@ -1013,7 +1013,7 @@ export const TR = {
     allergenSheetLink: "Allergen sheet", allergenSheetTitle: "Allergen sheet — all recipes",
     allergenSheetNone: "No allergens listed",
     scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import these lines",
-    scanPriceIncrease: "Price up", scanNoItems: "No item detected.",    scanHint: "Check and correct each line before importing — the AI can make mistakes.",
+    scanPriceIncrease: "Price up", scanNoItems: "No product could be identified with confidence on this document — rather than guessing, the app prefers to show nothing. Try a sharper photo, cropped tighter on the product table (without the rest of the page), or send a PDF if you have one.",    scanHint: "Check and correct each line before importing — the AI can make mistakes.",
     scanWeightLabel: "Weight of 1 piece (leave at 0 if truly priced by unit):",
     scanRecipeButton: "Scan a recipe sheet", scanningRecipe: "Reading the recipe sheet…",
     scanRecipeResultTitle: "Scanned recipe sheet",
@@ -2844,10 +2844,38 @@ export default function App() {
 
     let finalUnit;
     let finalUnitPrice;
+    let unitMisclassified = false;
     if (printedUnit === "kg" || printedUnit === "L") {
-      // Le prix imprimé est déjà un prix au kilo/litre : on l'utilise tel quel, sans y toucher.
-      finalUnit = printedUnit;
-      finalUnitPrice = printedPrice;
+      // Le prix imprimé est déjà un prix au kilo/litre selon l'IA. Recoupement systématique quand
+      // on a une contenance fiable trouvée nous-mêmes dans le texte (ex: "75 CL" dans le titre) :
+      // cas réel (2026-08) où un vin à 3,11€/bouteille de 75cl est ressorti tel quel comme
+      // "3,11€/L" au lieu de 4,15€/L — l'IA confond parfois "une contenance est mentionnée dans le
+      // titre" avec "le prix affiché est déjà normalisé au litre/kilo". Sans ce recoupement, rien
+      // ne détectait l'erreur : le garde-fou priceInconsistent plus bas est justement désactivé
+      // pour cette branche (packageContent n'entre normalement pour rien dans un prix déjà au
+      // kg/L). On compare ici les deux hypothèses possibles au total imprimé.
+      if (deterministicContent && printedPrice > 0 && it.totalPriceHT > 0) {
+        const printedTotalCheck = it.totalPriceHT;
+        const totalIfAlreadyNormalized = packageCount * deterministicContent * printedPrice;
+        const totalIfActuallyPerPiece = packageCount * printedPrice;
+        const diffNormalized = Math.abs(totalIfAlreadyNormalized - printedTotalCheck) / printedTotalCheck;
+        const diffPerPiece = Math.abs(totalIfActuallyPerPiece - printedTotalCheck) / printedTotalCheck;
+        if (diffPerPiece < 0.05 && diffNormalized > 0.15) {
+          // Le total imprimé ne colle qu'à l'hypothèse "prix par pièce/bouteille" : la
+          // classification de l'IA était fausse, on la corrige nous-mêmes.
+          finalUnit = printedUnit;
+          finalUnitPrice = Math.round((printedPrice / deterministicContent) * 10000) / 10000;
+        } else {
+          finalUnit = printedUnit;
+          finalUnitPrice = printedPrice;
+          // Ni l'une ni l'autre hypothèse ne colle au total imprimé : plutôt que de choisir en
+          // silence, on force une vérification manuelle.
+          if (diffNormalized > 0.15 && diffPerPiece > 0.15) unitMisclassified = true;
+        }
+      } else {
+        finalUnit = printedUnit;
+        finalUnitPrice = printedPrice;
+      }
     } else {
       // Le prix imprimé est celui d'un colis entier : on le ramène au kg/L/pièce via son contenu.
       // Arrondi à 4 décimales : une division comme 11.80/3 donne un flottant JS avec une quinzaine
@@ -2878,7 +2906,7 @@ export default function App() {
     const pricingDependsOnPackageContent = printedUnit !== "kg" && printedUnit !== "L";
     const expectedTotal = packageCount * packageContent * finalUnitPrice;
     const printedTotal = it.totalPriceHT || 0;
-    let priceInconsistent = false;
+    let priceInconsistent = unitMisclassified;
     if (pricingDependsOnPackageContent && !pricingUnknown && printedTotal > 0 && expectedTotal > 0) {
       const diff = Math.abs(expectedTotal - printedTotal) / Math.max(printedTotal, 0.01);
       if (diff > 0.15) priceInconsistent = true;
