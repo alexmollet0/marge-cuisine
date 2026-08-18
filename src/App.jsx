@@ -636,6 +636,9 @@ export const TR = {
     digitalMenuPublishLabel: "Publier ma carte", digitalMenuPublishHint: "Tant que c'est désactivé, personne ne peut voir la carte, même avec le lien.",
     digitalMenuRestaurantNameLabel: "Nom du restaurant", digitalMenuRestaurantNamePlaceholder: "ex : Chez Marge",
     digitalMenuDesignLabel: "Design", digitalMenuDesignClassic: "Classique", digitalMenuDesignModern: "Moderne",
+    digitalMenuDesignElegant: "Élégant", digitalMenuDesignBistro: "Bistrot",
+    digitalMenuCategoriesLabel: "Sections de la carte", digitalMenuCategoryAdd: "Ajouter",
+    digitalMenuCategoryAddPlaceholder: "ex : Pizzas, Sauces…",
     digitalMenuCopyLink: "Copier le lien", digitalMenuLinkCopied: "Copié !", digitalMenuDownloadQr: "Télécharger le QR code",
     digitalMenuRecipesLabel: "Recettes affichées sur la carte", digitalMenuNoRecipes: "Crée une recette pour pouvoir l'ajouter à la carte.",
     digitalMenuDescriptionPlaceholder: "Description pour le client (optionnel)",
@@ -644,7 +647,7 @@ export const TR = {
     publicMenuPoweredBy: "Carte générée avec Chefup",
     digitalMenuLogoLabel: "Logo", digitalMenuLogoUpload: "Choisir une image", digitalMenuLogoRemove: "Retirer",
     digitalMenuLogoError: "Image illisible, réessaie avec une autre photo.",
-    digitalMenuPreview: "Voir la carte", digitalMenuTranslateHint: "Traduire automatiquement",
+    digitalMenuPreview: "Voir la carte", digitalMenuTranslateHint: "Traduire vers :",
     digitalMenuTranslateError: "Traduction impossible, réessaie.",
     digitalMenuCategoryNone: "Sans section",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer ces lignes",
@@ -851,6 +854,9 @@ export const TR = {
     digitalMenuPublishLabel: "Publicar mi carta", digitalMenuPublishHint: "Mientras esté desactivado, nadie puede ver la carta, ni con el enlace.",
     digitalMenuRestaurantNameLabel: "Nombre del restaurante", digitalMenuRestaurantNamePlaceholder: "ej: Chez Marge",
     digitalMenuDesignLabel: "Diseño", digitalMenuDesignClassic: "Clásico", digitalMenuDesignModern: "Moderno",
+    digitalMenuDesignElegant: "Elegante", digitalMenuDesignBistro: "Bistró",
+    digitalMenuCategoriesLabel: "Secciones de la carta", digitalMenuCategoryAdd: "Añadir",
+    digitalMenuCategoryAddPlaceholder: "ej: Pizzas, Salsas…",
     digitalMenuCopyLink: "Copiar enlace", digitalMenuLinkCopied: "¡Copiado!", digitalMenuDownloadQr: "Descargar código QR",
     digitalMenuRecipesLabel: "Recetas mostradas en la carta", digitalMenuNoRecipes: "Crea una receta para poder añadirla a la carta.",
     digitalMenuDescriptionPlaceholder: "Descripción para el cliente (opcional)",
@@ -859,7 +865,7 @@ export const TR = {
     publicMenuPoweredBy: "Carta generada con Chefup",
     digitalMenuLogoLabel: "Logo", digitalMenuLogoUpload: "Elegir una imagen", digitalMenuLogoRemove: "Quitar",
     digitalMenuLogoError: "Imagen ilegible, prueba con otra foto.",
-    digitalMenuPreview: "Ver la carta", digitalMenuTranslateHint: "Traducir automáticamente",
+    digitalMenuPreview: "Ver la carta", digitalMenuTranslateHint: "Traducir a:",
     digitalMenuTranslateError: "No se pudo traducir, inténtalo de nuevo.",
     digitalMenuCategoryNone: "Sin sección",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar estas líneas",
@@ -1066,6 +1072,9 @@ export const TR = {
     digitalMenuPublishLabel: "Publish my menu", digitalMenuPublishHint: "While this is off, nobody can see the menu, even with the link.",
     digitalMenuRestaurantNameLabel: "Restaurant name", digitalMenuRestaurantNamePlaceholder: "e.g. Chez Marge",
     digitalMenuDesignLabel: "Design", digitalMenuDesignClassic: "Classic", digitalMenuDesignModern: "Modern",
+    digitalMenuDesignElegant: "Elegant", digitalMenuDesignBistro: "Bistro",
+    digitalMenuCategoriesLabel: "Menu sections", digitalMenuCategoryAdd: "Add",
+    digitalMenuCategoryAddPlaceholder: "e.g. Pizzas, Sauces…",
     digitalMenuCopyLink: "Copy link", digitalMenuLinkCopied: "Copied!", digitalMenuDownloadQr: "Download QR code",
     digitalMenuRecipesLabel: "Recipes shown on the menu", digitalMenuNoRecipes: "Create a recipe to add it to the menu.",
     digitalMenuDescriptionPlaceholder: "Description for the customer (optional)",
@@ -1074,7 +1083,7 @@ export const TR = {
     publicMenuPoweredBy: "Menu generated with Chefup",
     digitalMenuLogoLabel: "Logo", digitalMenuLogoUpload: "Choose an image", digitalMenuLogoRemove: "Remove",
     digitalMenuLogoError: "Couldn't read this image, try another one.",
-    digitalMenuPreview: "View menu", digitalMenuTranslateHint: "Translate automatically",
+    digitalMenuPreview: "View menu", digitalMenuTranslateHint: "Translate to:",
     digitalMenuTranslateError: "Couldn't translate, try again.",
     digitalMenuCategoryNone: "No section",
     scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import these lines",
@@ -1450,9 +1459,13 @@ export const BRAND_GRADIENT = "linear-gradient(135deg, #7C3AED 0%, #22D3EE 100%)
 export const BRAND_SHADOW = "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(124,58,237,0.35)";
 const TOP_BADGE_COLORS = ["#D4AF37", "#B4B8BC", "#C97F3F"];
 
-// Sections de la carte digitale publique (2026-08) : liste volontairement courte et fixe plutôt
-// qu'un champ libre — sans ça, chaque restaurateur inventerait ses propres intitulés et deux
-// recettes de la même section n'auraient aucune chance d'être regroupées ensemble à l'affichage.
+// Sections de la carte digitale publique (2026-08, v2) : le restaurateur définit lui-même ses
+// sections (`menuSettings.customCategories`, tableau {id,name}) au lieu d'une liste fixe — un
+// premier retour utilisateur a montré que 4 catégories figées (entrée/plat/dessert/boisson) ne
+// couvrent pas des cas réels comme "Pizzas" ou "Sauces". Ces 4 valeurs ne servent plus qu'à
+// pré-remplir un point de départ (`defaultMenuCategories`) la première fois qu'un compte ouvre la
+// carte digitale — les ids sont volontairement conservés identiques pour rester compatibles avec
+// les recettes déjà catégorisées avant ce changement.
 export const MENU_CATEGORIES = ["starter", "main", "dessert", "drink"];
 export const MENU_CATEGORY_LABELS = {
   starter: { fr: "Entrées", es: "Entrantes", en: "Starters" },
@@ -1460,9 +1473,28 @@ export const MENU_CATEGORY_LABELS = {
   dessert: { fr: "Desserts", es: "Postres", en: "Desserts" },
   drink: { fr: "Boissons", es: "Bebidas", en: "Drinks" },
 };
+export function defaultMenuCategories(lang) {
+  return MENU_CATEGORIES.map((id) => ({ id, name: MENU_CATEGORY_LABELS[id][lang] || MENU_CATEGORY_LABELS[id].fr }));
+}
 // Palette resserrée plutôt qu'un vrai sélecteur de couleur libre : évite qu'un restaurateur
 // choisisse une combinaison illisible (texte clair sur fond clair) sur la carte publique.
 export const MENU_ACCENT_COLORS = ["#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#3B82F6", "#EC4899"];
+// 4 designs visuellement distincts (2026-08, v2) — le premier jet (2 designs qui ne changeaient
+// qu'une couleur de prix) a été jugé "trop tech" par l'utilisateur pour une carte de restaurant.
+// `bg` sert uniquement de pastille d'aperçu dans le sélecteur (`DigitalMenuModal`) ; le vrai rendu
+// (structure + palette complète) vit dans `src/PublicMenu.jsx`.
+export const MENU_DESIGNS = [
+  { id: "classic", bg: "#1B1815" },
+  { id: "modern", bg: "#1B1815" },
+  { id: "elegant", bg: "#F7F1E6" },
+  { id: "bistro", bg: "#6E2A22" },
+];
+const DESIGN_LABEL_KEYS = {
+  classic: "digitalMenuDesignClassic",
+  modern: "digitalMenuDesignModern",
+  elegant: "digitalMenuDesignElegant",
+  bistro: "digitalMenuDesignBistro",
+};
 
 // Retire uniquement le code/référence interne en début de ligne (ex: "F11893 ") pour un
 // aperçu du texte facture lisible au premier coup d'œil, sans toucher au texte brut complet
@@ -1652,25 +1684,29 @@ async function compressLogoFile(file) {
   return canvas.toDataURL("image/png");
 }
 
-// Une ligne "recette" du panneau carte digitale : catégorie de menu + une SEULE description à
-// écrire (dans la langue de l'app du restaurateur), traduite automatiquement vers les 2 autres
-// langues sur simple clic — demandé explicitement par l'utilisateur après un premier retour
-// ("un restaurateur ne sait sûrement pas traduire lui-même en 3 langues").
-function MenuRecipeRow({ r, lang, t, onUpdate }) {
-  const [translating, setTranslating] = useState(false);
+const FLAG_EMOJI = { fr: "🇫🇷", es: "🇪🇸", en: "🇬🇧" };
+
+// Une ligne "recette" du panneau carte digitale : catégorie de menu (parmi les sections définies
+// par le restaurateur) + une SEULE description à écrire (dans la langue de l'app du
+// restaurateur) — cliquer sur un drapeau traduit spécifiquement vers CETTE langue, demandé
+// explicitement par l'utilisateur (2026-08-18) après un premier retour : la version précédente
+// (un seul bouton "traduire" générique) n'était pas assez claire ("je n'arrive pas à traduire").
+function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
+  const [translatingLang, setTranslatingLang] = useState(null);
   const [translateErr, setTranslateErr] = useState(false);
   const description = r.menuDescription?.[lang] || "";
+  const targetLangs = ["fr", "es", "en"].filter((l) => l !== lang);
 
-  const translate = async () => {
+  const translateTo = async (targetLang) => {
     if (!description.trim()) return;
-    setTranslating(true);
+    setTranslatingLang(targetLang);
     setTranslateErr(false);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch("/api/translate-menu-description", {
         method: "POST",
         headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ text: description, sourceLang: lang }),
+        body: JSON.stringify({ text: description, sourceLang: lang, targetLang }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "translate error");
@@ -1678,7 +1714,7 @@ function MenuRecipeRow({ r, lang, t, onUpdate }) {
     } catch (e) {
       setTranslateErr(true);
     } finally {
-      setTranslating(false);
+      setTranslatingLang(null);
     }
   };
 
@@ -1702,26 +1738,37 @@ function MenuRecipeRow({ r, lang, t, onUpdate }) {
             style={{ colorScheme: "dark" }}
           >
             <option value="">{t("digitalMenuCategoryNone")}</option>
-            {MENU_CATEGORIES.map((c) => (
-              <option key={c} value={c}>{MENU_CATEGORY_LABELS[c][lang] || MENU_CATEGORY_LABELS[c].fr}</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-          <div className="flex items-start gap-1.5">
-            <textarea
-              value={description}
-              onChange={(e) => onUpdate({ menuDescription: { ...(r.menuDescription || {}), [lang]: e.target.value } })}
-              placeholder={t("digitalMenuDescriptionPlaceholder")}
-              rows={2}
-              className="flex-1 min-w-0 bg-black/20 text-white/80 text-[11px] rounded px-2 py-1.5 outline-none resize-none"
-            />
-            <button
-              onClick={translate}
-              disabled={translating || !description.trim()}
-              title={t("digitalMenuTranslateHint")}
-              className="shrink-0 p-1.5 rounded border border-white/15 text-white/50 hover:text-white hover:border-white/40 disabled:opacity-40"
-            >
-              {translating ? <Loader2 size={13} className="animate-spin" /> : <Globe size={13} />}
-            </button>
+          <textarea
+            value={description}
+            onChange={(e) => onUpdate({ menuDescription: { ...(r.menuDescription || {}), [lang]: e.target.value } })}
+            placeholder={t("digitalMenuDescriptionPlaceholder")}
+            rows={2}
+            className="w-full bg-black/20 text-white/80 text-[11px] rounded px-2 py-1.5 outline-none resize-none"
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-white/40">{t("digitalMenuTranslateHint")}</span>
+            <span className="text-[13px] leading-none opacity-50">{FLAG_EMOJI[lang]}</span>
+            {targetLangs.map((l) => {
+              const done = !!r.menuDescription?.[l]?.trim();
+              return (
+                <button
+                  key={l}
+                  onClick={() => translateTo(l)}
+                  disabled={translatingLang === l || !description.trim()}
+                  title={l}
+                  className="relative text-[15px] leading-none disabled:opacity-30"
+                >
+                  {translatingLang === l ? <Loader2 size={13} className="animate-spin text-white/60" /> : FLAG_EMOJI[l]}
+                  {done && translatingLang !== l && (
+                    <Check size={9} className="absolute -bottom-1 -right-1 rounded-full text-white" style={{ background: "#10B981" }} />
+                  )}
+                </button>
+              );
+            })}
           </div>
           {translateErr && <p className="text-[10px] text-[#EF4444]">{t("digitalMenuTranslateError")}</p>}
         </div>
@@ -1740,6 +1787,7 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
   const [qrBusy, setQrBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [logoErr, setLogoErr] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
   const logoInputRef = useRef(null);
 
   const publicUrl = userId ? `${window.location.origin}/menu/${userId}` : null;
@@ -1779,6 +1827,23 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
     } catch (err) {
       setLogoErr(true);
     }
+  };
+
+  // Sections définies par le restaurateur (2026-08-18, v2) — pré-remplies avec les 4 catégories
+  // par défaut (mêmes ids qu'avant ce changement, donc compatible avec des recettes déjà
+  // catégorisées) tant qu'il n'a jamais rien personnalisé lui-même.
+  const categories = menuSettings.customCategories?.length ? menuSettings.customCategories : defaultMenuCategories(lang);
+  const addCategory = () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    setMenuSettings({ ...menuSettings, customCategories: [...categories, { id: uid(), name }] });
+    setNewCategoryName("");
+  };
+  const removeCategory = (id) => {
+    setMenuSettings({ ...menuSettings, customCategories: categories.filter((c) => c.id !== id) });
+    // Les recettes qui utilisaient cette section repassent "sans section" plutôt que de garder un
+    // id orphelin — cohérent avec le comportement déjà existant d'une recette jamais catégorisée.
+    setRecipes((rs) => rs.map((r) => (r.menuCategory === id ? { ...r, menuCategory: null } : r)));
   };
 
   return (
@@ -1848,19 +1913,20 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
 
               <div>
                 <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuDesignLabel")}</label>
-                <div className="flex gap-2 mb-2">
-                  {["classic", "modern"].map((d) => (
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  {MENU_DESIGNS.map(({ id: d, bg }) => (
                     <button
                       key={d}
                       onClick={() => setMenuSettings({ ...menuSettings, design: d })}
-                      className="flex-1 text-xs py-2 rounded-lg border transition-colors"
+                      className="flex items-center gap-2 text-xs py-2 px-2.5 rounded-lg border transition-colors"
                       style={
                         menuSettings.design === d
-                          ? { background: BRAND_GRADIENT, color: "#fff", borderColor: "transparent" }
+                          ? { borderColor: BRAND_SOLID, background: `${BRAND_SOLID}18`, color: "#fff" }
                           : { borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }
                       }
                     >
-                      {d === "classic" ? t("digitalMenuDesignClassic") : t("digitalMenuDesignModern")}
+                      <span className="w-4 h-4 rounded-full shrink-0 border border-white/20" style={{ background: bg }} />
+                      {t(DESIGN_LABEL_KEYS[d])}
                     </button>
                   ))}
                 </div>
@@ -1921,6 +1987,40 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
 
           <div>
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
+              <Tags size={11} />
+              {t("digitalMenuCategoriesLabel")}
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {categories.map((c) => (
+                <span key={c.id} className="flex items-center gap-1 text-[11px] text-white/70 bg-black/20 rounded-full pl-2.5 pr-1.5 py-1">
+                  {c.name}
+                  <button onClick={() => removeCategory(c.id)} className="text-white/30 hover:text-[#EF4444]">
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
+                placeholder={t("digitalMenuCategoryAddPlaceholder")}
+                className="flex-1 min-w-0 bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none"
+              />
+              <button
+                onClick={addCategory}
+                disabled={!newCategoryName.trim()}
+                className="shrink-0 text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40 disabled:opacity-40"
+              >
+                {t("digitalMenuCategoryAdd")}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
               <Globe size={11} />
               {t("digitalMenuRecipesLabel")}
             </div>
@@ -1929,7 +2029,7 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
             ) : (
               <div className="space-y-2">
                 {recipes.map((r) => (
-                  <MenuRecipeRow key={r.id} r={r} lang={lang} t={t} onUpdate={(patch) => updateRecipe(r.id, patch)} />
+                  <MenuRecipeRow key={r.id} r={r} lang={lang} t={t} categories={categories} onUpdate={(patch) => updateRecipe(r.id, patch)} />
                 ))}
               </div>
             )}

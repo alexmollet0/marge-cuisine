@@ -44,11 +44,19 @@ export default async function handler(req, res) {
         menuCategory: typeof r.menuCategory === "string" ? r.menuCategory : null,
       }));
 
+    const validDesigns = ["classic", "modern", "elegant", "bistro"];
+    const customCategories = Array.isArray(menuSettings.customCategories)
+      ? menuSettings.customCategories
+          .filter((c) => c && typeof c.id === "string" && typeof c.name === "string")
+          .map((c) => ({ id: c.id, name: c.name }))
+      : [];
+
     return res.status(200).json({
       restaurantName: menuSettings.restaurantName || "",
-      design: menuSettings.design === "modern" ? "modern" : "classic",
+      design: validDesigns.includes(menuSettings.design) ? menuSettings.design : "classic",
       logo: typeof menuSettings.logo === "string" ? menuSettings.logo : null,
       accentColor: typeof menuSettings.accentColor === "string" ? menuSettings.accentColor : null,
+      customCategories,
       recipes: included,
     });
   } catch (e) {

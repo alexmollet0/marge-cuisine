@@ -1,6 +1,10 @@
 // Traduction automatique de la description d'un plat pour la carte digitale (2026-08) — le
-// restaurateur écrit une seule fois, dans sa propre langue, et cet endpoint remplit les deux
-// autres (voir DigitalMenuModal, src/App.jsx). Authentifié (comme api/contact.js) : jamais appelé
+// restaurateur écrit une seule fois, dans sa propre langue. Depuis le 2026-08-18 (v2), déclenchée
+// en cliquant sur le drapeau de LA langue cible souhaitée (`targetLang`) plutôt qu'un unique
+// bouton générique qui traduisait les deux langues à la fois — modèle d'interaction demandé
+// explicitement par l'utilisateur après un retour ("je n'arrive pas à traduire"). `targetLang`
+// reste optionnel pour ne pas casser un appel qui omettrait ce paramètre : dans ce cas, traduit
+// vers les deux langues restantes comme avant. Authentifié (comme api/contact.js) : jamais appelé
 // par un visiteur anonyme de la carte publique, uniquement par le compte propriétaire, pour ne
 // jamais laisser n'importe qui consommer la clé Anthropic du projet.
 import { requireUser } from "./_lib.js";
@@ -20,12 +24,15 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Clé API manquante côté serveur (ANTHROPIC_API_KEY)." });
   }
 
-  const { text, sourceLang } = req.body || {};
+  const { text, sourceLang, targetLang } = req.body || {};
   if (!text || typeof text !== "string" || !LANG_NAMES[sourceLang]) {
     return res.status(400).json({ error: "Texte ou langue source manquant." });
   }
+  if (targetLang && (!LANG_NAMES[targetLang] || targetLang === sourceLang)) {
+    return res.status(400).json({ error: "Langue cible invalide." });
+  }
 
-  const targets = Object.keys(LANG_NAMES).filter((l) => l !== sourceLang);
+  const targets = targetLang ? [targetLang] : Object.keys(LANG_NAMES).filter((l) => l !== sourceLang);
   const prompt = `Tu traduis la description d'un plat de restaurant, écrite en ${LANG_NAMES[sourceLang]}, vers ${targets.map((l) => LANG_NAMES[l]).join(" et ")}.
 Texte source : "${text.trim().slice(0, 500)}"
 
