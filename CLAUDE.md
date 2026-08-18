@@ -295,27 +295,7 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environ
 
 ## EN COURS
 
-### ⚠️ À vérifier : la table `scan_events` a-t-elle été créée dans Supabase ?
-Documenté comme "action immédiate requise" le 2026-08-05, jamais confirmé depuis dans une session ultérieure — statut réellement inconnu (la variable Vercel `ADMIN_SECRET`, elle, est confirmée déjà en place et fonctionnelle : testée avec succès le 2026-08-18 sur `api/landing.js`, qui l'utilise aussi). Si `https://getchefup.com/api/scan-events?secret=e7708dfa55e49626e03b41bd22fb355e6cc9d87f3d56b5c7&days=7` renvoie une erreur plutôt qu'un résumé JSON, exécuter dans Supabase (SQL Editor) :
-```sql
-create table scan_events (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  user_id uuid,
-  scanner text,
-  supplier_known boolean,
-  total_items int,
-  food_items int,
-  excluded_items int,
-  zero_items boolean,
-  low_confidence_items int,
-  many_low_confidence boolean,
-  price_inconsistent_items int,
-  pricing_unknown_items int
-);
-alter table scan_events enable row level security;
-```
-Volontairement **aucune policy RLS ajoutée** (même principe que `landing_events`) : seul le `service_role` (utilisé uniquement côté serveur par `api/scan-events.js`) peut lire/écrire cette table.
+**✅ Table `scan_events` confirmée en place** — testée par Claude le 2026-08-18 (`GET /api/scan-events?secret=...&days=1` a renvoyé un vrai résumé avec des scans réels), donc déjà créée à un moment non documenté entre le 2026-08-05 et aujourd'hui. Plus une "action requise" — les deux journaux statistiques (scanner et landing page) sont opérationnels.
 
 **⚠️ Renommage de fichiers le 2026-08-18** : `api/log-scan-event.js`+`api/scan-stats.js` → **`api/scan-events.js`** (POST=écriture, GET=lecture) ; `api/log-landing-event.js`+`api/landing-stats.js` → **`api/landing.js`** (même principe). Raison : le plan Hobby Vercel plafonne à 12 fonctions serverless par déploiement, ce projet venait de le dépasser (13 fichiers) et le build échouait silencieusement — voir la note dans "Fichiers clés" plus haut. **Si une future session cherche `api/scan-stats.js` ou `api/landing-stats.js`, ces fichiers n'existent plus** — utiliser `api/scan-events.js`/`api/landing.js`, mêmes URLs de requête sauf le nom (`?secret=...&days=7`).
 
