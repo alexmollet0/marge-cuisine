@@ -73,6 +73,14 @@ function PasswordField({ label, value, onChange, placeholder, autoComplete }) {
 // localStorage le temps de la session pré-connexion.
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(undefined); // undefined = chargement initial
+  // Incrémenté à chaque vraie (re)connexion (pas les rafraîchissements de token en arrière-plan) —
+  // sert de clé de remontage pour forcer App.jsx à recharger ingrédients/recettes depuis Supabase
+  // au lieu de garder en mémoire les données d'une session précédente (voir React.cloneElement
+  // plus bas). Sans ça, se déconnecter/reconnecter (ou changer de compte) dans le même onglet sans
+  // recharger la page pouvait réécrire silencieusement des données fraîches avec d'anciennes
+  // données encore en mémoire — bug réel trouvé par l'utilisateur le 2026-08-05 (marge de recette
+  // qui "revenait en arrière" après une reconnexion).
+  const [loginKey, setLoginKey] = useState(0);
   const [recoveryMode, setRecoveryMode] = useState(false); // arrivée depuis le lien "mot de passe oublié"
   const [showLanding, setShowLanding] = useState(true); // page d'accueil publique, avant le formulaire
   const [mode, setMode] = useState("login"); // "login" | "signup" | "forgot"
@@ -99,6 +107,7 @@ export default function AuthGate({ children }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess);
       if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
+      if (event === "SIGNED_IN") setLoginKey((k) => k + 1);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -381,5 +390,9 @@ export default function AuthGate({ children }) {
     );
   }
 
-  return children;
+  // cloneElement + key plutôt que "return children" tel quel : force React à démonter/remonter
+  // entièrement l'app (SubscriptionGate + App) à chaque connexion réelle, pour que le useEffect de
+  // chargement des données (dépendance [] dans App.jsx) se relance et reparte des données fraîches
+  // de Supabase — voir le commentaire sur loginKey plus haut.
+  return React.cloneElement(children, { key: `${session.user.id}-${loginKey}` });
 }
