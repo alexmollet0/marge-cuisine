@@ -648,7 +648,7 @@ export const TR = {
     digitalMenuLogoLabel: "Logo", digitalMenuLogoUpload: "Choisir une image", digitalMenuLogoRemove: "Retirer",
     digitalMenuLogoError: "Image illisible, réessaie avec une autre photo.",
     digitalMenuPreview: "Voir la carte", digitalMenuTranslateHint: "Traduire vers :",
-    digitalMenuTranslateError: "Traduction impossible, réessaie.",
+    digitalMenuTranslateError: "Traduction impossible, réessaie.", digitalMenuTranslating: "Traduction en cours…",
     digitalMenuCategoryNone: "Sans section",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer ces lignes",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun produit identifié avec certitude sur ce document — plutôt que d'inventer, l'app préfère ne rien proposer. Réessaie avec une photo plus nette, mieux cadrée sur le tableau des produits (sans le reste de la page), ou envoie un PDF si tu en as un.",    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
@@ -866,7 +866,7 @@ export const TR = {
     digitalMenuLogoLabel: "Logo", digitalMenuLogoUpload: "Elegir una imagen", digitalMenuLogoRemove: "Quitar",
     digitalMenuLogoError: "Imagen ilegible, prueba con otra foto.",
     digitalMenuPreview: "Ver la carta", digitalMenuTranslateHint: "Traducir a:",
-    digitalMenuTranslateError: "No se pudo traducir, inténtalo de nuevo.",
+    digitalMenuTranslateError: "No se pudo traducir, inténtalo de nuevo.", digitalMenuTranslating: "Traduciendo…",
     digitalMenuCategoryNone: "Sin sección",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar estas líneas",
     scanPriceIncrease: "Precio en alza", scanNoItems: "Ningún producto identificado con certeza en este documento — en vez de inventar, la app prefiere no proponer nada. Intenta con una foto más nítida, mejor encuadrada en la tabla de productos (sin el resto de la página), o envía un PDF si tienes uno.",    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
@@ -1084,7 +1084,7 @@ export const TR = {
     digitalMenuLogoLabel: "Logo", digitalMenuLogoUpload: "Choose an image", digitalMenuLogoRemove: "Remove",
     digitalMenuLogoError: "Couldn't read this image, try another one.",
     digitalMenuPreview: "View menu", digitalMenuTranslateHint: "Translate to:",
-    digitalMenuTranslateError: "Couldn't translate, try again.",
+    digitalMenuTranslateError: "Couldn't translate, try again.", digitalMenuTranslating: "Translating…",
     digitalMenuCategoryNone: "No section",
     scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import these lines",
     scanPriceIncrease: "Price up", scanNoItems: "No product could be identified with confidence on this document — rather than guessing, the app prefers to show nothing. Try a sharper photo, cropped tighter on the product table (without the rest of the page), or send a PDF if you have one.",    scanHint: "Check and correct each line before importing — the AI can make mistakes.",
@@ -1465,7 +1465,11 @@ const TOP_BADGE_COLORS = ["#D4AF37", "#B4B8BC", "#C97F3F"];
 // couvrent pas des cas réels comme "Pizzas" ou "Sauces". Ces 4 valeurs ne servent plus qu'à
 // pré-remplir un point de départ (`defaultMenuCategories`) la première fois qu'un compte ouvre la
 // carte digitale — les ids sont volontairement conservés identiques pour rester compatibles avec
-// les recettes déjà catégorisées avant ce changement.
+// les recettes déjà catégorisées avant ce changement. Depuis le 2026-08-18 (v3), `name` est un
+// objet {fr,es,en} (comme `menuDescription`) et non plus une seule chaîne, pour que le nom d'une
+// section personnalisée (ex: "Pizzas") soit lui aussi traduit automatiquement — voir
+// `categoryLabel` (résout la bonne langue, avec repli sur l'ancien format chaîne si jamais une
+// section a été créée avant ce changement).
 export const MENU_CATEGORIES = ["starter", "main", "dessert", "drink"];
 export const MENU_CATEGORY_LABELS = {
   starter: { fr: "Entrées", es: "Entrantes", en: "Starters" },
@@ -1473,8 +1477,13 @@ export const MENU_CATEGORY_LABELS = {
   dessert: { fr: "Desserts", es: "Postres", en: "Desserts" },
   drink: { fr: "Boissons", es: "Bebidas", en: "Drinks" },
 };
-export function defaultMenuCategories(lang) {
-  return MENU_CATEGORIES.map((id) => ({ id, name: MENU_CATEGORY_LABELS[id][lang] || MENU_CATEGORY_LABELS[id].fr }));
+export function defaultMenuCategories() {
+  return MENU_CATEGORIES.map((id) => ({ id, name: { ...MENU_CATEGORY_LABELS[id] } }));
+}
+export function categoryLabel(category, lang) {
+  if (!category) return "";
+  if (typeof category.name === "string") return category.name;
+  return category.name?.[lang] || category.name?.fr || "";
 }
 // Palette resserrée plutôt qu'un vrai sélecteur de couleur libre : évite qu'un restaurateur
 // choisisse une combinaison illisible (texte clair sur fond clair) sur la carte publique.
@@ -1684,39 +1693,54 @@ async function compressLogoFile(file) {
   return canvas.toDataURL("image/png");
 }
 
-const FLAG_EMOJI = { fr: "🇫🇷", es: "🇪🇸", en: "🇬🇧" };
+// Appelle api/translate-menu-description.js (authentifié) — partagé par MenuRecipeRow (description
+// d'un plat) et DigitalMenuModal (nom d'une section personnalisée). Sans `targetLang`, traduit vers
+// les 2 langues restantes d'un coup. Renvoie null en cas d'échec (réseau, IA indisponible...) —
+// jamais d'exception qui remonterait jusqu'à casser l'UI pour une simple traduction manquée.
+async function translateMenuText(text, sourceLang, targetLang) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch("/api/translate-menu-description", {
+      method: "POST",
+      headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ text, sourceLang, targetLang }),
+    });
+    const data = await res.json();
+    if (!res.ok) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
 
 // Une ligne "recette" du panneau carte digitale : catégorie de menu (parmi les sections définies
 // par le restaurateur) + une SEULE description à écrire (dans la langue de l'app du
-// restaurateur) — cliquer sur un drapeau traduit spécifiquement vers CETTE langue, demandé
-// explicitement par l'utilisateur (2026-08-18) après un premier retour : la version précédente
-// (un seul bouton "traduire" générique) n'était pas assez claire ("je n'arrive pas à traduire").
+// restaurateur). Traduction 100% automatique (2026-08-18, v4) : dès que le restaurateur arrête de
+// taper une seconde, les 2 autres langues se remplissent toutes seules en arrière-plan — deux
+// versions précédentes (un bouton générique, puis un clic par drapeau) ont toutes les deux été
+// jugées pas claires par l'utilisateur ("je n'arrive pas à traduire", "ça n'apporte rien en plus,
+// juste ça traduit et c'est ce qu'on veut de base"). Même principe de debounce que
+// `useDebouncedSave` (sauvegarde des données), mais local au composant : l'effet se relance à
+// chaque frappe et l'ancien minuteur est annulé par le cleanup, donc un seul appel part réellement
+// une fois la frappe arrêtée.
 function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
-  const [translatingLang, setTranslatingLang] = useState(null);
+  const [translating, setTranslating] = useState(false);
   const [translateErr, setTranslateErr] = useState(false);
   const description = r.menuDescription?.[lang] || "";
-  const targetLangs = ["fr", "es", "en"].filter((l) => l !== lang);
 
-  const translateTo = async (targetLang) => {
+  useEffect(() => {
     if (!description.trim()) return;
-    setTranslatingLang(targetLang);
-    setTranslateErr(false);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch("/api/translate-menu-description", {
-        method: "POST",
-        headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ text: description, sourceLang: lang, targetLang }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "translate error");
-      onUpdate({ menuDescription: { ...(r.menuDescription || {}), ...data } });
-    } catch (e) {
-      setTranslateErr(true);
-    } finally {
-      setTranslatingLang(null);
-    }
-  };
+    const timer = setTimeout(async () => {
+      setTranslating(true);
+      setTranslateErr(false);
+      const data = await translateMenuText(description, lang);
+      if (data) onUpdate({ menuDescription: { ...(r.menuDescription || {}), ...data } });
+      else setTranslateErr(true);
+      setTranslating(false);
+    }, 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [description, lang]);
 
   return (
     <div className="rounded-lg p-2.5" style={{ background: "#1B1815" }}>
@@ -1739,7 +1763,7 @@ function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
           >
             <option value="">{t("digitalMenuCategoryNone")}</option>
             {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+              <option key={c.id} value={c.id}>{categoryLabel(c, lang)}</option>
             ))}
           </select>
           <textarea
@@ -1749,27 +1773,11 @@ function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
             rows={2}
             className="w-full bg-black/20 text-white/80 text-[11px] rounded px-2 py-1.5 outline-none resize-none"
           />
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-white/40">{t("digitalMenuTranslateHint")}</span>
-            <span className="text-[13px] leading-none opacity-50">{FLAG_EMOJI[lang]}</span>
-            {targetLangs.map((l) => {
-              const done = !!r.menuDescription?.[l]?.trim();
-              return (
-                <button
-                  key={l}
-                  onClick={() => translateTo(l)}
-                  disabled={translatingLang === l || !description.trim()}
-                  title={l}
-                  className="relative text-[15px] leading-none disabled:opacity-30"
-                >
-                  {translatingLang === l ? <Loader2 size={13} className="animate-spin text-white/60" /> : FLAG_EMOJI[l]}
-                  {done && translatingLang !== l && (
-                    <Check size={9} className="absolute -bottom-1 -right-1 rounded-full text-white" style={{ background: "#10B981" }} />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          {translating && (
+            <span className="flex items-center gap-1 text-[10px] text-white/40">
+              <Loader2 size={10} className="animate-spin" /> {t("digitalMenuTranslating")}
+            </span>
+          )}
           {translateErr && <p className="text-[10px] text-[#EF4444]">{t("digitalMenuTranslateError")}</p>}
         </div>
       )}
@@ -1832,12 +1840,26 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
   // Sections définies par le restaurateur (2026-08-18, v2) — pré-remplies avec les 4 catégories
   // par défaut (mêmes ids qu'avant ce changement, donc compatible avec des recettes déjà
   // catégorisées) tant qu'il n'a jamais rien personnalisé lui-même.
-  const categories = menuSettings.customCategories?.length ? menuSettings.customCategories : defaultMenuCategories(lang);
-  const addCategory = () => {
+  const categories = menuSettings.customCategories?.length ? menuSettings.customCategories : defaultMenuCategories();
+  const addCategory = async () => {
     const name = newCategoryName.trim();
     if (!name) return;
-    setMenuSettings({ ...menuSettings, customCategories: [...categories, { id: uid(), name }] });
+    const newCat = { id: uid(), name: { [lang]: name } };
+    setMenuSettings({ ...menuSettings, customCategories: [...categories, newCat] });
     setNewCategoryName("");
+    // Traduction automatique du nom de section vers les 2 autres langues — mêmes principes que la
+    // description d'un plat (voir MenuRecipeRow), demandé explicitement le 2026-08-18 pour qu'une
+    // section personnalisée (ex: "Pizzas") s'affiche correctement quelle que soit la langue
+    // choisie par le client sur la carte publique.
+    const translated = await translateMenuText(name, lang);
+    if (translated) {
+      setMenuSettings((prev) => ({
+        ...prev,
+        customCategories: (prev.customCategories || []).map((c) =>
+          c.id === newCat.id ? { ...c, name: { ...c.name, ...translated } } : c
+        ),
+      }));
+    }
   };
   const removeCategory = (id) => {
     setMenuSettings({ ...menuSettings, customCategories: categories.filter((c) => c.id !== id) });
@@ -1993,7 +2015,7 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
             <div className="flex flex-wrap gap-1.5 mb-2">
               {categories.map((c) => (
                 <span key={c.id} className="flex items-center gap-1 text-[11px] text-white/70 bg-black/20 rounded-full pl-2.5 pr-1.5 py-1">
-                  {c.name}
+                  {categoryLabel(c, lang)}
                   <button onClick={() => removeCategory(c.id)} className="text-white/30 hover:text-[#EF4444]">
                     <X size={10} />
                   </button>

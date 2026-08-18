@@ -45,10 +45,16 @@ export default async function handler(req, res) {
       }));
 
     const validDesigns = ["classic", "modern", "elegant", "bistro"];
+    // `name` est un objet {fr,es,en} depuis le 2026-08-18 (v3) — repli sur l'ancien format chaîne
+    // (jamais écrit après ce changement, mais possible sur une carte publiée juste avant) pour ne
+    // jamais faire disparaître une section déjà créée par un compte existant.
     const customCategories = Array.isArray(menuSettings.customCategories)
       ? menuSettings.customCategories
-          .filter((c) => c && typeof c.id === "string" && typeof c.name === "string")
-          .map((c) => ({ id: c.id, name: c.name }))
+          .filter((c) => c && typeof c.id === "string" && c.name)
+          .map((c) => ({
+            id: c.id,
+            name: typeof c.name === "string" ? { fr: c.name, es: c.name, en: c.name } : c.name,
+          }))
       : [];
 
     return res.status(200).json({

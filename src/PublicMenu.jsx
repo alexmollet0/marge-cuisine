@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Logo, BRAND_SOLID, ALLERGEN_LABELS, TR } from "./App.jsx";
+import { Logo, BRAND_SOLID, ALLERGEN_LABELS, categoryLabel, TR } from "./App.jsx";
 
 // Petits pictogrammes emoji plutôt qu'une icône lucide dédiée par allergène : lucide n'a pas
 // d'icône fiable pour la moitié de ces allergènes (sulfites, céleri, fruits à coque...), alors
@@ -33,10 +33,12 @@ function guessMenuLang() {
 // Regroupe les plats par section définie par le restaurateur (`customCategories`, voir
 // DigitalMenuModal) dans l'ordre où il les a créées, plutôt que de tout mélanger dans une seule
 // liste — demandé explicitement par l'utilisateur ("sinon toutes ses recettes seront mélangées
-// n'importe comment"). Les plats sans section reconnue sont regroupés à la fin, sans en-tête.
-function groupByCategory(recipes, customCategories) {
+// n'importe comment"). Les plats sans section reconnue sont regroupés à la fin, sans en-tête. Le
+// nom de section est résolu dans la langue choisie par le CLIENT sur cette page (`lang`), pas
+// celle du restaurateur — traduit automatiquement à la création (voir DigitalMenuModal, v4).
+function groupByCategory(recipes, customCategories, lang) {
   const groups = customCategories
-    .map((c) => ({ id: c.id, name: c.name, items: recipes.filter((r) => r.menuCategory === c.id) }))
+    .map((c) => ({ id: c.id, name: categoryLabel(c, lang), items: recipes.filter((r) => r.menuCategory === c.id) }))
     .filter((g) => g.items.length > 0);
   const rest = recipes.filter((r) => !customCategories.some((c) => c.id === r.menuCategory));
   if (rest.length > 0) groups.push({ id: "_rest", name: null, items: rest });
@@ -85,7 +87,7 @@ export default function PublicMenu({ menuId }) {
   const { restaurantName, design, logo, accentColor, customCategories, recipes } = state.data;
   const theme = THEMES[design] || THEMES.classic;
   const accent = accentColor || BRAND_SOLID;
-  const sections = groupByCategory(recipes, customCategories || []);
+  const sections = groupByCategory(recipes, customCategories || [], lang);
   const Dish = design === "elegant" ? ElegantDish : design === "bistro" ? BistroDish : ClassicDish;
 
   const LangSwitcher = (
