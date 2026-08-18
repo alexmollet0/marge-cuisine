@@ -1,6 +1,15 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Receipt, Percent, Printer, Package } from "lucide-react";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
+
+// Fire-and-forget, jamais bloquant pour le visiteur — voir api/log-landing-event.js.
+function logLandingEvent(event) {
+  fetch("/api/log-landing-event", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ event }),
+  }).catch(() => {});
+}
 
 const FEATURES = [
   { icon: Receipt, titleKey: "landingFeatureScanTitle", descKey: "landingFeatureScanDesc" },
@@ -23,6 +32,20 @@ const PRICING_FEATURE_KEYS = [
 export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
   const t = (key) => TR[lang]?.[key] ?? TR.fr[key] ?? key;
 
+  useEffect(() => {
+    logLandingEvent("view");
+  }, []);
+
+  function handleStart() {
+    logLandingEvent("start_click");
+    onStart();
+  }
+
+  function handleLogin() {
+    logLandingEvent("login_click");
+    onLogin();
+  }
+
   return (
     <div className="min-h-screen font-body" style={{ background: "#1B1815" }}>
       <div className="max-w-4xl mx-auto px-4 py-10 sm:py-16">
@@ -40,7 +63,7 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-7">
             <button
               type="button"
-              onClick={onStart}
+              onClick={handleStart}
               className="w-full sm:w-auto px-8 py-3 rounded-full font-display uppercase text-xs tracking-wide font-semibold"
               style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
             >
@@ -48,7 +71,7 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
             </button>
             <button
               type="button"
-              onClick={onLogin}
+              onClick={handleLogin}
               className="w-full sm:w-auto px-8 py-3 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/5"
             >
               {t("landingCtaLogin")}
@@ -93,12 +116,20 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
 
           <button
             type="button"
-            onClick={onStart}
+            onClick={handleStart}
             className="w-full py-3 rounded-full font-display uppercase text-xs tracking-wide font-semibold"
             style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
           >
             {t("landingPricingCta")}
           </button>
+        </div>
+
+        <div className="text-center mt-10 text-[11px] text-white/30">
+          <a href="/mentions-legales.html" className="hover:text-white/60">{t("landingLegalNotice")}</a>
+          {" · "}
+          <a href="/cgv.html" className="hover:text-white/60">{t("landingTerms")}</a>
+          {" · "}
+          <a href="/confidentialite.html" className="hover:text-white/60">{t("landingPrivacy")}</a>
         </div>
       </div>
     </div>
