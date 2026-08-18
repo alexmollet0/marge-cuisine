@@ -3,7 +3,13 @@ import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import AuthGate from "./Auth.jsx";
 import SubscriptionGate from "./Billing.jsx";
+import PublicMenu from "./PublicMenu.jsx";
 import "./index.css";
+
+// Carte digitale publique (2026-08) : seule route de l'app en dehors de "/" — accessible sans
+// connexion, via le QR code généré dans Paramètres. Pas de vraie librairie de routage pour un
+// unique chemin public ; voir vercel.json pour le rewrite serveur qui sert index.html sur /menu/*.
+const menuMatch = window.location.pathname.match(/^\/menu\/([^/]+)/);
 
 // Détection de bundle périmé (2026-08) : sur mobile (Safari iOS en particulier), un onglet
 // laissé ouvert en arrière-plan peut continuer à exécuter une ancienne version du JS pendant des
@@ -35,10 +41,14 @@ window.addEventListener("pageshow", (event) => {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AuthGate>
-      <SubscriptionGate>
-        <App />
-      </SubscriptionGate>
-    </AuthGate>
+    {menuMatch ? (
+      <PublicMenu menuId={menuMatch[1]} />
+    ) : (
+      <AuthGate>
+        <SubscriptionGate>
+          <App />
+        </SubscriptionGate>
+      </AuthGate>
+    )}
   </React.StrictMode>
 );

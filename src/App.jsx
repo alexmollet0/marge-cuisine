@@ -37,6 +37,8 @@ import {
   Paperclip,
   RotateCcw,
   RotateCw,
+  QrCode,
+  Globe,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -330,7 +332,7 @@ const normUnit = (u) => (u === "U" ? "pièce" : u);
 // dans les 3 langues donc n'ont besoin d'aucune conversion.
 const unitDisplayLabel = (u, t) => (u === "pièce" ? t("unitPieceLabel") : u);
 
-const ALLERGEN_LABELS = {
+export const ALLERGEN_LABELS = {
   gluten: { fr: "Gluten", es: "Gluten", en: "Gluten" },
   lait: { fr: "Lait / Lactose", es: "Lácteos", en: "Milk / Lactose" },
   oeufs: { fr: "Œufs", es: "Huevo", en: "Eggs" },
@@ -405,7 +407,7 @@ function ingredientSourceName(ing) {
   return ing?.catalogId && CATALOG_MAP[ing.catalogId] ? CATALOG_MAP[ing.catalogId].fr : ing?.name || "";
 }
 
-function detectAllergens(lines, ingredientsList, lang) {
+function detectAllergenCodesSet(lines, ingredientsList) {
   const set = new Set();
   lines.forEach((l) => {
     const ing = ingredientsList.find((i) => i.id === l.ingredientId);
@@ -417,7 +419,18 @@ function detectAllergens(lines, ingredientsList, lang) {
       if (keywords.some((k) => tokens.has(k))) set.add(allergen);
     });
   });
-  return Array.from(set).map((a) => ALLERGEN_LABELS[a][lang]).join(", ");
+  return set;
+}
+
+function detectAllergens(lines, ingredientsList, lang) {
+  return Array.from(detectAllergenCodesSet(lines, ingredientsList)).map((a) => ALLERGEN_LABELS[a][lang]).join(", ");
+}
+
+// Codes bruts (indépendants de la langue), utilisés par la carte digitale publique pour afficher
+// des logos d'allergène traduits dans la langue choisie par le client — jamais dans le texte libre
+// `allergens` (déjà figé dans la langue de l'app du restaurateur au moment du calcul).
+function detectAllergenCodes(lines, ingredientsList) {
+  return Array.from(detectAllergenCodesSet(lines, ingredientsList)).sort();
 }
 
 // Détection "féculent" pour les suggestions contextuelles de marge (2026-08). Ce n'est pas
@@ -618,6 +631,17 @@ export const TR = {
     deleteRecipeConfirm: (name) => `Supprimer définitivement la recette "${name}" ?`,
     allergenSheetLink: "Fiche allergènes", allergenSheetTitle: "Fiche allergènes — toutes les recettes",
     allergenSheetNone: "Aucun allergène renseigné",
+    digitalMenuButton: "Carte digitale", digitalMenuTitle: "Ma carte digitale",
+    digitalMenuHint: "Génère une carte publique (avec QR code) à partir de tes recettes. Elle se met à jour toute seule dès que tu changes un prix.",
+    digitalMenuPublishLabel: "Publier ma carte", digitalMenuPublishHint: "Tant que c'est désactivé, personne ne peut voir la carte, même avec le lien.",
+    digitalMenuRestaurantNameLabel: "Nom du restaurant", digitalMenuRestaurantNamePlaceholder: "ex : Chez Marge",
+    digitalMenuDesignLabel: "Design", digitalMenuDesignClassic: "Classique", digitalMenuDesignModern: "Moderne",
+    digitalMenuCopyLink: "Copier le lien", digitalMenuLinkCopied: "Copié !", digitalMenuDownloadQr: "Télécharger le QR code",
+    digitalMenuRecipesLabel: "Recettes affichées sur la carte", digitalMenuNoRecipes: "Crée une recette pour pouvoir l'ajouter à la carte.",
+    digitalMenuDescriptionPlaceholder: "Description pour le client (optionnel)",
+    publicMenuNotAvailable: "Cette carte n'est pas disponible pour le moment.",
+    publicMenuNoDishes: "Aucun plat sur la carte pour le moment.",
+    publicMenuPoweredBy: "Carte générée avec Chefup",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer ces lignes",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun produit identifié avec certitude sur ce document — plutôt que d'inventer, l'app préfère ne rien proposer. Réessaie avec une photo plus nette, mieux cadrée sur le tableau des produits (sans le reste de la page), ou envoie un PDF si tu en as un.",    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
@@ -817,6 +841,17 @@ export const TR = {
     deleteRecipeConfirm: (name) => `¿Eliminar definitivamente la receta "${name}"?`,
     allergenSheetLink: "Ficha de alérgenos", allergenSheetTitle: "Ficha de alérgenos — todas las recetas",
     allergenSheetNone: "Sin alérgenos indicados",
+    digitalMenuButton: "Carta digital", digitalMenuTitle: "Mi carta digital",
+    digitalMenuHint: "Genera una carta pública (con código QR) a partir de tus recetas. Se actualiza sola en cuanto cambias un precio.",
+    digitalMenuPublishLabel: "Publicar mi carta", digitalMenuPublishHint: "Mientras esté desactivado, nadie puede ver la carta, ni con el enlace.",
+    digitalMenuRestaurantNameLabel: "Nombre del restaurante", digitalMenuRestaurantNamePlaceholder: "ej: Chez Marge",
+    digitalMenuDesignLabel: "Diseño", digitalMenuDesignClassic: "Clásico", digitalMenuDesignModern: "Moderno",
+    digitalMenuCopyLink: "Copiar enlace", digitalMenuLinkCopied: "¡Copiado!", digitalMenuDownloadQr: "Descargar código QR",
+    digitalMenuRecipesLabel: "Recetas mostradas en la carta", digitalMenuNoRecipes: "Crea una receta para poder añadirla a la carta.",
+    digitalMenuDescriptionPlaceholder: "Descripción para el cliente (opcional)",
+    publicMenuNotAvailable: "Esta carta no está disponible por el momento.",
+    publicMenuNoDishes: "Todavía no hay platos en la carta.",
+    publicMenuPoweredBy: "Carta generada con Chefup",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar estas líneas",
     scanPriceIncrease: "Precio en alza", scanNoItems: "Ningún producto identificado con certeza en este documento — en vez de inventar, la app prefiere no proponer nada. Intenta con una foto más nítida, mejor encuadrada en la tabla de productos (sin el resto de la página), o envía un PDF si tienes uno.",    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
@@ -1016,6 +1051,17 @@ export const TR = {
     deleteRecipeConfirm: (name) => `Permanently delete the recipe "${name}"?`,
     allergenSheetLink: "Allergen sheet", allergenSheetTitle: "Allergen sheet — all recipes",
     allergenSheetNone: "No allergens listed",
+    digitalMenuButton: "Digital menu", digitalMenuTitle: "My digital menu",
+    digitalMenuHint: "Generate a public menu (with QR code) from your recipes. It updates itself automatically whenever you change a price.",
+    digitalMenuPublishLabel: "Publish my menu", digitalMenuPublishHint: "While this is off, nobody can see the menu, even with the link.",
+    digitalMenuRestaurantNameLabel: "Restaurant name", digitalMenuRestaurantNamePlaceholder: "e.g. Chez Marge",
+    digitalMenuDesignLabel: "Design", digitalMenuDesignClassic: "Classic", digitalMenuDesignModern: "Modern",
+    digitalMenuCopyLink: "Copy link", digitalMenuLinkCopied: "Copied!", digitalMenuDownloadQr: "Download QR code",
+    digitalMenuRecipesLabel: "Recipes shown on the menu", digitalMenuNoRecipes: "Create a recipe to add it to the menu.",
+    digitalMenuDescriptionPlaceholder: "Description for the customer (optional)",
+    publicMenuNotAvailable: "This menu isn't available right now.",
+    publicMenuNoDishes: "No dishes on the menu yet.",
+    publicMenuPoweredBy: "Menu generated with Chefup",
     scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import these lines",
     scanPriceIncrease: "Price up", scanNoItems: "No product could be identified with confidence on this document — rather than guessing, the app prefers to show nothing. Try a sharper photo, cropped tighter on the product table (without the rest of the page), or send a PDF if you have one.",    scanHint: "Check and correct each line before importing — the AI can make mistakes.",
     scanWeightLabel: "Weight of 1 piece (leave at 0 if truly priced by unit):",
@@ -1556,6 +1602,181 @@ function PricingCalculator({ item, onUpdate, t }) {
   );
 }
 
+// Carte digitale publique (2026-08) : génère à la volée un QR code vers /menu/<userId> (voir
+// src/PublicMenu.jsx + api/public-menu.js) et laisse le restaurateur choisir, recette par
+// recette, ce qui doit apparaître dessus. Rien n'est jamais publié par défaut : `menuIncluded`
+// et `menuSettings.published` démarrent tous les deux à false/undefined — un restaurateur qui
+// n'ouvre jamais cette fenêtre ne change rien à ce qui existait avant.
+function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipes, setRecipes, userId, t }) {
+  const [qrDataUrl, setQrDataUrl] = useState(null);
+  const [qrBusy, setQrBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const publicUrl = userId ? `${window.location.origin}/menu/${userId}` : null;
+
+  useEffect(() => {
+    if (!open || !menuSettings.published || !publicUrl) { setQrDataUrl(null); return; }
+    let cancelled = false;
+    setQrBusy(true);
+    // Import dynamique (comme pdfjs-dist/tesseract.js ailleurs dans ce fichier) : cette librairie
+    // ne doit peser sur le chargement de l'app que pour les restaurateurs qui ouvrent cette fenêtre.
+    import("qrcode")
+      .then((mod) => (mod.default || mod).toDataURL(publicUrl, { width: 240, margin: 1, color: { dark: "#1B1815", light: "#ffffff" } }))
+      .then((url) => { if (!cancelled) setQrDataUrl(url); })
+      .catch(() => { if (!cancelled) setQrDataUrl(null); })
+      .finally(() => { if (!cancelled) setQrBusy(false); });
+    return () => { cancelled = true; };
+  }, [open, menuSettings.published, publicUrl]);
+
+  if (!open) return null;
+
+  const updateRecipe = (id, patch) => setRecipes((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const copyLink = () => {
+    if (!publicUrl) return;
+    navigator.clipboard?.writeText(publicUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={onClose}>
+      <div
+        className="rounded-2xl p-5 w-full max-w-md max-h-[85vh] flex flex-col font-body border border-white/10"
+        style={{ background: "#26221C" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <QrCode size={16} style={{ color: BRAND_SOLID }} className="shrink-0" />
+          <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("digitalMenuTitle")}</h3>
+        </div>
+        <p className="text-white/50 text-xs mb-4 leading-relaxed">{t("digitalMenuHint")}</p>
+
+        <div className="overflow-y-auto pr-0.5 space-y-4">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={!!menuSettings.published}
+              onChange={(e) => setMenuSettings({ ...menuSettings, published: e.target.checked })}
+              className="mt-0.5 shrink-0"
+            />
+            <span>
+              <span className="text-xs text-white/80 block font-semibold">{t("digitalMenuPublishLabel")}</span>
+              <span className="text-[10px] text-white/40 block mt-0.5">{t("digitalMenuPublishHint")}</span>
+            </span>
+          </label>
+
+          {menuSettings.published && (
+            <>
+              <div>
+                <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuRestaurantNameLabel")}</label>
+                <input
+                  type="text"
+                  value={menuSettings.restaurantName}
+                  onChange={(e) => setMenuSettings({ ...menuSettings, restaurantName: e.target.value })}
+                  placeholder={t("digitalMenuRestaurantNamePlaceholder")}
+                  className="w-full bg-black/20 text-white text-sm rounded px-2.5 py-2 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuDesignLabel")}</label>
+                <div className="flex gap-2">
+                  {["classic", "modern"].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setMenuSettings({ ...menuSettings, design: d })}
+                      className="flex-1 text-xs py-2 rounded-lg border transition-colors"
+                      style={
+                        menuSettings.design === d
+                          ? { background: BRAND_GRADIENT, color: "#fff", borderColor: "transparent" }
+                          : { borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }
+                      }
+                    >
+                      {d === "classic" ? t("digitalMenuDesignClassic") : t("digitalMenuDesignModern")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-lg p-3 flex flex-col items-center gap-2" style={{ background: "#1B1815" }}>
+                {qrBusy ? (
+                  <div className="w-[140px] h-[140px] flex items-center justify-center">
+                    <Loader2 size={20} className="animate-spin text-white/40" />
+                  </div>
+                ) : qrDataUrl ? (
+                  <img src={qrDataUrl} alt="QR code" width={140} height={140} className="rounded" />
+                ) : null}
+                <div className="flex items-center gap-1.5 w-full">
+                  <input readOnly value={publicUrl || ""} className="flex-1 min-w-0 bg-black/30 text-white/70 text-[11px] rounded px-2 py-1.5 outline-none truncate" />
+                  <button onClick={copyLink} className="shrink-0 text-[10px] uppercase tracking-wide px-2 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40">
+                    {copied ? t("digitalMenuLinkCopied") : t("digitalMenuCopyLink")}
+                  </button>
+                </div>
+                {qrDataUrl && (
+                  <a
+                    href={qrDataUrl}
+                    download="carte-chefup-qr.png"
+                    className="text-[10px] uppercase tracking-wide text-white/50 hover:text-white underline"
+                  >
+                    {t("digitalMenuDownloadQr")}
+                  </a>
+                )}
+              </div>
+            </>
+          )}
+
+          <div>
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
+              <Globe size={11} />
+              {t("digitalMenuRecipesLabel")}
+            </div>
+            {recipes.length === 0 ? (
+              <p className="text-white/30 text-xs">{t("digitalMenuNoRecipes")}</p>
+            ) : (
+              <div className="space-y-2">
+                {recipes.map((r) => (
+                  <div key={r.id} className="rounded-lg p-2.5" style={{ background: "#1B1815" }}>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!r.menuIncluded}
+                        onChange={(e) => updateRecipe(r.id, { menuIncluded: e.target.checked })}
+                        className="shrink-0"
+                      />
+                      <span className="flex-1 min-w-0 text-white text-xs truncate">{r.name}</span>
+                    </label>
+                    {r.menuIncluded && (
+                      <div className="mt-2 space-y-1.5 pl-6">
+                        {["fr", "es", "en"].map((lc) => (
+                          <div key={lc} className="flex items-center gap-1.5">
+                            <span className="text-[13px] shrink-0">{lc === "fr" ? "🇫🇷" : lc === "es" ? "🇪🇸" : "🇬🇧"}</span>
+                            <input
+                              type="text"
+                              value={r.menuDescription?.[lc] || ""}
+                              onChange={(e) => updateRecipe(r.id, { menuDescription: { ...(r.menuDescription || {}), [lc]: e.target.value } })}
+                              placeholder={t("digitalMenuDescriptionPlaceholder")}
+                              className="flex-1 min-w-0 bg-black/20 text-white/80 text-[11px] rounded px-2 py-1 outline-none"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <button onClick={onClose} className="w-full mt-4 text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] shrink-0">
+          {t("close")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Carte d'un article scanné : correspondance affichée en grand (plutôt qu'un petit menu discret),
 // bascule de renommage en vrai bouton, et une phrase en clair juste avant d'importer.
 function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredientDisplayName, lang, t, skipMuted, startExpanded }) {
@@ -1850,6 +2071,18 @@ export default function App() {
   // Mémoire des rapprochements fournisseur → ingrédient déjà validés lors d'un scan précédent
   // (clé = texte brut de la ligne facture normalisé, valeur = id de l'ingrédient du garde-manger).
   const [supplierMappings, setSupplierMappings] = useState([]);
+  // Réglages de la carte digitale publique (2026-08) : `published` contrôle tout seul si la page
+  // publique répond quoi que ce soit (voir api/public-menu.js) — même si des recettes ont
+  // `menuIncluded: true`, rien n'est visible tant que ce drapeau n'est pas activé explicitement.
+  const [menuSettings, setMenuSettings] = useState({ published: false, design: "classic", restaurantName: "" });
+  const [digitalMenuOpen, setDigitalMenuOpen] = useState(false);
+  // Id du compte, utilisé uniquement pour construire l'URL publique /menu/<id> (voir
+  // DigitalMenuModal) — jamais stocké, récupéré une fois depuis la session déjà active
+  // (AuthGate garantit qu'il y en a toujours une à ce stade).
+  const [menuUserId, setMenuUserId] = useState(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setMenuUserId(data.session?.user?.id || null));
+  }, []);
   const [activeId, setActiveId] = useState("r1");
   const [activeTab, setActiveTab] = useState("recipes"); // 'recipes' | 'scanner' | 'pantry'
   const [hidePricesPrint, setHidePricesPrint] = useState(false);
@@ -1957,12 +2190,13 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        let ing = null, rec = null, set = null, lg = null, sm = null;
+        let ing = null, rec = null, set = null, lg = null, sm = null, ms = null;
         try { const r = await storage.get("ingredients"); ing = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("recipes"); rec = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("settings"); set = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("lang"); lg = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("supplierMappings"); sm = r ? JSON.parse(r.value) : null; } catch (e) {}
+        try { const r = await storage.get("menuSettings"); ms = r ? JSON.parse(r.value) : null; } catch (e) {}
         if (ing && ing.length) setIngredients(ing);
         // Nouvel utilisateur (rien encore enregistré) mais langue déjà connue (choisie avant que
         // le premier chargement se termine) : reconstruit la recette de démo dans cette langue
@@ -1972,6 +2206,7 @@ export default function App() {
         if (set) setSettings({ ...DEFAULT_SETTINGS, ...set });
         if (lg) setLang(lg);
         if (sm && sm.length) setSupplierMappings(sm);
+        if (ms) setMenuSettings({ published: false, design: "classic", restaurantName: "", ...ms });
       } catch (e) {
         setLoadErr(true);
       } finally {
@@ -1985,13 +2220,17 @@ export default function App() {
   useDebouncedSave("settings", settings, ready);
   useDebouncedSave("lang", lang, ready);
   useDebouncedSave("supplierMappings", supplierMappings, ready);
+  useDebouncedSave("menuSettings", menuSettings, ready);
 
   useEffect(() => {
     if (!ready) return;
     setRecipes((rs) => rs.map((r) => {
       if (r.allergensAuto === false) return r;
       const computed = detectAllergens(r.lines, ingredients, lang);
-      return computed === r.allergens ? r : { ...r, allergens: computed };
+      const codes = detectAllergenCodes(r.lines, ingredients);
+      const sameCodes = r.allergenCodes && r.allergenCodes.length === codes.length && r.allergenCodes.every((c, i) => c === codes[i]);
+      if (computed === r.allergens && sameCodes) return r;
+      return { ...r, allergens: computed, allergenCodes: codes };
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang, ready]);
@@ -2058,7 +2297,10 @@ export default function App() {
   const updateRecipe = (patch) => setRecipes((rs) => rs.map((r) => (r.id === active.id ? { ...r, ...patch } : r)));
   const applyLinesChange = (newLines) => {
     const patch = { lines: newLines };
-    if (active.allergensAuto !== false) patch.allergens = detectAllergens(newLines, ingredients, lang);
+    if (active.allergensAuto !== false) {
+      patch.allergens = detectAllergens(newLines, ingredients, lang);
+      patch.allergenCodes = detectAllergenCodes(newLines, ingredients);
+    }
     updateRecipe(patch);
   };
   // `unitAtEntry` mémorise l'unité de l'ingrédient au moment où la quantité a été saisie/modifiée
@@ -2081,7 +2323,11 @@ export default function App() {
     applyLinesChange(active.lines.map((l, i) => (i === idx ? { ...l, ingredientId, unitAtEntry: ingredientById(ingredientId)?.unit } : l)));
   const resetAllergensAuto = () => {
     if (!active) return;
-    updateRecipe({ allergens: detectAllergens(active.lines, ingredients, lang), allergensAuto: true });
+    updateRecipe({
+      allergens: detectAllergens(active.lines, ingredients, lang),
+      allergenCodes: detectAllergenCodes(active.lines, ingredients),
+      allergensAuto: true,
+    });
   };
 
   const addRecipe = () => {
@@ -3847,6 +4093,17 @@ export default function App() {
         </div>
       )}
 
+      <DigitalMenuModal
+        open={digitalMenuOpen}
+        onClose={() => setDigitalMenuOpen(false)}
+        menuSettings={menuSettings}
+        setMenuSettings={setMenuSettings}
+        recipes={recipes}
+        setRecipes={setRecipes}
+        userId={menuUserId}
+        t={t}
+      />
+
       {contactModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setContactModalOpen(false)}>
           <div
@@ -4995,6 +5252,13 @@ export default function App() {
                 >
                   <ShieldCheck size={12} />
                   {t("allergenSheetLink")}
+                </button>
+                <button
+                  onClick={() => setDigitalMenuOpen(true)}
+                  className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/60 hover:text-white px-3 py-1.5 rounded-full border border-white/15 hover:border-white/30 transition-colors"
+                >
+                  <QrCode size={12} />
+                  {t("digitalMenuButton")}
                 </button>
                 <button
                   onClick={addRecipe}
