@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Logo, BRAND_SOLID, ALLERGEN_LABELS, TR } from "./App.jsx";
+import { Logo, BRAND_SOLID, ALLERGEN_LABELS, MENU_CATEGORIES, MENU_CATEGORY_LABELS, TR } from "./App.jsx";
 
 // Petits pictogrammes emoji plutôt qu'une icône lucide dédiée par allergène : lucide n'a pas
 // d'icône fiable pour la moitié de ces allergènes (sulfites, céleri, fruits à coque...), alors
@@ -16,6 +16,17 @@ function guessMenuLang() {
   if (nav.startsWith("es")) return "es";
   if (nav.startsWith("en")) return "en";
   return "fr";
+}
+
+// Regroupe les plats par section de menu (entrée/plat/dessert/boisson) dans un ordre fixe, plutôt
+// que de tout mélanger dans une seule liste — demandé explicitement par l'utilisateur après un
+// premier retour ("sinon toutes ses recettes seront mélangées n'importe comment"). Les plats sans
+// section assignée (`menuCategory` vide) sont regroupés à la fin, sans en-tête.
+function groupByCategory(recipes) {
+  const groups = MENU_CATEGORIES.map((cat) => ({ cat, items: recipes.filter((r) => r.menuCategory === cat) })).filter((g) => g.items.length > 0);
+  const rest = recipes.filter((r) => !MENU_CATEGORIES.includes(r.menuCategory));
+  if (rest.length > 0) groups.push({ cat: null, items: rest });
+  return groups;
 }
 
 // Carte publique d'un restaurant, générée à partir de ses recettes déjà chiffrées dans Chefup
@@ -65,13 +76,15 @@ export default function PublicMenu({ menuId }) {
     );
   }
 
-  const { restaurantName, design, recipes } = state.data;
+  const { restaurantName, design, logo, accentColor, recipes } = state.data;
+  const accent = accentColor || BRAND_SOLID;
+  const sections = groupByCategory(recipes);
 
   return (
     <div className="min-h-screen font-body" style={{ background: "#1B1815" }}>
       <div className="max-w-lg mx-auto px-4 py-10 sm:py-14">
         <div className="flex flex-col items-center mb-2">
-          <Logo size={32} />
+          {logo ? <img src={logo} alt="" className="w-14 h-14 object-contain rounded-lg" /> : <Logo size={32} />}
           <h1 className="font-display text-white text-xl tracking-wide uppercase mt-2 text-center">
             {restaurantName || "Chefup"}
           </h1>
@@ -80,22 +93,33 @@ export default function PublicMenu({ menuId }) {
 
         {recipes.length === 0 ? (
           <p className="text-center text-white/40 text-sm mt-10">{t("publicMenuNoDishes")}</p>
-        ) : design === "modern" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
-            {recipes.map((r) => (
-              <div key={r.id} className="rounded-2xl p-4 border border-white/10" style={{ background: "#26221C" }}>
-                <MenuDish r={r} lang={lang} t={t} />
-              </div>
-            ))}
-          </div>
         ) : (
-          <div className="mt-6 divide-y divide-white/10">
-            {recipes.map((r) => (
-              <div key={r.id} className="py-4">
-                <MenuDish r={r} lang={lang} t={t} />
-              </div>
-            ))}
-          </div>
+          sections.map(({ cat, items }) => (
+            <div key={cat || "_rest"} className="mt-8 first:mt-6">
+              {cat && (
+                <h2 className="text-center font-display uppercase text-xs tracking-widest mb-3" style={{ color: accent }}>
+                  {MENU_CATEGORY_LABELS[cat][lang] || MENU_CATEGORY_LABELS[cat].fr}
+                </h2>
+              )}
+              {design === "modern" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {items.map((r) => (
+                    <div key={r.id} className="rounded-2xl p-4 border border-white/10" style={{ background: "#26221C" }}>
+                      <MenuDish r={r} lang={lang} accent={accent} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="divide-y divide-white/10">
+                  {items.map((r) => (
+                    <div key={r.id} className="py-4">
+                      <MenuDish r={r} lang={lang} accent={accent} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
         )}
 
         <div className="text-center mt-12 text-[10px] text-white/25">
@@ -106,13 +130,13 @@ export default function PublicMenu({ menuId }) {
   );
 }
 
-function MenuDish({ r, lang, t }) {
+function MenuDish({ r, lang, accent }) {
   const description = r.menuDescription?.[lang] || "";
   return (
     <>
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-white font-display uppercase text-sm tracking-wide">{r.name}</h3>
-        <span className="text-sm font-semibold shrink-0" style={{ color: BRAND_SOLID }}>
+        <span className="text-sm font-semibold shrink-0" style={{ color: accent }}>
           {r.sellPrice.toFixed(2)} €
         </span>
       </div>

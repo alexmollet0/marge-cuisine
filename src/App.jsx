@@ -642,6 +642,11 @@ export const TR = {
     publicMenuNotAvailable: "Cette carte n'est pas disponible pour le moment.",
     publicMenuNoDishes: "Aucun plat sur la carte pour le moment.",
     publicMenuPoweredBy: "Carte générée avec Chefup",
+    digitalMenuLogoLabel: "Logo", digitalMenuLogoUpload: "Choisir une image", digitalMenuLogoRemove: "Retirer",
+    digitalMenuLogoError: "Image illisible, réessaie avec une autre photo.",
+    digitalMenuPreview: "Voir la carte", digitalMenuTranslateHint: "Traduire automatiquement",
+    digitalMenuTranslateError: "Traduction impossible, réessaie.",
+    digitalMenuCategoryNone: "Sans section",
     scanImport: "Ajouter au garde-manger", scanImported: "Ajouté au garde-manger ✓", scanImportAll: "Importer ces lignes",
     scanPriceIncrease: "Prix en hausse", scanNoItems: "Aucun produit identifié avec certitude sur ce document — plutôt que d'inventer, l'app préfère ne rien proposer. Réessaie avec une photo plus nette, mieux cadrée sur le tableau des produits (sans le reste de la page), ou envoie un PDF si tu en as un.",    scanHint: "Vérifie et corrige chaque ligne avant d'importer — l'IA peut se tromper.",
     scanWeightLabel: "Poids d'1 pièce (laisse à 0 si vraiment à l'unité) :",
@@ -852,6 +857,11 @@ export const TR = {
     publicMenuNotAvailable: "Esta carta no está disponible por el momento.",
     publicMenuNoDishes: "Todavía no hay platos en la carta.",
     publicMenuPoweredBy: "Carta generada con Chefup",
+    digitalMenuLogoLabel: "Logo", digitalMenuLogoUpload: "Elegir una imagen", digitalMenuLogoRemove: "Quitar",
+    digitalMenuLogoError: "Imagen ilegible, prueba con otra foto.",
+    digitalMenuPreview: "Ver la carta", digitalMenuTranslateHint: "Traducir automáticamente",
+    digitalMenuTranslateError: "No se pudo traducir, inténtalo de nuevo.",
+    digitalMenuCategoryNone: "Sin sección",
     scanImport: "Añadir a la despensa", scanImported: "Añadido a la despensa ✓", scanImportAll: "Importar estas líneas",
     scanPriceIncrease: "Precio en alza", scanNoItems: "Ningún producto identificado con certeza en este documento — en vez de inventar, la app prefiere no proponer nada. Intenta con una foto más nítida, mejor encuadrada en la tabla de productos (sin el resto de la página), o envía un PDF si tienes uno.",    scanHint: "Revisa y corrige cada línea antes de importar — la IA puede equivocarse.",
     scanWeightLabel: "Peso de 1 unidad (deja 0 si es realmente por unidad):",
@@ -1062,6 +1072,11 @@ export const TR = {
     publicMenuNotAvailable: "This menu isn't available right now.",
     publicMenuNoDishes: "No dishes on the menu yet.",
     publicMenuPoweredBy: "Menu generated with Chefup",
+    digitalMenuLogoLabel: "Logo", digitalMenuLogoUpload: "Choose an image", digitalMenuLogoRemove: "Remove",
+    digitalMenuLogoError: "Couldn't read this image, try another one.",
+    digitalMenuPreview: "View menu", digitalMenuTranslateHint: "Translate automatically",
+    digitalMenuTranslateError: "Couldn't translate, try again.",
+    digitalMenuCategoryNone: "No section",
     scanImport: "Add to pantry", scanImported: "Added to pantry ✓", scanImportAll: "Import these lines",
     scanPriceIncrease: "Price up", scanNoItems: "No product could be identified with confidence on this document — rather than guessing, the app prefers to show nothing. Try a sharper photo, cropped tighter on the product table (without the rest of the page), or send a PDF if you have one.",    scanHint: "Check and correct each line before importing — the AI can make mistakes.",
     scanWeightLabel: "Weight of 1 piece (leave at 0 if truly priced by unit):",
@@ -1435,6 +1450,20 @@ export const BRAND_GRADIENT = "linear-gradient(135deg, #7C3AED 0%, #22D3EE 100%)
 export const BRAND_SHADOW = "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(124,58,237,0.35)";
 const TOP_BADGE_COLORS = ["#D4AF37", "#B4B8BC", "#C97F3F"];
 
+// Sections de la carte digitale publique (2026-08) : liste volontairement courte et fixe plutôt
+// qu'un champ libre — sans ça, chaque restaurateur inventerait ses propres intitulés et deux
+// recettes de la même section n'auraient aucune chance d'être regroupées ensemble à l'affichage.
+export const MENU_CATEGORIES = ["starter", "main", "dessert", "drink"];
+export const MENU_CATEGORY_LABELS = {
+  starter: { fr: "Entrées", es: "Entrantes", en: "Starters" },
+  main: { fr: "Plats", es: "Platos principales", en: "Main courses" },
+  dessert: { fr: "Desserts", es: "Postres", en: "Desserts" },
+  drink: { fr: "Boissons", es: "Bebidas", en: "Drinks" },
+};
+// Palette resserrée plutôt qu'un vrai sélecteur de couleur libre : évite qu'un restaurateur
+// choisisse une combinaison illisible (texte clair sur fond clair) sur la carte publique.
+export const MENU_ACCENT_COLORS = ["#8B5CF6", "#10B981", "#F59E0B", "#EF4444", "#3B82F6", "#EC4899"];
+
 // Retire uniquement le code/référence interne en début de ligne (ex: "F11893 ") pour un
 // aperçu du texte facture lisible au premier coup d'œil, sans toucher au texte brut complet
 // (rawLabel) qui reste intact pour la mémoire des rapprochements et la vérification exacte.
@@ -1602,15 +1631,116 @@ function PricingCalculator({ item, onUpdate, t }) {
   );
 }
 
+// Redimensionne un logo uploadé en petit PNG (garde la transparence, contrairement à
+// compressImageFile qui exporte en JPEG pour les photos de facture) — stocké directement en
+// base64 dans menuSettings.logo (kv_store), pas de bucket de fichiers dédié dans ce projet, plus
+// simple à mettre en place pour une v1 et une image de logo reste petite une fois compressée.
+async function compressLogoFile(file) {
+  const maxDim = 240;
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  let { width, height } = bitmap;
+  if (width > maxDim || height > maxDim) {
+    const scale = maxDim / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+  return canvas.toDataURL("image/png");
+}
+
+// Une ligne "recette" du panneau carte digitale : catégorie de menu + une SEULE description à
+// écrire (dans la langue de l'app du restaurateur), traduite automatiquement vers les 2 autres
+// langues sur simple clic — demandé explicitement par l'utilisateur après un premier retour
+// ("un restaurateur ne sait sûrement pas traduire lui-même en 3 langues").
+function MenuRecipeRow({ r, lang, t, onUpdate }) {
+  const [translating, setTranslating] = useState(false);
+  const [translateErr, setTranslateErr] = useState(false);
+  const description = r.menuDescription?.[lang] || "";
+
+  const translate = async () => {
+    if (!description.trim()) return;
+    setTranslating(true);
+    setTranslateErr(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/translate-menu-description", {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ text: description, sourceLang: lang }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "translate error");
+      onUpdate({ menuDescription: { ...(r.menuDescription || {}), ...data } });
+    } catch (e) {
+      setTranslateErr(true);
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg p-2.5" style={{ background: "#1B1815" }}>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={!!r.menuIncluded}
+          onChange={(e) => onUpdate({ menuIncluded: e.target.checked })}
+          className="shrink-0"
+        />
+        <span className="flex-1 min-w-0 text-white text-xs truncate">{r.name}</span>
+      </label>
+      {r.menuIncluded && (
+        <div className="mt-2 space-y-2 pl-6">
+          <select
+            value={r.menuCategory || ""}
+            onChange={(e) => onUpdate({ menuCategory: e.target.value || null })}
+            className="bg-black/20 text-white/80 text-[11px] rounded px-2 py-1 outline-none"
+            style={{ colorScheme: "dark" }}
+          >
+            <option value="">{t("digitalMenuCategoryNone")}</option>
+            {MENU_CATEGORIES.map((c) => (
+              <option key={c} value={c}>{MENU_CATEGORY_LABELS[c][lang] || MENU_CATEGORY_LABELS[c].fr}</option>
+            ))}
+          </select>
+          <div className="flex items-start gap-1.5">
+            <textarea
+              value={description}
+              onChange={(e) => onUpdate({ menuDescription: { ...(r.menuDescription || {}), [lang]: e.target.value } })}
+              placeholder={t("digitalMenuDescriptionPlaceholder")}
+              rows={2}
+              className="flex-1 min-w-0 bg-black/20 text-white/80 text-[11px] rounded px-2 py-1.5 outline-none resize-none"
+            />
+            <button
+              onClick={translate}
+              disabled={translating || !description.trim()}
+              title={t("digitalMenuTranslateHint")}
+              className="shrink-0 p-1.5 rounded border border-white/15 text-white/50 hover:text-white hover:border-white/40 disabled:opacity-40"
+            >
+              {translating ? <Loader2 size={13} className="animate-spin" /> : <Globe size={13} />}
+            </button>
+          </div>
+          {translateErr && <p className="text-[10px] text-[#EF4444]">{t("digitalMenuTranslateError")}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Carte digitale publique (2026-08) : génère à la volée un QR code vers /menu/<userId> (voir
 // src/PublicMenu.jsx + api/public-menu.js) et laisse le restaurateur choisir, recette par
 // recette, ce qui doit apparaître dessus. Rien n'est jamais publié par défaut : `menuIncluded`
 // et `menuSettings.published` démarrent tous les deux à false/undefined — un restaurateur qui
 // n'ouvre jamais cette fenêtre ne change rien à ce qui existait avant.
-function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipes, setRecipes, userId, t }) {
+function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipes, setRecipes, userId, lang, t }) {
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [qrBusy, setQrBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [logoErr, setLogoErr] = useState(false);
+  const logoInputRef = useRef(null);
 
   const publicUrl = userId ? `${window.location.origin}/menu/${userId}` : null;
 
@@ -1637,6 +1767,18 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+  const handleLogoFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setLogoErr(false);
+    try {
+      const dataUrl = await compressLogoFile(file);
+      setMenuSettings({ ...menuSettings, logo: dataUrl });
+    } catch (err) {
+      setLogoErr(true);
+    }
   };
 
   return (
@@ -1680,8 +1822,33 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
               </div>
 
               <div>
+                <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuLogoLabel")}</label>
+                <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoFile} />
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 overflow-hidden" style={{ background: "#1B1815" }}>
+                    {menuSettings.logo ? <img src={menuSettings.logo} alt="" className="w-full h-full object-contain" /> : <Logo size={18} />}
+                  </div>
+                  <button
+                    onClick={() => logoInputRef.current?.click()}
+                    className="text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40"
+                  >
+                    {t("digitalMenuLogoUpload")}
+                  </button>
+                  {menuSettings.logo && (
+                    <button
+                      onClick={() => setMenuSettings({ ...menuSettings, logo: null })}
+                      className="text-[10px] uppercase tracking-wide text-white/40 hover:text-[#EF4444]"
+                    >
+                      {t("digitalMenuLogoRemove")}
+                    </button>
+                  )}
+                </div>
+                {logoErr && <p className="text-[10px] text-[#EF4444] mt-1">{t("digitalMenuLogoError")}</p>}
+              </div>
+
+              <div>
                 <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuDesignLabel")}</label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mb-2">
                   {["classic", "modern"].map((d) => (
                     <button
                       key={d}
@@ -1695,6 +1862,20 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
                     >
                       {d === "classic" ? t("digitalMenuDesignClassic") : t("digitalMenuDesignModern")}
                     </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  {MENU_ACCENT_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setMenuSettings({ ...menuSettings, accentColor: c })}
+                      className="w-6 h-6 rounded-full shrink-0"
+                      style={{
+                        background: c,
+                        outline: (menuSettings.accentColor || MENU_ACCENT_COLORS[0]) === c ? "2px solid #fff" : "none",
+                        outlineOffset: "2px",
+                      }}
+                    />
                   ))}
                 </div>
               </div>
@@ -1713,15 +1894,27 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
                     {copied ? t("digitalMenuLinkCopied") : t("digitalMenuCopyLink")}
                   </button>
                 </div>
-                {qrDataUrl && (
-                  <a
-                    href={qrDataUrl}
-                    download="carte-chefup-qr.png"
-                    className="text-[10px] uppercase tracking-wide text-white/50 hover:text-white underline"
-                  >
-                    {t("digitalMenuDownloadQr")}
-                  </a>
-                )}
+                <div className="flex items-center gap-3">
+                  {publicUrl && (
+                    <a
+                      href={publicUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] uppercase tracking-wide text-white/50 hover:text-white underline"
+                    >
+                      {t("digitalMenuPreview")}
+                    </a>
+                  )}
+                  {qrDataUrl && (
+                    <a
+                      href={qrDataUrl}
+                      download="carte-chefup-qr.png"
+                      className="text-[10px] uppercase tracking-wide text-white/50 hover:text-white underline"
+                    >
+                      {t("digitalMenuDownloadQr")}
+                    </a>
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -1736,33 +1929,7 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
             ) : (
               <div className="space-y-2">
                 {recipes.map((r) => (
-                  <div key={r.id} className="rounded-lg p-2.5" style={{ background: "#1B1815" }}>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!!r.menuIncluded}
-                        onChange={(e) => updateRecipe(r.id, { menuIncluded: e.target.checked })}
-                        className="shrink-0"
-                      />
-                      <span className="flex-1 min-w-0 text-white text-xs truncate">{r.name}</span>
-                    </label>
-                    {r.menuIncluded && (
-                      <div className="mt-2 space-y-1.5 pl-6">
-                        {["fr", "es", "en"].map((lc) => (
-                          <div key={lc} className="flex items-center gap-1.5">
-                            <span className="text-[13px] shrink-0">{lc === "fr" ? "🇫🇷" : lc === "es" ? "🇪🇸" : "🇬🇧"}</span>
-                            <input
-                              type="text"
-                              value={r.menuDescription?.[lc] || ""}
-                              onChange={(e) => updateRecipe(r.id, { menuDescription: { ...(r.menuDescription || {}), [lc]: e.target.value } })}
-                              placeholder={t("digitalMenuDescriptionPlaceholder")}
-                              className="flex-1 min-w-0 bg-black/20 text-white/80 text-[11px] rounded px-2 py-1 outline-none"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <MenuRecipeRow key={r.id} r={r} lang={lang} t={t} onUpdate={(patch) => updateRecipe(r.id, patch)} />
                 ))}
               </div>
             )}
@@ -2074,7 +2241,7 @@ export default function App() {
   // Réglages de la carte digitale publique (2026-08) : `published` contrôle tout seul si la page
   // publique répond quoi que ce soit (voir api/public-menu.js) — même si des recettes ont
   // `menuIncluded: true`, rien n'est visible tant que ce drapeau n'est pas activé explicitement.
-  const [menuSettings, setMenuSettings] = useState({ published: false, design: "classic", restaurantName: "" });
+  const [menuSettings, setMenuSettings] = useState({ published: false, design: "classic", restaurantName: "", logo: null, accentColor: MENU_ACCENT_COLORS[0] });
   const [digitalMenuOpen, setDigitalMenuOpen] = useState(false);
   // Id du compte, utilisé uniquement pour construire l'URL publique /menu/<id> (voir
   // DigitalMenuModal) — jamais stocké, récupéré une fois depuis la session déjà active
@@ -2206,7 +2373,7 @@ export default function App() {
         if (set) setSettings({ ...DEFAULT_SETTINGS, ...set });
         if (lg) setLang(lg);
         if (sm && sm.length) setSupplierMappings(sm);
-        if (ms) setMenuSettings({ published: false, design: "classic", restaurantName: "", ...ms });
+        if (ms) setMenuSettings({ published: false, design: "classic", restaurantName: "", logo: null, accentColor: MENU_ACCENT_COLORS[0], ...ms });
       } catch (e) {
         setLoadErr(true);
       } finally {
@@ -4101,6 +4268,7 @@ export default function App() {
         recipes={recipes}
         setRecipes={setRecipes}
         userId={menuUserId}
+        lang={lang}
         t={t}
       />
 

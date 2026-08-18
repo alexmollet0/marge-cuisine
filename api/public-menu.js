@@ -41,11 +41,14 @@ export default async function handler(req, res) {
         allergens: r.allergens || "",
         allergenCodes: Array.isArray(r.allergenCodes) ? r.allergenCodes : [],
         menuDescription: r.menuDescription && typeof r.menuDescription === "object" ? r.menuDescription : {},
+        menuCategory: typeof r.menuCategory === "string" ? r.menuCategory : null,
       }));
 
     return res.status(200).json({
       restaurantName: menuSettings.restaurantName || "",
       design: menuSettings.design === "modern" ? "modern" : "classic",
+      logo: typeof menuSettings.logo === "string" ? menuSettings.logo : null,
+      accentColor: typeof menuSettings.accentColor === "string" ? menuSettings.accentColor : null,
       recipes: included,
     });
   } catch (e) {
