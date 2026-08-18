@@ -2,9 +2,9 @@ import React, { useEffect } from "react";
 import { Receipt, Percent, Printer, Package } from "lucide-react";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
 
-// Fire-and-forget, jamais bloquant pour le visiteur — voir api/log-landing-event.js.
+// Fire-and-forget, jamais bloquant pour le visiteur — voir api/landing.js (POST).
 function logLandingEvent(event) {
-  fetch("/api/log-landing-event", {
+  fetch("/api/landing", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ event }),

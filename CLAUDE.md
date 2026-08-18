@@ -16,7 +16,9 @@ traduire ce nom, dans aucune langue). React + Vite, déployée sur Vercel, code 
 - `src/Billing.jsx` — porte d'abonnement (`SubscriptionGate`), imbriquée DANS `AuthGate` (`src/main.jsx` : `AuthGate > SubscriptionGate > App`). Voir section Stripe ci-dessous.
 - `api/_lib.js` — utilitaires serveur partagés (client Stripe, client Supabase admin service_role, vérification du token utilisateur, envoi d'email via Resend `sendEmail`). Préfixé `_` pour que Vercel ne le déploie pas comme route.
 - `api/contact.js` — formulaire de contact/réclamation in-app (Paramètres) : envoie un email via Resend à `CONTACT_EMAIL` (variable serveur, jamais exposée au client).
-- `api/log-scan-event.js` / `api/scan-stats.js` — journal statistique agrégé du scanner (2026-08), voir section EN COURS pour la mise en place Supabase/Vercel restante. Écrit dans la table `scan_events` (fire-and-forget depuis `runScanPipeline`, `src/App.jsx`) ; lecture protégée par `ADMIN_SECRET`, jamais exposée dans l'app. Sert uniquement à ce que Claude puisse répondre à "comment se passe le scan chez les autres utilisateurs ?" dans une future conversation, sans que l'utilisateur ait à aller chercher lui-même dans Supabase.
+- `api/scan-events.js` — journal statistique agrégé du scanner (2026-08 ; fusionné le 2026-08-18 depuis `log-scan-event.js`+`scan-stats.js`, voir note sur la limite Vercel plus bas). POST = écrit dans la table `scan_events` (fire-and-forget depuis `runScanPipeline`, `src/App.jsx`) ; GET = lecture protégée par `ADMIN_SECRET`, jamais exposée dans l'app. Sert uniquement à ce que Claude puisse répondre à "comment se passe le scan chez les autres utilisateurs ?" dans une future conversation, sans que l'utilisateur ait à aller chercher lui-même dans Supabase.
+- `api/landing.js` — équivalent pour la landing page (2026-08 ; fusionné le 2026-08-18 depuis `log-landing-event.js`+`landing-stats.js`). POST = compteur de visite (public, sans authentification) ; GET = funnel vues/clics/comptes créés, protégé par `ADMIN_SECRET`.
+- **⚠️ Limite Vercel à connaître avant de créer un nouveau fichier dans `api/`** : le plan Hobby plafonne à **12 fonctions serverless par déploiement** (`_lib.js` ne compte pas, préfixé `_`). Ce projet l'a déjà dépassée une fois (2026-08-18, 13 fichiers) — le build a échoué **silencieusement** : aucune erreur visible côté client, Vercel a juste continué à servir le déploiement précédent indéfiniment, ce qui a fait perdre du temps à diagnostiquer (déduit indirectement en comptant les fichiers `api/*.js` et en confirmant la valeur via recherche web, faute d'accès aux logs de build Vercel). Deux paires de fichiers ont été fusionnées (POST/GET dans le même fichier) pour repasser sous la limite, avec de la marge : 11 fonctions actuellement. **Avant d'ajouter un nouvel endpoint** : soit fusionner avec un fichier existant proche (même table/même fonctionnalité), soit vérifier `ls api/*.js | grep -v _lib | wc -l` reste ≤ 11 après ajout.
 - `api/create-checkout-session.js`, `api/create-portal-session.js`, `api/stripe-webhook.js` — fonctions serveur Stripe (voir section Stripe ci-dessous).
 - `api/public-menu.js` / `src/PublicMenu.jsx` — carte digitale publique (2026-08-18) : endpoint sans authentification qui renvoie uniquement les recettes `menuIncluded: true` d'un compte (jamais coût/marge/fournisseur), affichée sur `/menu/<userId>` (rewrite dans `vercel.json`, routage géré à la main dans `src/main.jsx` faute de vraie librairie de routage). Piloté depuis `DigitalMenuModal` (`src/App.jsx`, bouton "Carte digitale" dans l'onglet Recettes).
 - `api/translate-menu-description.js` — traduction automatique (Claude Haiku) de la description d'un plat pour la carte digitale, authentifiée (`requireUser`), appelée depuis `MenuRecipeRow` (`src/App.jsx`).
@@ -28,7 +30,7 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environ
 - **À ajouter pour Stripe (2026-08-03, voir section EN COURS)** : `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` (secrètes, jamais préfixées `VITE_`), `SUPABASE_SERVICE_ROLE_KEY` (clé admin Supabase qui contourne RLS — jamais dans le bundle frontend, utilisée uniquement par `api/_lib.js`).
 - **À ajouter pour les alertes email (2026-08-04, voir section EN COURS)** : `RESEND_API_KEY` (clé API Resend, distincte des identifiants SMTP déjà configurés côté Supabase) et `CRON_SECRET` (protège `api/send-reminders.js` contre un déclenchement par n'importe qui).
 - **`CONTACT_EMAIL` (adresse qui reçoit les messages envoyés depuis Paramètres → Nous contacter)** — volontairement gardée hors du bundle client. Réglée sur `contactchefup.app@gmail.com` (2026-08-05, une adresse Gmail dédiée créée exprès pour ça, testée fonctionnelle par l'utilisateur) — remplace l'adresse perso initialement utilisée pour les tout premiers tests.
-- **À ajouter pour les statistiques du scanner (2026-08-05, voir section EN COURS)** : `ADMIN_SECRET` — valeur déjà générée : `e7708dfa55e49626e03b41bd22fb355e6cc9d87f3d56b5c7`. Protège `api/scan-stats.js` (lecture agrégée), à ne jamais confondre avec `CRON_SECRET` (usage différent).
+- **À ajouter pour les statistiques du scanner (2026-08-05, voir section EN COURS)** : `ADMIN_SECRET` — valeur déjà générée : `e7708dfa55e49626e03b41bd22fb355e6cc9d87f3d56b5c7`. Protège `api/scan-events.js` (lecture agrégée, GET) et `api/landing.js` (GET), à ne jamais confondre avec `CRON_SECRET` (usage différent).
 
 **Nom de domaine (2026-08-02)** : `getchefup.com` acheté directement via Vercel (Settings → Domains) et connecté automatiquement — `chefup.com` était déjà pris. C'est maintenant l'adresse de référence de l'app (Site URL Supabase pointe dessus). L'ancienne adresse `marge-cuisine.vercel.app` reste fonctionnelle en parallèle (toujours dans les Redirect URLs Supabase), mais `getchefup.com` est l'adresse à utiliser/donner aux utilisateurs. Le nom du dépôt GitHub et du projet Vercel restent `marge-cuisine` (voir note de renommage plus bas, inchangée).
 
@@ -289,48 +291,33 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environ
   5. **Sections de menu (entrée/plat/dessert/boisson).** Nouveau champ `recipe.menuCategory` (une des 4 valeurs de `MENU_CATEGORIES`, ou vide), sélecteur ajouté dans `MenuRecipeRow`. `src/PublicMenu.jsx` regroupe désormais les plats par section (ordre fixe, avec en-tête traduit `MENU_CATEGORY_LABELS`) au lieu d'une seule liste plate — les plats sans section assignée restent regroupés à la fin, sans en-tête, pour ne jamais rien cacher si le restaurateur n'a pas encore classé.
   `api/public-menu.js` étendu pour renvoyer `logo`/`accentColor`/`menuCategory` par recette (toujours aucune donnée de coût/marge). Aucun de ces 5 compléments n'a pu être testé en conditions réelles (même limite Node.js indisponible) — à vérifier en priorité au prochain vrai test : upload d'un logo, traduction automatique d'une description, changement de couleur d'accent visible sur la carte, et regroupement correct par section une fois plusieurs recettes catégorisées.
 - **Bouton "Scanner une fiche" caché de l'onglet Recettes (2026-08-18)**, décision de l'utilisateur ("trop de travail en plus et ça n'aide pas") après avoir revu la fonctionnalité — pas une suppression : le bouton (icône `ClipboardList`, ouvrait le sélecteur de fichier `fileInputRecipeLibraryRef`) a été retiré de `src/App.jsx`, mais tout le reste (`api/scan-recipe.js`, l'état `scanRecipeOpen`/`scanningRecipe`/etc., la fenêtre de vérification, les traductions FR/ES/EN) est resté intact et fonctionnel — remettre la fonctionnalité plus tard ne demanderait que de réafficher ce bouton. Le scanner de factures (`api/scan-invoice.js`) n'est absolument pas concerné.
-- **Suivi de visite de la landing page (2026-08-18)**, demandé par l'utilisateur juste après avoir posté ses 2 premières vidéos TikTok — vérification faite ce jour-là dans Supabase (Authentication → Users) : seulement les 2 comptes de test existants, aucune nouvelle inscription. Besoin identifié : distinguer "personne ne clique le lien" de "les gens cliquent mais abandonnent avant de créer un compte" (les inscriptions réelles restent visibles dans Supabase Authentication → Users, aucun changement là-dessus). Nouveau couple `api/log-landing-event.js` (écriture, public/sans authentification puisque la landing s'affiche avant toute connexion) / `api/landing-stats.js` (lecture, protégé par le même `ADMIN_SECRET` déjà utilisé pour les stats du scanner) : `src/Landing.jsx` envoie un événement `view` au montage, `start_click`/`login_click` sur les 2 boutons ("Commencer gratuitement" et "J'ai déjà un compte", y compris le bouton de la carte pricing qui compte aussi en `start_click`). Table Supabase séparée `landing_events`, mêmes principes que `scan_events` (RLS activé sans policy, écriture uniquement via le client `service_role` côté serveur, aucune donnée personnelle — pas d'IP, pas d'email, pas de user-agent, juste un type d'événement + une date). `api/landing-stats.js` croise aussi avec l'API admin Supabase Auth (`listUsers`) pour donner le nombre de comptes réellement créés sur la même période, donc le funnel complet vues → clics → comptes créés en une seule requête. **Ne fonctionne pas encore tant que la table n'est pas créée dans Supabase, voir ACTION IMMÉDIATE REQUISE ci-dessous.**
+- **Suivi de visite de la landing page (2026-08-18)**, demandé par l'utilisateur juste après avoir posté ses 2 premières vidéos TikTok — vérification faite ce jour-là dans Supabase (Authentication → Users) : seulement les 2 comptes de test existants, aucune nouvelle inscription. Besoin identifié : distinguer "personne ne clique le lien" de "les gens cliquent mais abandonnent avant de créer un compte" (les inscriptions réelles restent visibles dans Supabase Authentication → Users, aucun changement là-dessus). `src/Landing.jsx` envoie un événement `view` au montage, `start_click`/`login_click` sur les 2 boutons ("Commencer gratuitement" et "J'ai déjà un compte", y compris le bouton de la carte pricing qui compte aussi en `start_click`) vers `api/landing.js` (POST, public/sans authentification puisque la landing s'affiche avant toute connexion — voir plus bas pour le renommage du fichier). Table Supabase `landing_events`, mêmes principes que `scan_events` (RLS activé sans policy, écriture uniquement via le client `service_role` côté serveur, aucune donnée personnelle — pas d'IP, pas d'email, pas de user-agent, juste un type d'événement + une date). Le GET de `api/landing.js` croise aussi avec l'API admin Supabase Auth (`listUsers`) pour donner le nombre de comptes réellement créés sur la même période, donc le funnel complet vues → clics → comptes créés en une seule requête. **Table créée et testée de bout en bout par Claude le jour même** (une vraie visite de test comptée correctement) — fonctionnel, rien à faire côté utilisateur.
 
 ## EN COURS
 
-### ⚠️ ACTION IMMÉDIATE REQUISE (2026-08-18) : créer la table Supabase pour le suivi de la landing page
-Le code (`api/log-landing-event.js`, `api/landing-stats.js`, `src/Landing.jsx`) est déployé mais **ne fonctionne pas encore** tant que cette étape n'est pas faite (je n'ai pas accès à Supabase directement) — **aucune nouvelle variable Vercel nécessaire**, ça réutilise le `ADMIN_SECRET` déjà en place pour les stats du scanner :
-1. **Créer la table dans Supabase** (SQL Editor) :
-   ```sql
-   create table landing_events (
-     id uuid primary key default gen_random_uuid(),
-     created_at timestamptz not null default now(),
-     event_type text not null
-   );
-   alter table landing_events enable row level security;
-   ```
-   Volontairement aucune policy RLS (même principe que `scan_events`) : personne ne peut lire/écrire cette table depuis le navigateur, seul le `service_role` (utilisé uniquement côté serveur) peut y toucher.
-2. Une fois la table créée (pas besoin de redéployer, contrairement aux variables d'environnement), interroger `https://getchefup.com/api/landing-stats?secret=e7708dfa55e49626e03b41bd22fb355e6cc9d87f3d56b5c7` (ajouter `&days=7` pour changer la fenêtre) donne `{ views, startClicks, loginClicks, accountsCreated }` sur la période. Pas encore testé de bout en bout (dépend de l'étape 1 ci-dessus).
+### ⚠️ À vérifier : la table `scan_events` a-t-elle été créée dans Supabase ?
+Documenté comme "action immédiate requise" le 2026-08-05, jamais confirmé depuis dans une session ultérieure — statut réellement inconnu (la variable Vercel `ADMIN_SECRET`, elle, est confirmée déjà en place et fonctionnelle : testée avec succès le 2026-08-18 sur `api/landing.js`, qui l'utilise aussi). Si `https://getchefup.com/api/scan-events?secret=e7708dfa55e49626e03b41bd22fb355e6cc9d87f3d56b5c7&days=7` renvoie une erreur plutôt qu'un résumé JSON, exécuter dans Supabase (SQL Editor) :
+```sql
+create table scan_events (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  user_id uuid,
+  scanner text,
+  supplier_known boolean,
+  total_items int,
+  food_items int,
+  excluded_items int,
+  zero_items boolean,
+  low_confidence_items int,
+  many_low_confidence boolean,
+  price_inconsistent_items int,
+  pricing_unknown_items int
+);
+alter table scan_events enable row level security;
+```
+Volontairement **aucune policy RLS ajoutée** (même principe que `landing_events`) : seul le `service_role` (utilisé uniquement côté serveur par `api/scan-events.js`) peut lire/écrire cette table.
 
-### ⚠️ ACTION IMMÉDIATE REQUISE (2026-08-05) : mise en place Supabase + Vercel pour les stats du scanner
-Le code (`api/log-scan-event.js`, `api/scan-stats.js`) est déployé mais **ne fonctionne pas encore** tant que ces 2 étapes ne sont pas faites par l'utilisateur (je n'ai accès ni à Supabase ni à Vercel directement) :
-1. **Créer la table dans Supabase** (SQL Editor) :
-   ```sql
-   create table scan_events (
-     id uuid primary key default gen_random_uuid(),
-     created_at timestamptz not null default now(),
-     user_id uuid,
-     scanner text,
-     supplier_known boolean,
-     total_items int,
-     food_items int,
-     excluded_items int,
-     zero_items boolean,
-     low_confidence_items int,
-     many_low_confidence boolean,
-     price_inconsistent_items int,
-     pricing_unknown_items int
-   );
-   alter table scan_events enable row level security;
-   ```
-   Volontairement **aucune policy RLS ajoutée** : avec RLS activé et zéro policy, ni un utilisateur anonyme ni un utilisateur connecté ne peut lire/écrire cette table depuis le navigateur — seul le service_role (utilisé uniquement côté serveur par `api/log-scan-event.js`/`api/scan-stats.js`) peut y toucher, en contournant RLS comme d'habitude sur ce projet.
-2. **Ajouter la variable Vercel `ADMIN_SECRET`** (Production + Preview), valeur déjà générée : `e7708dfa55e49626e03b41bd22fb355e6cc9d87f3d56b5c7` — puis redéployer (comme pour les autres variables ajoutées sur ce projet, l'ajout seul ne suffit pas).
-Une fois fait, l'utilisateur peut demander dans n'importe quelle future conversation "comment se passent les scans ?" — la requête à lancer est `https://getchefup.com/api/scan-stats?secret=e7708dfa55e49626e03b41bd22fb355e6cc9d87f3d56b5c7` (ajouter `&days=7` pour changer la fenêtre, `&raw=1` pour le détail ligne par ligne). Pas encore testé de bout en bout (dépend des 2 étapes ci-dessus).
+**⚠️ Renommage de fichiers le 2026-08-18** : `api/log-scan-event.js`+`api/scan-stats.js` → **`api/scan-events.js`** (POST=écriture, GET=lecture) ; `api/log-landing-event.js`+`api/landing-stats.js` → **`api/landing.js`** (même principe). Raison : le plan Hobby Vercel plafonne à 12 fonctions serverless par déploiement, ce projet venait de le dépasser (13 fichiers) et le build échouait silencieusement — voir la note dans "Fichiers clés" plus haut. **Si une future session cherche `api/scan-stats.js` ou `api/landing-stats.js`, ces fichiers n'existent plus** — utiliser `api/scan-events.js`/`api/landing.js`, mêmes URLs de requête sauf le nom (`?secret=...&days=7`).
 
 ### 🎯 PROCHAINE ÉTAPE EXPLICITEMENT DEMANDÉE PAR L'UTILISATEUR POUR LA PROCHAINE SESSION (2026-08-04→05) : recette utilisable comme ingrédient d'une autre recette
 

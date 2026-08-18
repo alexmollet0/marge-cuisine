@@ -3639,14 +3639,14 @@ export default function App() {
 
       setScanResult({ supplier: data.supplier || null, date: data.date || null, items: foodItems, excludedItems, manyUp, manyLowConfidence });
       // Statistiques agrégées du scanner (2026-08, fire-and-forget) : jamais de contenu de
-      // facture, juste des compteurs — voir api/log-scan-event.js. Sert uniquement à surveiller
-      // la fiabilité réelle du scan sur l'ensemble des comptes (interrogeable via api/scan-stats.js,
-      // protégé par ADMIN_SECRET), invisible dans l'app pour tout utilisateur.
+      // facture, juste des compteurs — voir api/scan-events.js (POST). Sert uniquement à surveiller
+      // la fiabilité réelle du scan sur l'ensemble des comptes (interrogeable via le même fichier
+      // en GET, protégé par ADMIN_SECRET), invisible dans l'app pour tout utilisateur.
       (async () => {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) return;
-          await fetch("/api/log-scan-event", {
+          await fetch("/api/scan-events", {
             method: "POST",
             headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
             body: JSON.stringify({
