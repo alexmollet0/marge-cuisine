@@ -4990,14 +4990,6 @@ export default function App() {
                   </button>
                 </div>
                 <button
-                  onClick={() => fileInputRecipeLibraryRef.current?.click()}
-                  title={t("scanRecipeHint")}
-                  className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/60 hover:text-white px-3 py-1.5 rounded-full border border-white/15 hover:border-white/30 transition-colors"
-                >
-                  <ClipboardList size={12} />
-                  {t("scanRecipeButton")}
-                </button>
-                <button
                   onClick={() => setAllergenSheetOpen(true)}
                   className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/60 hover:text-white px-3 py-1.5 rounded-full border border-white/15 hover:border-white/30 transition-colors"
                 >
