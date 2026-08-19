@@ -639,6 +639,10 @@ export const TR = {
     digitalMenuDesignElegant: "Élégant", digitalMenuDesignBistro: "Bistrot",
     digitalMenuCategoriesLabel: "Sections de la carte", digitalMenuCategoryAdd: "Ajouter",
     digitalMenuCategoryAddPlaceholder: "ex : Pizzas, Sauces…",
+    digitalMenuSimpleItemsLabel: "Articles simples (boissons, etc.)",
+    digitalMenuSimpleItemsHint: "Pour ce qui est revendu tel quel (Coca, Perrier…) — pas besoin de créer une recette.",
+    digitalMenuSimpleItemNamePlaceholder: "Nom (ex : Coca 33cl)",
+    digitalMenuSimpleItemCostLabel: "Coût d'achat :", digitalMenuSimpleItemAddCost: "+ ajouter un coût d'achat",
     digitalMenuCopyLink: "Copier le lien", digitalMenuLinkCopied: "Copié !", digitalMenuDownloadQr: "Télécharger le QR code",
     digitalMenuRecipesLabel: "Recettes affichées sur la carte", digitalMenuNoRecipes: "Crée une recette pour pouvoir l'ajouter à la carte.",
     digitalMenuDescriptionPlaceholder: "Description pour le client (optionnel)",
@@ -857,6 +861,10 @@ export const TR = {
     digitalMenuDesignElegant: "Elegante", digitalMenuDesignBistro: "Bistró",
     digitalMenuCategoriesLabel: "Secciones de la carta", digitalMenuCategoryAdd: "Añadir",
     digitalMenuCategoryAddPlaceholder: "ej: Pizzas, Salsas…",
+    digitalMenuSimpleItemsLabel: "Artículos simples (bebidas, etc.)",
+    digitalMenuSimpleItemsHint: "Para lo que se revende tal cual (Coca-Cola, Perrier…) — no hace falta crear una receta.",
+    digitalMenuSimpleItemNamePlaceholder: "Nombre (ej: Coca-Cola 33cl)",
+    digitalMenuSimpleItemCostLabel: "Coste de compra:", digitalMenuSimpleItemAddCost: "+ añadir coste de compra",
     digitalMenuCopyLink: "Copiar enlace", digitalMenuLinkCopied: "¡Copiado!", digitalMenuDownloadQr: "Descargar código QR",
     digitalMenuRecipesLabel: "Recetas mostradas en la carta", digitalMenuNoRecipes: "Crea una receta para poder añadirla a la carta.",
     digitalMenuDescriptionPlaceholder: "Descripción para el cliente (opcional)",
@@ -1075,6 +1083,10 @@ export const TR = {
     digitalMenuDesignElegant: "Elegant", digitalMenuDesignBistro: "Bistro",
     digitalMenuCategoriesLabel: "Menu sections", digitalMenuCategoryAdd: "Add",
     digitalMenuCategoryAddPlaceholder: "e.g. Pizzas, Sauces…",
+    digitalMenuSimpleItemsLabel: "Simple items (drinks, etc.)",
+    digitalMenuSimpleItemsHint: "For things resold as-is (Coke, Perrier…) — no need to create a recipe.",
+    digitalMenuSimpleItemNamePlaceholder: "Name (e.g. Coke 330ml)",
+    digitalMenuSimpleItemCostLabel: "Purchase cost:", digitalMenuSimpleItemAddCost: "+ add a purchase cost",
     digitalMenuCopyLink: "Copy link", digitalMenuLinkCopied: "Copied!", digitalMenuDownloadQr: "Download QR code",
     digitalMenuRecipesLabel: "Recipes shown on the menu", digitalMenuNoRecipes: "Create a recipe to add it to the menu.",
     digitalMenuDescriptionPlaceholder: "Description for the customer (optional)",
@@ -1785,12 +1797,147 @@ function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
   );
 }
 
+// Ligne d'un article simple déjà créé : nom/section/prix éditables en place, coût d'achat replié
+// par défaut (n'apparaît que si on clique "+ ajouter un coût") — la plupart des restaurateurs n'en
+// ont pas besoin ici, l'intérêt de ces articles est la rapidité, pas le suivi de marge.
+function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove }) {
+  const [showCost, setShowCost] = useState(item.cost != null);
+  return (
+    <div className="rounded-lg p-2" style={{ background: "#1B1815" }}>
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          value={item.name}
+          onChange={(e) => onUpdate({ name: e.target.value })}
+          className="flex-1 min-w-0 bg-transparent text-white text-[11px] outline-none"
+        />
+        <select
+          value={item.menuCategory || ""}
+          onChange={(e) => onUpdate({ menuCategory: e.target.value || null })}
+          className="bg-black/20 text-white/60 text-[10px] rounded px-1 py-1 outline-none shrink-0"
+          style={{ colorScheme: "dark" }}
+        >
+          <option value="">{t("digitalMenuCategoryNone")}</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>{categoryLabel(c, lang)}</option>
+          ))}
+        </select>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={item.sellPrice}
+          onChange={(e) => onUpdate({ sellPrice: parseFloat((e.target.value || "0").replace(",", ".")) || 0 })}
+          className="w-14 bg-black/20 text-white text-[11px] rounded px-1.5 py-1 outline-none text-right shrink-0"
+        />
+        <button onClick={onRemove} className="shrink-0 text-white/30 hover:text-[#EF4444]">
+          <X size={12} />
+        </button>
+      </div>
+      {showCost ? (
+        <div className="flex items-center gap-1.5 mt-1.5 pl-0.5">
+          <span className="text-[10px] text-white/30 shrink-0">{t("digitalMenuSimpleItemCostLabel")}</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={item.cost ?? ""}
+            onChange={(e) => onUpdate({ cost: e.target.value === "" ? null : parseFloat(e.target.value.replace(",", ".")) || 0 })}
+            className="w-14 bg-black/20 text-white/70 text-[10px] rounded px-1.5 py-1 outline-none text-right"
+          />
+        </div>
+      ) : (
+        <button onClick={() => setShowCost(true)} className="text-[10px] text-white/25 hover:text-white/50 mt-1">
+          {t("digitalMenuSimpleItemAddCost")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Articles simples de la carte digitale (2026-08-19) : ajout ultra-rapide pour les produits
+// revendus tels quels (Coca, Perrier, chips...) sans passer par la création d'une recette —
+// demandé explicitement par l'utilisateur ("il peut y en avoir des centaines, ça va polluer la
+// section recette"). Volontairement séparés de `recipes` (nouvelle clé de stockage `simpleItems`,
+// `src/App.jsx`) : n'apparaissent jamais dans l'onglet Recettes, le classement TOP, les fiches
+// imprimées ou allergènes — seulement sur la carte publique. Champ nom + prix suffisent pour
+// ajouter ; la ligne se vide et le focus revient sur le nom pour enchaîner rapidement.
+function SimpleItemsSection({ items, setItems, categories, lang, t }) {
+  const [name, setName] = useState("");
+  const [price, setPrice] = useState("");
+  const nameRef = useRef(null);
+
+  const addItem = () => {
+    const n = name.trim();
+    const p = parseFloat((price || "").replace(",", "."));
+    if (!n || !Number.isFinite(p) || p <= 0) return;
+    setItems([...items, { id: uid(), name: n, sellPrice: p, cost: null, menuCategory: null }]);
+    setName("");
+    setPrice("");
+    nameRef.current?.focus();
+  };
+
+  const updateItem = (id, patch) => setItems(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  const removeItem = (id) => setItems(items.filter((it) => it.id !== id));
+
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-1">
+        <Package size={11} />
+        {t("digitalMenuSimpleItemsLabel")}
+      </div>
+      <p className="text-[10px] text-white/30 mb-2">{t("digitalMenuSimpleItemsHint")}</p>
+
+      {items.length > 0 && (
+        <div className="space-y-1.5 mb-2 max-h-48 overflow-y-auto pr-0.5">
+          {items.map((it) => (
+            <SimpleItemRow
+              key={it.id}
+              item={it}
+              categories={categories}
+              lang={lang}
+              t={t}
+              onUpdate={(patch) => updateItem(it.id, patch)}
+              onRemove={() => removeItem(it.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-1.5">
+        <input
+          ref={nameRef}
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+          placeholder={t("digitalMenuSimpleItemNamePlaceholder")}
+          className="flex-1 min-w-0 bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none"
+        />
+        <input
+          type="text"
+          inputMode="decimal"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+          placeholder="€"
+          className="w-16 bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none text-right"
+        />
+        <button
+          onClick={addItem}
+          className="shrink-0 text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40"
+        >
+          {t("digitalMenuCategoryAdd")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Carte digitale publique (2026-08) : génère à la volée un QR code vers /menu/<userId> (voir
 // src/PublicMenu.jsx + api/public-menu.js) et laisse le restaurateur choisir, recette par
 // recette, ce qui doit apparaître dessus. Rien n'est jamais publié par défaut : `menuIncluded`
 // et `menuSettings.published` démarrent tous les deux à false/undefined — un restaurateur qui
 // n'ouvre jamais cette fenêtre ne change rien à ce qui existait avant.
-function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipes, setRecipes, userId, lang, t }) {
+function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipes, setRecipes, simpleItems, setSimpleItems, userId, lang, t }) {
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [qrBusy, setQrBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -2056,6 +2203,8 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
               </div>
             )}
           </div>
+
+          <SimpleItemsSection items={simpleItems} setItems={setSimpleItems} categories={categories} lang={lang} t={t} />
         </div>
 
         <button onClick={onClose} className="w-full mt-4 text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] shrink-0">
@@ -2365,6 +2514,12 @@ export default function App() {
   // `menuIncluded: true`, rien n'est visible tant que ce drapeau n'est pas activé explicitement.
   const [menuSettings, setMenuSettings] = useState({ published: false, design: "classic", restaurantName: "", logo: null, accentColor: MENU_ACCENT_COLORS[0] });
   const [digitalMenuOpen, setDigitalMenuOpen] = useState(false);
+  // Articles simples de la carte digitale (2026-08-19) : boissons/produits revendus tels quels
+  // (Coca, Perrier...) — volontairement PAS des recettes (jamais dans `recipes`), pour ne pas
+  // polluer l'onglet Recettes/le classement TOP/les fiches imprimées avec des centaines de lignes
+  // sans rapport avec le calcul de marge. Coût d'achat optionnel (`cost`, souvent absent — l'idée
+  // est un ajout ultra-rapide, pas un vrai suivi de marge comme pour les recettes).
+  const [simpleItems, setSimpleItems] = useState([]);
   // Id du compte, utilisé uniquement pour construire l'URL publique /menu/<id> (voir
   // DigitalMenuModal) — jamais stocké, récupéré une fois depuis la session déjà active
   // (AuthGate garantit qu'il y en a toujours une à ce stade).
@@ -2479,13 +2634,14 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        let ing = null, rec = null, set = null, lg = null, sm = null, ms = null;
+        let ing = null, rec = null, set = null, lg = null, sm = null, ms = null, si = null;
         try { const r = await storage.get("ingredients"); ing = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("recipes"); rec = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("settings"); set = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("lang"); lg = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("supplierMappings"); sm = r ? JSON.parse(r.value) : null; } catch (e) {}
         try { const r = await storage.get("menuSettings"); ms = r ? JSON.parse(r.value) : null; } catch (e) {}
+        try { const r = await storage.get("simpleItems"); si = r ? JSON.parse(r.value) : null; } catch (e) {}
         if (ing && ing.length) setIngredients(ing);
         // Nouvel utilisateur (rien encore enregistré) mais langue déjà connue (choisie avant que
         // le premier chargement se termine) : reconstruit la recette de démo dans cette langue
@@ -2496,6 +2652,7 @@ export default function App() {
         if (lg) setLang(lg);
         if (sm && sm.length) setSupplierMappings(sm);
         if (ms) setMenuSettings({ published: false, design: "classic", restaurantName: "", logo: null, accentColor: MENU_ACCENT_COLORS[0], ...ms });
+        if (si && si.length) setSimpleItems(si);
       } catch (e) {
         setLoadErr(true);
       } finally {
@@ -2510,6 +2667,7 @@ export default function App() {
   useDebouncedSave("lang", lang, ready);
   useDebouncedSave("supplierMappings", supplierMappings, ready);
   useDebouncedSave("menuSettings", menuSettings, ready);
+  useDebouncedSave("simpleItems", simpleItems, ready);
 
   useEffect(() => {
     if (!ready) return;
@@ -4389,6 +4547,8 @@ export default function App() {
         setMenuSettings={setMenuSettings}
         recipes={recipes}
         setRecipes={setRecipes}
+        simpleItems={simpleItems}
+        setSimpleItems={setSimpleItems}
         userId={menuUserId}
         lang={lang}
         t={t}

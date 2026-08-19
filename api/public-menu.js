@@ -20,11 +20,12 @@ export default async function handler(req, res) {
       .from("kv_store")
       .select("key, value")
       .eq("user_id", userId)
-      .in("key", ["menuSettings", "recipes"]);
+      .in("key", ["menuSettings", "recipes", "simpleItems"]);
     if (error) throw error;
 
     const menuSettingsRaw = (data || []).find((r) => r.key === "menuSettings")?.value;
     const recipesRaw = (data || []).find((r) => r.key === "recipes")?.value;
+    const simpleItemsRaw = (data || []).find((r) => r.key === "simpleItems")?.value;
     const menuSettings = menuSettingsRaw ? JSON.parse(menuSettingsRaw) : null;
 
     if (!menuSettings || menuSettings.published !== true) {
@@ -42,6 +43,25 @@ export default async function handler(req, res) {
         allergenCodes: Array.isArray(r.allergenCodes) ? r.allergenCodes : [],
         menuDescription: r.menuDescription && typeof r.menuDescription === "object" ? r.menuDescription : {},
         menuCategory: typeof r.menuCategory === "string" ? r.menuCategory : null,
+      }));
+
+    // Articles simples (2026-08-19, voir SimpleItemsSection côté client) : jamais des recettes,
+    // mais transformés ici dans le MÊME format que les recettes déjà filtrées ci-dessus (allergènes
+    // et description toujours vides) — ainsi src/PublicMenu.jsx n'a besoin d'aucune logique
+    // supplémentaire pour les afficher, juste les concaténer dans la même liste. Toujours inclus
+    // (pas de case "menuIncluded" séparée) : leur seule raison d'exister est d'être sur la carte.
+    // Le coût d'achat éventuel (`cost`) n'est jamais renvoyé — ce n'est pas une donnée publique.
+    const simpleItems = simpleItemsRaw ? JSON.parse(simpleItemsRaw) : [];
+    const includedSimple = simpleItems
+      .filter((it) => it && it.name)
+      .map((it) => ({
+        id: it.id,
+        name: it.name || "",
+        sellPrice: typeof it.sellPrice === "number" ? it.sellPrice : 0,
+        allergens: "",
+        allergenCodes: [],
+        menuDescription: {},
+        menuCategory: typeof it.menuCategory === "string" ? it.menuCategory : null,
       }));
 
     const validDesigns = ["classic", "modern", "elegant", "bistro"];
@@ -63,7 +83,7 @@ export default async function handler(req, res) {
       logo: typeof menuSettings.logo === "string" ? menuSettings.logo : null,
       accentColor: typeof menuSettings.accentColor === "string" ? menuSettings.accentColor : null,
       customCategories,
-      recipes: included,
+      recipes: [...included, ...includedSimple],
     });
   } catch (e) {
     return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });

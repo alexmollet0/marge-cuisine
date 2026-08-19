@@ -89,6 +89,14 @@ export default function PublicMenu({ menuId }) {
   const accent = accentColor || BRAND_SOLID;
   const sections = groupByCategory(recipes, customCategories || [], lang);
   const Dish = design === "elegant" ? ElegantDish : design === "bistro" ? BistroDish : ClassicDish;
+  // Barre de sections cliquables (2026-08-19), pour sauter directement à "Boissons" sans faire
+  // défiler toute la carte — demandé explicitement par l'utilisateur ("il faut mettre les choses
+  // dans l'ordre c'est chiant"). N'a de sens qu'à partir de 2 sections nommées ; la section "reste"
+  // (plats sans section, `name: null`) n'a pas de pastille puisqu'elle n'a pas de titre à afficher.
+  const navSections = sections.filter((s) => s.name);
+  const jumpTo = (id) => {
+    document.getElementById(`menu-section-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const LangSwitcher = (
     <div className="flex items-center justify-center gap-1.5 mb-4">
@@ -110,11 +118,29 @@ export default function PublicMenu({ menuId }) {
         </div>
         {LangSwitcher}
 
+        {navSections.length >= 2 && (
+          <div
+            className="sticky top-0 z-10 -mx-4 px-4 py-2.5 mb-2 flex items-center gap-2 overflow-x-auto"
+            style={{ background: theme.bg }}
+          >
+            {navSections.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => jumpTo(s.id)}
+                className="shrink-0 whitespace-nowrap text-[10px] uppercase tracking-wide rounded-full px-3 py-1.5 border"
+                style={{ borderColor: theme.border, color: theme.text }}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {recipes.length === 0 ? (
           <p className="text-center text-sm mt-10" style={{ color: theme.muted }}>{t("publicMenuNoDishes")}</p>
         ) : (
           sections.map((section) => (
-            <div key={section.id} className="mt-8 first:mt-6">
+            <div key={section.id} id={`menu-section-${section.id}`} className="mt-8 first:mt-6 scroll-mt-16">
               <SectionHeader design={design} name={section.name} accent={accent} theme={theme} />
               {design === "modern" ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
