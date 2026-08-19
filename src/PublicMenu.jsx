@@ -2,6 +2,14 @@ import React, { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Logo, BRAND_SOLID, ALLERGEN_LABELS, categoryLabel, TR } from "./App.jsx";
 
+// Polices dédiées (2026-08-19, v6) — la v2 réutilisait Oswald/Manrope (les polices de l'app)
+// partout, ce qui donnait un rendu "outil SaaS" plutôt que "carte de restaurant" (retour direct
+// de l'utilisateur : "c'est vraiment trop trop basique"). Chargées uniquement sur cette page
+// publique (pas dans le reste de l'app), même technique que les pages légales statiques
+// (`public/mentions-legales.html`) : un `@import` Google Fonts, jamais bloquant si indisponible
+// (repli sur les polices système déjà prévues par Tailwind).
+const FONT_IMPORT = "@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Fredoka:wght@500;600;700&display=swap');";
+
 // Petits pictogrammes emoji plutôt qu'une icône lucide dédiée par allergène : lucide n'a pas
 // d'icône fiable pour la moitié de ces allergènes (sulfites, céleri, fruits à coque...), alors
 // qu'un emoji est garanti disponible sans dépendance supplémentaire et reste lisible sur mobile,
@@ -11,16 +19,29 @@ const ALLERGEN_ICONS = {
   crustaces: "🦐", mollusques: "🐚", moutarde: "🧂", soja: "🌱", celeri: "🥬", fruits_a_coque: "🥜",
 };
 
-// 4 designs (2026-08-18, v2) volontairement très différents dans leur STRUCTURE, pas seulement
-// leur couleur — un premier retour utilisateur a jugé la v1 (2 designs qui ne changeaient qu'une
-// couleur de prix) "trop tech" pour une carte de restaurant. `classic`/`modern` restent sombres
-// (identité Chefup) ; `elegant`/`bistro` sortent délibérément de cette palette pour évoquer un
-// vrai type d'établissement (gastronomique / bistrot de quartier).
+// 4 designs volontairement très différents dans leur STRUCTURE et leur typographie, pas
+// seulement leur couleur (retour utilisateur, 2026-08-18 puis 2026-08-19). `classic`/`modern`
+// restent dans l'identité sombre Chefup ; `elegant`/`bistro` en sortent délibérément pour évoquer
+// un vrai type d'établissement (gastronomique / bistrot de quartier). Chaque design a maintenant
+// un fond de PAGE (`pageBg`) distinct du fond de CARTE (`panel`) — la carte flotte sur la page
+// comme un vrai menu posé sur une table, plutôt que du texte à même un fond plat.
 const THEMES = {
-  classic: { bg: "#1B1815", panel: "#26221C", text: "#FFFFFF", muted: "rgba(255,255,255,0.5)", border: "rgba(255,255,255,0.12)" },
-  modern: { bg: "#1B1815", panel: "#26221C", text: "#FFFFFF", muted: "rgba(255,255,255,0.5)", border: "rgba(255,255,255,0.12)" },
-  elegant: { bg: "#F6F0E4", panel: "#FFFFFF", text: "#2A2016", muted: "rgba(42,32,22,0.6)", border: "rgba(42,32,22,0.2)" },
-  bistro: { bg: "#54221C", panel: "#71322A", text: "#FBF0E1", muted: "rgba(251,240,225,0.75)", border: "rgba(251,240,225,0.25)" },
+  classic: {
+    pageBg: "#100E0C", panel: "#211D18", text: "#FFFFFF", muted: "rgba(255,255,255,0.55)",
+    border: "rgba(255,255,255,0.12)", headingFont: "'Oswald', sans-serif",
+  },
+  modern: {
+    pageBg: "#100E0C", panel: "#211D18", text: "#FFFFFF", muted: "rgba(255,255,255,0.55)",
+    border: "rgba(255,255,255,0.12)", headingFont: "'Oswald', sans-serif",
+  },
+  elegant: {
+    pageBg: "#E7DDC4", panel: "#FFFCF6", text: "#2A2016", muted: "rgba(42,32,22,0.62)",
+    border: "rgba(42,32,22,0.18)", headingFont: "'Playfair Display', serif",
+  },
+  bistro: {
+    pageBg: "#341210", panel: "#6B2B22", text: "#FBF0E1", muted: "rgba(251,240,225,0.78)",
+    border: "rgba(251,240,225,0.22)", headingFont: "'Fredoka', sans-serif",
+  },
 };
 
 function guessMenuLang() {
@@ -31,11 +52,11 @@ function guessMenuLang() {
 }
 
 // Regroupe les plats par section définie par le restaurateur (`customCategories`, voir
-// DigitalMenuModal) dans l'ordre où il les a créées, plutôt que de tout mélanger dans une seule
-// liste — demandé explicitement par l'utilisateur ("sinon toutes ses recettes seront mélangées
-// n'importe comment"). Les plats sans section reconnue sont regroupés à la fin, sans en-tête. Le
-// nom de section est résolu dans la langue choisie par le CLIENT sur cette page (`lang`), pas
-// celle du restaurateur — traduit automatiquement à la création (voir DigitalMenuModal, v4).
+// DigitalMenuModal) dans l'ordre choisi par le restaurateur (flèches haut/bas côté app, v6),
+// plutôt que de tout mélanger dans une seule liste. Les plats sans section reconnue sont
+// regroupés à la fin, sans en-tête. Le nom de section est résolu dans la langue choisie par le
+// CLIENT sur cette page (`lang`), pas celle du restaurateur — traduit automatiquement à la
+// création (voir DigitalMenuModal, v4).
 function groupByCategory(recipes, customCategories, lang) {
   const groups = customCategories
     .map((c) => ({ id: c.id, name: categoryLabel(c, lang), items: recipes.filter((r) => r.menuCategory === c.id) }))
@@ -89,17 +110,17 @@ export default function PublicMenu({ menuId }) {
   const accent = accentColor || BRAND_SOLID;
   const sections = groupByCategory(recipes, customCategories || [], lang);
   const Dish = design === "elegant" ? ElegantDish : design === "bistro" ? BistroDish : ClassicDish;
-  // Barre de sections cliquables (2026-08-19), pour sauter directement à "Boissons" sans faire
-  // défiler toute la carte — demandé explicitement par l'utilisateur ("il faut mettre les choses
-  // dans l'ordre c'est chiant"). N'a de sens qu'à partir de 2 sections nommées ; la section "reste"
-  // (plats sans section, `name: null`) n'a pas de pastille puisqu'elle n'a pas de titre à afficher.
+  // Barre de sections cliquables, pour sauter directement à "Boissons" sans faire défiler toute
+  // la carte — demandé explicitement par l'utilisateur ("il faut mettre les choses dans l'ordre
+  // c'est chiant"). N'a de sens qu'à partir de 2 sections nommées ; la section "reste" (plats
+  // sans section, `name: null`) n'a pas de pastille puisqu'elle n'a pas de titre à afficher.
   const navSections = sections.filter((s) => s.name);
   const jumpTo = (id) => {
     document.getElementById(`menu-section-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const LangSwitcher = (
-    <div className="flex items-center justify-center gap-1.5 mb-4">
+    <div className="flex items-center justify-center gap-1.5 mb-5">
       <button type="button" onClick={() => setLang("fr")} className={`text-lg leading-none ${lang === "fr" ? "" : "opacity-40 grayscale"}`} title="Français">🇫🇷</button>
       <button type="button" onClick={() => setLang("es")} className={`text-lg leading-none ${lang === "es" ? "" : "opacity-40 grayscale"}`} title="Español">🇪🇸</button>
       <button type="button" onClick={() => setLang("en")} className={`text-lg leading-none ${lang === "en" ? "" : "opacity-40 grayscale"}`} title="English">🇬🇧</button>
@@ -107,70 +128,92 @@ export default function PublicMenu({ menuId }) {
   );
 
   return (
-    <div className="min-h-screen font-body" style={{ background: theme.bg }}>
-      <div className="max-w-lg mx-auto px-4 py-10 sm:py-14">
-        <div className="flex flex-col items-center mb-2">
-          {logo ? <img src={logo} alt="" className="w-14 h-14 object-contain rounded-lg" /> : <Logo size={32} />}
-          <h1 className="font-display text-xl tracking-wide uppercase mt-2 text-center" style={{ color: theme.text }}>
-            {restaurantName || "Chefup"}
-          </h1>
-          {design === "elegant" && <div className="h-px w-16 mt-3" style={{ background: accent }} />}
-        </div>
-        {LangSwitcher}
-
-        {navSections.length >= 2 && (
-          <div
-            className="sticky top-0 z-10 -mx-4 px-4 py-2.5 mb-2 flex items-center gap-2 overflow-x-auto"
-            style={{ background: theme.bg }}
-          >
-            {navSections.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => jumpTo(s.id)}
-                className="shrink-0 whitespace-nowrap text-[10px] uppercase tracking-wide rounded-full px-3 py-1.5 border"
-                style={{ borderColor: theme.border, color: theme.text }}
-              >
-                {s.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {recipes.length === 0 ? (
-          <p className="text-center text-sm mt-10" style={{ color: theme.muted }}>{t("publicMenuNoDishes")}</p>
-        ) : (
-          sections.map((section) => (
-            <div key={section.id} id={`menu-section-${section.id}`} className="mt-8 first:mt-6 scroll-mt-16">
-              <SectionHeader design={design} name={section.name} accent={accent} theme={theme} />
-              {design === "modern" ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {section.items.map((r) => (
-                    <div key={r.id} className="rounded-2xl p-4 border" style={{ background: theme.panel, borderColor: theme.border }}>
-                      <Dish r={r} lang={lang} accent={accent} theme={theme} />
-                    </div>
-                  ))}
-                </div>
-              ) : design === "bistro" ? (
-                <div className="space-y-3">
-                  {section.items.map((r) => (
-                    <Dish key={r.id} r={r} lang={lang} accent={accent} theme={theme} />
-                  ))}
-                </div>
+    <div className="min-h-screen font-body" style={{ background: theme.pageBg }}>
+      <style>{FONT_IMPORT}</style>
+      <div className="max-w-lg mx-auto px-3 py-6 sm:py-10">
+        {/* Carte posée sur la page, plutôt que du texte à même un fond plat (v6) */}
+        <div
+          className="rounded-3xl border"
+          style={{ background: theme.panel, borderColor: theme.border, boxShadow: "0 24px 60px -16px rgba(0,0,0,0.5)" }}
+        >
+          <div className="px-5 py-9 sm:px-9 sm:py-11">
+            <div className="flex flex-col items-center mb-2">
+              {logo ? (
+                <img src={logo} alt="" className="w-14 h-14 object-contain rounded-lg" />
               ) : (
-                <div className="divide-y" style={{ borderColor: theme.border }}>
-                  {section.items.map((r) => (
-                    <div key={r.id} className="py-4">
-                      <Dish r={r} lang={lang} accent={accent} theme={theme} />
-                    </div>
-                  ))}
-                </div>
+                <Logo size={30} />
               )}
+              <h1
+                className="text-2xl sm:text-3xl tracking-wide mt-3 text-center"
+                style={{
+                  color: theme.text,
+                  fontFamily: theme.headingFont,
+                  fontStyle: design === "elegant" ? "italic" : "normal",
+                  fontWeight: design === "elegant" ? 600 : 700,
+                  textTransform: design === "elegant" ? "none" : "uppercase",
+                }}
+              >
+                {restaurantName || "Chefup"}
+              </h1>
+              <div className="h-px w-16 mt-4" style={{ background: accent }} />
             </div>
-          ))
-        )}
+            {LangSwitcher}
 
-        <div className="text-center mt-12 text-[10px]" style={{ color: theme.muted, opacity: 0.7 }}>
-          {t("publicMenuPoweredBy")}
+            {navSections.length >= 2 && (
+              <div
+                className="sticky top-0 z-10 py-2 mb-3 flex items-center gap-2 overflow-x-auto"
+                style={{ background: theme.panel }}
+              >
+                {navSections.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => jumpTo(s.id)}
+                    className="shrink-0 whitespace-nowrap text-[10px] uppercase tracking-wide rounded-full px-3 py-1.5 border"
+                    style={{ borderColor: accent, color: theme.text, fontFamily: theme.headingFont }}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {recipes.length === 0 ? (
+              <p className="text-center text-sm mt-10" style={{ color: theme.muted }}>{t("publicMenuNoDishes")}</p>
+            ) : (
+              sections.map((section) => (
+                <div key={section.id} id={`menu-section-${section.id}`} className="mt-8 first:mt-4 scroll-mt-16">
+                  <SectionHeader design={design} name={section.name} accent={accent} theme={theme} />
+                  {design === "modern" ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {section.items.map((r) => (
+                        <div key={r.id} className="rounded-2xl p-4 border" style={{ background: theme.pageBg, borderColor: theme.border }}>
+                          <Dish r={r} lang={lang} accent={accent} theme={theme} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : design === "bistro" ? (
+                    <div className="space-y-3">
+                      {section.items.map((r) => (
+                        <Dish key={r.id} r={r} lang={lang} accent={accent} theme={theme} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="divide-y" style={{ borderColor: theme.border }}>
+                      {section.items.map((r) => (
+                        <div key={r.id} className="py-4">
+                          <Dish r={r} lang={lang} accent={accent} theme={theme} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+
+            <div className="text-center mt-12 text-[10px]" style={{ color: theme.muted, opacity: 0.7 }}>
+              {t("publicMenuPoweredBy")}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -179,26 +222,30 @@ export default function PublicMenu({ menuId }) {
 
 function SectionHeader({ design, name, accent, theme }) {
   if (!name) return null;
+  const fontStyle = { fontFamily: theme.headingFont };
   if (design === "elegant") {
     return (
-      <div className="flex items-center gap-3 justify-center mb-4">
-        <span className="h-px flex-1 max-w-[40px]" style={{ background: accent }} />
-        <h2 className="text-xs tracking-[0.25em] uppercase font-display shrink-0" style={{ color: theme.text }}>{name}</h2>
-        <span className="h-px flex-1 max-w-[40px]" style={{ background: accent }} />
+      <div className="flex items-center gap-3 justify-center mb-5">
+        <span className="h-px flex-1 max-w-[36px]" style={{ background: accent }} />
+        <h2 className="text-sm italic tracking-wide shrink-0" style={{ color: theme.text, ...fontStyle, fontWeight: 600 }}>{name}</h2>
+        <span className="h-px flex-1 max-w-[36px]" style={{ background: accent }} />
       </div>
     );
   }
   if (design === "bistro") {
     return (
       <div className="flex justify-center mb-4">
-        <span className="rounded-full px-4 py-1.5 text-xs tracking-widest uppercase font-display text-white" style={{ background: accent }}>
+        <span
+          className="rounded-full px-5 py-1.5 text-sm text-white"
+          style={{ background: accent, ...fontStyle, fontWeight: 600 }}
+        >
           {name}
         </span>
       </div>
     );
   }
   return (
-    <h2 className="text-center font-display uppercase text-xs tracking-widest mb-3" style={{ color: accent }}>{name}</h2>
+    <h2 className="text-center uppercase text-xs tracking-[0.2em] mb-3" style={{ color: accent, ...fontStyle, fontWeight: 600 }}>{name}</h2>
   );
 }
 
@@ -223,13 +270,13 @@ function AllergenChips({ codes, lang, textColor }) {
   );
 }
 
-// Design "Classique"/"Moderne" : liste ou grille sobre, cohérente avec l'identité visuelle Chefup.
+// Design "Classique"/"Moderne" : liste ou grille sobre, identité Chefup, typographie Oswald.
 function ClassicDish({ r, lang, accent, theme }) {
   const description = r.menuDescription?.[lang] || "";
   return (
     <>
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="font-display uppercase text-sm tracking-wide" style={{ color: theme.text }}>{r.name}</h3>
+        <h3 className="uppercase text-sm tracking-wide" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{r.name}</h3>
         <span className="text-sm font-semibold shrink-0" style={{ color: accent }}>{r.sellPrice.toFixed(2)} €</span>
       </div>
       {description && <p className="text-xs mt-1.5 leading-relaxed" style={{ color: theme.muted }}>{description}</p>}
@@ -238,15 +285,15 @@ function ClassicDish({ r, lang, accent, theme }) {
   );
 }
 
-// Design "Élégant" : ticket gastronomique classique — nom et prix reliés par une ligne pointillée,
-// description en italique discrète, fond clair/crème plutôt que le sombre habituel de l'app.
+// Design "Élégant" : ticket gastronomique — nom en Playfair Display, nom et prix reliés par une
+// ligne pointillée, description en italique discrète, fond crème/papier plutôt que sombre.
 function ElegantDish({ r, lang, accent, theme }) {
   const description = r.menuDescription?.[lang] || "";
   return (
     <div>
       <div className="flex items-end gap-2">
-        <h3 className="text-sm tracking-wide shrink-0" style={{ color: theme.text }}>{r.name}</h3>
-        <span className="flex-1 border-b mb-1" style={{ borderStyle: "dotted", borderColor: theme.border }} />
+        <h3 className="text-base tracking-wide shrink-0" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{r.name}</h3>
+        <span className="flex-1 border-b mb-1.5" style={{ borderStyle: "dotted", borderColor: theme.border }} />
         <span className="text-sm font-semibold shrink-0" style={{ color: accent }}>{r.sellPrice.toFixed(2)} €</span>
       </div>
       {description && <p className="text-xs mt-1 italic" style={{ color: theme.muted }}>{description}</p>}
@@ -255,14 +302,14 @@ function ElegantDish({ r, lang, accent, theme }) {
   );
 }
 
-// Design "Bistrot" : cartes chaleureuses avec liseré de couleur, prix en pastille — plus casual
-// et convivial, pensé pour un bistrot de quartier plutôt qu'une table gastronomique.
+// Design "Bistrot" : cartes chaleureuses, typographie Fredoka arrondie, liseré de couleur, prix
+// en pastille — plus casual et convivial qu'une table gastronomique.
 function BistroDish({ r, lang, accent, theme }) {
   const description = r.menuDescription?.[lang] || "";
   return (
-    <div className="rounded-xl p-3.5 border-l-4" style={{ background: theme.panel, borderColor: accent }}>
+    <div className="rounded-xl p-3.5 border-l-4" style={{ background: theme.pageBg, borderColor: accent }}>
       <div className="flex items-start justify-between gap-2">
-        <h3 className="font-display uppercase text-sm tracking-wide" style={{ color: theme.text }}>{r.name}</h3>
+        <h3 className="text-sm tracking-wide" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{r.name}</h3>
         <span className="text-xs font-bold rounded-full px-2.5 py-1 shrink-0 text-white" style={{ background: accent }}>
           {r.sellPrice.toFixed(2)} €
         </span>

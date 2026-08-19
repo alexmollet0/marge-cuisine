@@ -1799,7 +1799,12 @@ function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
 
 // Ligne d'un article simple déjà créé : nom/section/prix éditables en place, coût d'achat replié
 // par défaut (n'apparaît que si on clique "+ ajouter un coût") — la plupart des restaurateurs n'en
-// ont pas besoin ici, l'intérêt de ces articles est la rapidité, pas le suivi de marge.
+// ont pas besoin ici, l'intérêt de ces articles est la rapidité, pas le suivi de marge. Prix et
+// coût utilisent `NumField` (déjà utilisé partout ailleurs pour les nombres décimaux) plutôt qu'un
+// input brut — un input qui reconvertit `parseFloat` à chaque frappe empêche de taper "0,20" (dès
+// que le "0" est suivi du point, `parseFloat("0.")` vaut 0 et l'affichage revient à "0", effaçant
+// le point) : bug réel signalé par l'utilisateur. `NumField` garde un texte local pendant la frappe
+// et ne resynchronise qu'au blur, donc n'a pas ce problème.
 function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove }) {
   const [showCost, setShowCost] = useState(item.cost != null);
   return (
@@ -1822,11 +1827,9 @@ function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove }) {
             <option key={c.id} value={c.id}>{categoryLabel(c, lang)}</option>
           ))}
         </select>
-        <input
-          type="text"
-          inputMode="decimal"
+        <NumField
           value={item.sellPrice}
-          onChange={(e) => onUpdate({ sellPrice: parseFloat((e.target.value || "0").replace(",", ".")) || 0 })}
+          onChange={(v) => onUpdate({ sellPrice: v })}
           className="w-14 bg-black/20 text-white text-[11px] rounded px-1.5 py-1 outline-none text-right shrink-0"
         />
         <button onClick={onRemove} className="shrink-0 text-white/30 hover:text-[#EF4444]">
@@ -1836,11 +1839,9 @@ function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove }) {
       {showCost ? (
         <div className="flex items-center gap-1.5 mt-1.5 pl-0.5">
           <span className="text-[10px] text-white/30 shrink-0">{t("digitalMenuSimpleItemCostLabel")}</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={item.cost ?? ""}
-            onChange={(e) => onUpdate({ cost: e.target.value === "" ? null : parseFloat(e.target.value.replace(",", ".")) || 0 })}
+          <NumField
+            value={item.cost || 0}
+            onChange={(v) => onUpdate({ cost: v })}
             className="w-14 bg-black/20 text-white/70 text-[10px] rounded px-1.5 py-1 outline-none text-right"
           />
         </div>
@@ -1943,6 +1944,7 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
   const [copied, setCopied] = useState(false);
   const [logoErr, setLogoErr] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
   const logoInputRef = useRef(null);
 
   const publicUrl = userId ? `${window.location.origin}/menu/${userId}` : null;
@@ -2014,8 +2016,31 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
     // id orphelin — cohérent avec le comportement déjà existant d'une recette jamais catégorisée.
     setRecipes((rs) => rs.map((r) => (r.menuCategory === id ? { ...r, menuCategory: null } : r)));
   };
+  // Ordre d'affichage des sections sur la carte publique (2026-08-19) — jusqu'ici uniquement
+  // l'ordre de création, ce qui n'a aucune raison de correspondre à un ordre logique de menu
+  // (bug réel signalé : "les entrées sont après les plats"). Simples flèches haut/bas plutôt qu'un
+  // vrai glisser-déposer : une carte compte rarement plus de 5-6 sections, pas besoin de plus.
+  const moveCategory = (index, direction) => {
+    const next = [...categories];
+    const target = index + direction;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setMenuSettings({ ...menuSettings, customCategories: next });
+  };
 
   return (
+    <>
+    {previewOpen && publicUrl && (
+      <div className="fixed inset-0 z-[60] bg-black flex flex-col print:hidden">
+        <div className="flex items-center justify-between px-4 py-2.5 shrink-0" style={{ background: "#26221C" }}>
+          <span className="text-white/60 text-[10px] uppercase tracking-wide">{t("digitalMenuPreview")}</span>
+          <button onClick={() => setPreviewOpen(false)} className="text-white/60 hover:text-white p-1">
+            <X size={18} />
+          </button>
+        </div>
+        <iframe src={publicUrl} title="menu preview" className="flex-1 w-full border-0" />
+      </div>
+    )}
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={onClose}>
       <div
         className="rounded-2xl p-5 w-full max-w-md max-h-[85vh] flex flex-col font-body border border-white/10"
@@ -2131,14 +2156,17 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
                 </div>
                 <div className="flex items-center gap-3">
                   {publicUrl && (
-                    <a
-                      href={publicUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    // Aperçu affiché dans une iframe DANS l'app plutôt qu'un lien "nouvel onglet"
+                    // (2026-08-19) : sur téléphone (ajouté à l'écran d'accueil), un nouvel onglet
+                    // pouvait s'ouvrir sans aucun moyen de revenir en arrière — bug réel signalé
+                    // par l'utilisateur. Une iframe + un bouton fermer évite tout souci de
+                    // navigation, quel que soit le navigateur/contexte.
+                    <button
+                      onClick={() => setPreviewOpen(true)}
                       className="text-[10px] uppercase tracking-wide text-white/50 hover:text-white underline"
                     >
                       {t("digitalMenuPreview")}
-                    </a>
+                    </button>
                   )}
                   {qrDataUrl && (
                     <a
@@ -2159,14 +2187,30 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
               <Tags size={11} />
               {t("digitalMenuCategoriesLabel")}
             </div>
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {categories.map((c) => (
-                <span key={c.id} className="flex items-center gap-1 text-[11px] text-white/70 bg-black/20 rounded-full pl-2.5 pr-1.5 py-1">
-                  {categoryLabel(c, lang)}
-                  <button onClick={() => removeCategory(c.id)} className="text-white/30 hover:text-[#EF4444]">
+            <div className="space-y-1 mb-2">
+              {categories.map((c, i) => (
+                <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-white/70 bg-black/20 rounded-lg pl-1 pr-2.5 py-1">
+                  <div className="flex flex-col shrink-0">
+                    <button
+                      onClick={() => moveCategory(i, -1)}
+                      disabled={i === 0}
+                      className="text-white/30 hover:text-white disabled:opacity-20 disabled:hover:text-white/30 leading-none"
+                    >
+                      <ChevronUp size={11} />
+                    </button>
+                    <button
+                      onClick={() => moveCategory(i, 1)}
+                      disabled={i === categories.length - 1}
+                      className="text-white/30 hover:text-white disabled:opacity-20 disabled:hover:text-white/30 leading-none"
+                    >
+                      <ChevronDown size={11} />
+                    </button>
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">{categoryLabel(c, lang)}</span>
+                  <button onClick={() => removeCategory(c.id)} className="text-white/30 hover:text-[#EF4444] shrink-0">
                     <X size={10} />
                   </button>
-                </span>
+                </div>
               ))}
             </div>
             <div className="flex items-center gap-1.5">
@@ -2212,6 +2256,7 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
         </button>
       </div>
     </div>
+    </>
   );
 }
 
