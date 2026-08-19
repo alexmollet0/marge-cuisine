@@ -142,7 +142,12 @@ export default function PublicMenu({ menuId }) {
   );
 
   return (
-    <div className="min-h-screen font-body" style={{ background: theme.pageBg }}>
+    // overflow-x-hidden en filet de sécurité (2026-08-19) : un nom de plat traduit dans une langue
+    // plus longue (ex: espagnol) faisait déborder la carte hors de l'écran, obligeant à faire
+    // défiler horizontalement pour voir le prix — bug réel signalé par l'utilisateur. La vraie
+    // correction est plus bas (les noms peuvent maintenant rétrécir/passer à la ligne au lieu de
+    // pousser le reste hors du cadre), ceci n'est qu'un filet en plus, jamais la seule protection.
+    <div className="min-h-screen font-body overflow-x-hidden" style={{ background: theme.pageBg }}>
       <style>{FONT_IMPORT}</style>
       {BackLink}
       <div className="max-w-lg mx-auto px-3 py-6 sm:py-10">
@@ -241,17 +246,17 @@ function SectionHeader({ design, name, accent, theme }) {
   if (design === "elegant") {
     return (
       <div className="flex items-center gap-3 justify-center mb-5">
-        <span className="h-px flex-1 max-w-[36px]" style={{ background: accent }} />
-        <h2 className="text-sm italic tracking-wide shrink-0" style={{ color: theme.text, ...fontStyle, fontWeight: 600 }}>{name}</h2>
-        <span className="h-px flex-1 max-w-[36px]" style={{ background: accent }} />
+        <span className="h-px flex-1 max-w-[36px] shrink-0" style={{ background: accent }} />
+        <h2 className="text-sm italic tracking-wide min-w-0 text-center" style={{ color: theme.text, ...fontStyle, fontWeight: 600 }}>{name}</h2>
+        <span className="h-px flex-1 max-w-[36px] shrink-0" style={{ background: accent }} />
       </div>
     );
   }
   if (design === "bistro") {
     return (
-      <div className="flex justify-center mb-4">
+      <div className="flex justify-center mb-4 px-4">
         <span
-          className="rounded-full px-5 py-1.5 text-sm text-white"
+          className="rounded-full px-5 py-1.5 text-sm text-white text-center max-w-full"
           style={{ background: accent, ...fontStyle, fontWeight: 600 }}
         >
           {name}
@@ -325,7 +330,7 @@ function ClassicDish({ r, lang, accent, theme }) {
   return (
     <>
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="uppercase text-sm tracking-wide" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{dishName(r, lang)}</h3>
+        <h3 className="uppercase text-sm tracking-wide min-w-0" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{dishName(r, lang)}</h3>
         <span className="text-sm font-semibold shrink-0" style={{ color: accent }}>{r.sellPrice.toFixed(2)} €</span>
       </div>
       {description && <p className="text-xs mt-1.5 leading-relaxed" style={{ color: theme.muted }}>{description}</p>}
@@ -340,9 +345,9 @@ function ElegantDish({ r, lang, accent, theme }) {
   const description = r.menuDescription?.[lang] || "";
   return (
     <div>
-      <div className="flex items-end gap-2">
-        <h3 className="text-base tracking-wide shrink-0" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{dishName(r, lang)}</h3>
-        <span className="flex-1 border-b mb-1.5" style={{ borderStyle: "dotted", borderColor: theme.border }} />
+      <div className="flex items-end gap-2 flex-wrap">
+        <h3 className="text-base tracking-wide min-w-0" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{dishName(r, lang)}</h3>
+        <span className="flex-1 border-b mb-1.5 min-w-[12px]" style={{ borderStyle: "dotted", borderColor: theme.border }} />
         <span className="text-sm font-semibold shrink-0" style={{ color: accent }}>{r.sellPrice.toFixed(2)} €</span>
       </div>
       {description && <p className="text-xs mt-1 italic" style={{ color: theme.muted }}>{description}</p>}
@@ -358,7 +363,7 @@ function BistroDish({ r, lang, accent, theme }) {
   return (
     <div className="rounded-xl p-3.5 border-l-4" style={{ background: theme.pageBg, borderColor: accent }}>
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm tracking-wide" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{dishName(r, lang)}</h3>
+        <h3 className="text-sm tracking-wide min-w-0" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{dishName(r, lang)}</h3>
         <span className="text-xs font-bold rounded-full px-2.5 py-1 shrink-0 text-white" style={{ background: accent }}>
           {r.sellPrice.toFixed(2)} €
         </span>
