@@ -38,6 +38,7 @@ export default async function handler(req, res) {
       .map((r) => ({
         id: r.id,
         name: r.name || "",
+        menuNameI18n: r.menuNameI18n && typeof r.menuNameI18n === "object" ? r.menuNameI18n : {},
         sellPrice: typeof r.sellPrice === "number" ? r.sellPrice : 0,
         allergens: r.allergens || "",
         allergenCodes: Array.isArray(r.allergenCodes) ? r.allergenCodes : [],
@@ -57,6 +58,7 @@ export default async function handler(req, res) {
       .map((it) => ({
         id: it.id,
         name: it.name || "",
+        menuNameI18n: it.menuNameI18n && typeof it.menuNameI18n === "object" ? it.menuNameI18n : {},
         sellPrice: typeof it.sellPrice === "number" ? it.sellPrice : 0,
         allergens: "",
         allergenCodes: [],

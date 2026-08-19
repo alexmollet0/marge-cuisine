@@ -433,6 +433,26 @@ function detectAllergenCodes(lines, ingredientsList) {
   return Array.from(detectAllergenCodesSet(lines, ingredientsList)).sort();
 }
 
+// Reconstruit les codes bruts à partir du texte allergènes tapé À LA MAIN (2026-08-19) — sans ça,
+// un allergène ajouté manuellement (`allergensAuto: false`) apparaissait bien sur la fiche
+// imprimée (qui affiche le texte brut) mais jamais sur la carte digitale (qui n'affiche que des
+// icônes basées sur `allergenCodes`, jamais mis à jour par une saisie manuelle) — bug réel
+// signalé par l'utilisateur. Compare chaque segment séparé par une virgule aux 11 libellés connus
+// dans les 3 langues (le restaurateur peut avoir tapé en FR, ES ou EN selon la langue de l'app) ;
+// un mot non reconnu (faute de frappe, allergène non listé) ne récupère simplement pas d'icône —
+// il reste malgré tout visible tel quel sur la fiche imprimée, qui ne dépend pas de cette fonction.
+function matchAllergenCodesFromText(text) {
+  const tokens = (text || "").split(",").map((s) => normalizeAllergenText(s)).filter(Boolean);
+  const codes = new Set();
+  tokens.forEach((tok) => {
+    Object.entries(ALLERGEN_LABELS).forEach(([code, langs]) => {
+      const variants = [langs.fr, langs.es, langs.en].map((s) => normalizeAllergenText(s));
+      if (variants.includes(tok)) codes.add(code);
+    });
+  });
+  return Array.from(codes).sort();
+}
+
 // Détection "féculent" pour les suggestions contextuelles de marge (2026-08). Ce n'est pas
 // une catégorie CATEGORIES à part entière (riz/pâtes sont rangés en "epicerie", pomme de
 // terre en "legumes"), donc mots-clés sur le nom source — même principe qu'ALLERGEN_NAME_KEYWORDS.
@@ -1754,6 +1774,21 @@ function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [description, lang]);
 
+  // Traduction automatique du NOM du plat (2026-08-19) — jusqu'ici seule la description était
+  // traduite, mais un client étranger a d'abord besoin de comprendre le nom du plat lui-même
+  // ("Faux filet sauce poivre") pour se décider, pas seulement sa description. `r.name` reste la
+  // seule vérité utilisée partout ailleurs dans l'app (onglet Recettes, impression...) — seule une
+  // copie traduite (`menuNameI18n`) est calculée pour l'affichage public. `_src` mémorise le texte
+  // à partir duquel la traduction a été faite, pour ne jamais retraduire inutilement à chaque
+  // réouverture de cette fenêtre tant que le nom de la recette n'a pas changé depuis.
+  useEffect(() => {
+    if (!r.name?.trim() || r.menuNameI18n?._src === r.name) return;
+    translateMenuText(r.name, lang).then((data) => {
+      if (data) onUpdate({ menuNameI18n: { ...data, _src: r.name } });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r.name, lang, r.menuNameI18n?._src]);
+
   return (
     <div className="rounded-lg p-2.5" style={{ background: "#1B1815" }}>
       <label className="flex items-center gap-2 cursor-pointer">
@@ -1807,6 +1842,21 @@ function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
 // et ne resynchronise qu'au blur, donc n'a pas ce problème.
 function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove }) {
   const [showCost, setShowCost] = useState(item.cost != null);
+
+  // Traduction automatique du nom (2026-08-19), même principe débouncé que la description d'une
+  // recette (`MenuRecipeRow`) — le nom est ici tapé en direct (contrairement à celui d'une
+  // recette, fixé ailleurs), donc un vrai debounce est nécessaire pour ne pas relancer un appel à
+  // chaque lettre. `_src` évite de retraduire tant que le nom n'a pas changé depuis.
+  useEffect(() => {
+    if (!item.name?.trim() || item.menuNameI18n?._src === item.name) return;
+    const timer = setTimeout(async () => {
+      const data = await translateMenuText(item.name, lang);
+      if (data) onUpdate({ menuNameI18n: { ...data, _src: item.name } });
+    }, 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.name, lang, item.menuNameI18n?._src]);
+
   return (
     <div className="rounded-lg p-2" style={{ background: "#1B1815" }}>
       <div className="flex items-center gap-1.5">
@@ -1962,6 +2012,45 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
     return () => { cancelled = true; };
   }, [open, menuSettings.published, publicUrl]);
 
+  // Sections définies par le restaurateur (2026-08-18, v2) — pré-remplies avec les 4 catégories
+  // par défaut (mêmes ids qu'avant ce changement, donc compatible avec des recettes déjà
+  // catégorisées) tant qu'il n'a jamais rien personnalisé lui-même.
+  const categories = menuSettings.customCategories?.length ? menuSettings.customCategories : defaultMenuCategories();
+
+  // Rattrapage automatique des sections créées avant la traduction automatique des noms de
+  // section (v4, 2026-08-18) — ou dans l'ancien format "chaîne simple" (v3) : celles-ci restent
+  // affichées dans une seule langue quel que soit le client, bug réel signalé le 2026-08-19. Se
+  // relance à chaque rendu tant que la fenêtre est ouverte mais ne fait un appel réseau QUE s'il
+  // reste vraiment une section incomplète (repli sur `defaultMenuCategories()` inoffensif : déjà
+  // toujours complet dans les 3 langues, jamais concerné par cet effet).
+  useEffect(() => {
+    if (!open) return;
+    const strCat = categories.find((c) => typeof c.name === "string");
+    if (strCat) {
+      setMenuSettings((prev) => ({
+        ...prev,
+        customCategories: (prev.customCategories?.length ? prev.customCategories : defaultMenuCategories()).map((c) =>
+          c.id === strCat.id ? { ...c, name: { [lang]: c.name } } : c
+        ),
+      }));
+      return;
+    }
+    const incomplete = categories.find((c) => !c.name.fr || !c.name.es || !c.name.en);
+    if (!incomplete) return;
+    const sourceLang = ["fr", "es", "en"].find((l) => incomplete.name[l]);
+    if (!sourceLang) return;
+    translateMenuText(incomplete.name[sourceLang], sourceLang).then((data) => {
+      if (!data) return;
+      setMenuSettings((prev) => ({
+        ...prev,
+        customCategories: (prev.customCategories?.length ? prev.customCategories : defaultMenuCategories()).map((c) =>
+          c.id === incomplete.id ? { ...c, name: { ...c.name, ...data } } : c
+        ),
+      }));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, categories, lang]);
+
   if (!open) return null;
 
   const updateRecipe = (id, patch) => setRecipes((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -1985,10 +2074,6 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
     }
   };
 
-  // Sections définies par le restaurateur (2026-08-18, v2) — pré-remplies avec les 4 catégories
-  // par défaut (mêmes ids qu'avant ce changement, donc compatible avec des recettes déjà
-  // catégorisées) tant qu'il n'a jamais rien personnalisé lui-même.
-  const categories = menuSettings.customCategories?.length ? menuSettings.customCategories : defaultMenuCategories();
   const addCategory = async () => {
     const name = newCategoryName.trim();
     if (!name) return;
@@ -6200,7 +6285,7 @@ export default function App() {
                   </div>
                   <input
                     value={active.allergens || ""}
-                    onChange={(e) => updateRecipe({ allergens: e.target.value, allergensAuto: false })}
+                    onChange={(e) => updateRecipe({ allergens: e.target.value, allergensAuto: false, allergenCodes: matchAllergenCodesFromText(e.target.value) })}
                     placeholder={t("allergensPlaceholder")}
                     className="w-full bg-black/5 rounded p-2 text-xs outline-none focus:bg-black/10 print:hidden"
                   />

@@ -285,13 +285,20 @@ function AllergenChips({ codes, lang, textColor }) {
   );
 }
 
+// Nom du plat traduit automatiquement (2026-08-19, voir MenuRecipeRow/SimpleItemRow côté app) —
+// avec repli sur le nom d'origine si la traduction n'a pas encore eu lieu ou a échoué, pour ne
+// jamais afficher un plat sans nom.
+function dishName(r, lang) {
+  return r.menuNameI18n?.[lang] || r.name;
+}
+
 // Design "Classique"/"Moderne" : liste ou grille sobre, identité Chefup, typographie Oswald.
 function ClassicDish({ r, lang, accent, theme }) {
   const description = r.menuDescription?.[lang] || "";
   return (
     <>
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="uppercase text-sm tracking-wide" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{r.name}</h3>
+        <h3 className="uppercase text-sm tracking-wide" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{dishName(r, lang)}</h3>
         <span className="text-sm font-semibold shrink-0" style={{ color: accent }}>{r.sellPrice.toFixed(2)} €</span>
       </div>
       {description && <p className="text-xs mt-1.5 leading-relaxed" style={{ color: theme.muted }}>{description}</p>}
@@ -307,7 +314,7 @@ function ElegantDish({ r, lang, accent, theme }) {
   return (
     <div>
       <div className="flex items-end gap-2">
-        <h3 className="text-base tracking-wide shrink-0" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{r.name}</h3>
+        <h3 className="text-base tracking-wide shrink-0" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{dishName(r, lang)}</h3>
         <span className="flex-1 border-b mb-1.5" style={{ borderStyle: "dotted", borderColor: theme.border }} />
         <span className="text-sm font-semibold shrink-0" style={{ color: accent }}>{r.sellPrice.toFixed(2)} €</span>
       </div>
@@ -324,7 +331,7 @@ function BistroDish({ r, lang, accent, theme }) {
   return (
     <div className="rounded-xl p-3.5 border-l-4" style={{ background: theme.pageBg, borderColor: accent }}>
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm tracking-wide" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{r.name}</h3>
+        <h3 className="text-sm tracking-wide" style={{ color: theme.text, fontFamily: theme.headingFont, fontWeight: 600 }}>{dishName(r, lang)}</h3>
         <span className="text-xs font-bold rounded-full px-2.5 py-1 shrink-0 text-white" style={{ background: accent }}>
           {r.sellPrice.toFixed(2)} €
         </span>
