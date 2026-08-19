@@ -75,6 +75,18 @@ export default function PublicMenu({ menuId }) {
   const [lang, setLang] = useState(guessMenuLang);
   const [state, setState] = useState({ status: "loading", data: null });
   const t = (key) => TR[lang]?.[key] ?? TR.fr[key] ?? key;
+  // Vrai lien de retour plutôt qu'une iframe (2026-08-19, 2e essai — la 1ère tentative en iframe
+  // se comportait mal en pratique, signalé par l'utilisateur) : un simple `<a href="/">` fonctionne
+  // partout, y compris sans bouton retour de navigateur visible (app ajoutée à l'écran d'accueil
+  // sur téléphone). N'apparaît que si la carte a été ouverte depuis "Voir la carte" dans l'app
+  // (`?preview=1`) — jamais pour un vrai client qui scanne le QR code, qui n'a rien à faire de ce
+  // lien puisqu'il n'a pas de compte Chefup.
+  const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
+  const BackLink = isPreview ? (
+    <a href="/" className="fixed top-3 left-3 z-20 flex items-center gap-1 text-[11px] uppercase tracking-wide rounded-full px-3 py-1.5 bg-black/70 text-white backdrop-blur-sm">
+      ← Chefup
+    </a>
+  ) : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +103,7 @@ export default function PublicMenu({ menuId }) {
   if (state.status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#1B1815" }}>
+        {BackLink}
         <Loader2 className="animate-spin" style={{ color: BRAND_SOLID }} size={28} />
       </div>
     );
@@ -99,6 +112,7 @@ export default function PublicMenu({ menuId }) {
   if (state.status === "error") {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center font-body" style={{ background: "#1B1815" }}>
+        {BackLink}
         <Logo size={30} />
         <p className="text-white/60 text-sm mt-4">{t("publicMenuNotAvailable")}</p>
       </div>
@@ -130,6 +144,7 @@ export default function PublicMenu({ menuId }) {
   return (
     <div className="min-h-screen font-body" style={{ background: theme.pageBg }}>
       <style>{FONT_IMPORT}</style>
+      {BackLink}
       <div className="max-w-lg mx-auto px-3 py-6 sm:py-10">
         {/* Carte posée sur la page, plutôt que du texte à même un fond plat (v6) */}
         <div

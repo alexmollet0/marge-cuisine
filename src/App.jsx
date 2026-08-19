@@ -1944,7 +1944,6 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
   const [copied, setCopied] = useState(false);
   const [logoErr, setLogoErr] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [previewOpen, setPreviewOpen] = useState(false);
   const logoInputRef = useRef(null);
 
   const publicUrl = userId ? `${window.location.origin}/menu/${userId}` : null;
@@ -2029,18 +2028,6 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
   };
 
   return (
-    <>
-    {previewOpen && publicUrl && (
-      <div className="fixed inset-0 z-[60] bg-black flex flex-col print:hidden">
-        <div className="flex items-center justify-between px-4 py-2.5 shrink-0" style={{ background: "#26221C" }}>
-          <span className="text-white/60 text-[10px] uppercase tracking-wide">{t("digitalMenuPreview")}</span>
-          <button onClick={() => setPreviewOpen(false)} className="text-white/60 hover:text-white p-1">
-            <X size={18} />
-          </button>
-        </div>
-        <iframe src={publicUrl} title="menu preview" className="flex-1 w-full border-0" />
-      </div>
-    )}
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={onClose}>
       <div
         className="rounded-2xl p-5 w-full max-w-md max-h-[85vh] flex flex-col font-body border border-white/10"
@@ -2156,17 +2143,20 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
                 </div>
                 <div className="flex items-center gap-3">
                   {publicUrl && (
-                    // Aperçu affiché dans une iframe DANS l'app plutôt qu'un lien "nouvel onglet"
-                    // (2026-08-19) : sur téléphone (ajouté à l'écran d'accueil), un nouvel onglet
-                    // pouvait s'ouvrir sans aucun moyen de revenir en arrière — bug réel signalé
-                    // par l'utilisateur. Une iframe + un bouton fermer évite tout souci de
-                    // navigation, quel que soit le navigateur/contexte.
-                    <button
-                      onClick={() => setPreviewOpen(true)}
+                    // Navigation normale dans le MÊME onglet (2026-08-19, 2e essai) — une iframe
+                    // avait été tentée d'abord mais se comportait mal en pratique (signalé par
+                    // l'utilisateur : renvoyait à l'écran Recettes de l'app, reproductible aussi
+                    // bien sur ordinateur que sur téléphone). `?preview=1` fait apparaître un lien
+                    // "Retour à Chefup" explicite sur la carte publique (`src/PublicMenu.jsx`) —
+                    // fonctionne partout, y compris sans bouton retour visible (app ajoutée à
+                    // l'écran d'accueil), puisque c'est un vrai lien cliquable, pas une dépendance
+                    // au bouton retour du navigateur.
+                    <a
+                      href={`${publicUrl}?preview=1`}
                       className="text-[10px] uppercase tracking-wide text-white/50 hover:text-white underline"
                     >
                       {t("digitalMenuPreview")}
-                    </button>
+                    </a>
                   )}
                   {qrDataUrl && (
                     <a
@@ -2256,7 +2246,6 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
         </button>
       </div>
     </div>
-    </>
   );
 }
 
