@@ -264,23 +264,50 @@ function SectionHeader({ design, name, accent, theme }) {
   );
 }
 
-function AllergenChips({ codes, lang, textColor }) {
-  if (!codes.length) return null;
+// Reconnaît un allergène connu dans un segment de texte libre — comparaison PARTIELLE (le segment
+// contient le libellé, ou l'inverse), pas une égalité stricte : un restaurateur qui tape juste
+// "lactose" doit quand même matcher "Lait / Lactose", pas seulement une saisie identique au mot
+// près. Retourne le code trouvé, ou null si rien ne correspond.
+function normalizeAllergenSegment(s) {
+  return (s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+function matchAllergenCode(segment) {
+  const norm = normalizeAllergenSegment(segment);
+  if (!norm) return null;
+  for (const [code, langs] of Object.entries(ALLERGEN_LABELS)) {
+    const variants = [langs.fr, langs.es, langs.en].map(normalizeAllergenSegment);
+    if (variants.some((v) => v === norm || v.includes(norm) || norm.includes(v))) return code;
+  }
+  return null;
+}
+
+// Le texte brut `allergens` (2026-08-19, v8) est la SEULE source affichée — plus `allergenCodes`,
+// qui ratait tout allergène ajouté à la main dès qu'il ne correspondait pas EXACTEMENT à un
+// libellé complet ("lactose" seul ne matchait pas "Lait / Lactose") : deux tentatives de correction
+// de cette logique de correspondance ont échoué en pratique, signalé par l'utilisateur à chaque
+// fois ("il faudrait arrêter de se prendre la tête"). Le texte brut est déjà fiable et éprouvé —
+// c'est exactement ce qu'affiche la fiche allergènes imprimée, jamais en défaut. Chaque segment
+// séparé par une virgule devient un badge : icône + libellé traduit si reconnu, sinon le texte tel
+// quel (non traduit, mais jamais invisible).
+function AllergenChips({ text, lang, textColor }) {
+  const segments = (text || "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (!segments.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 mt-2">
-      {codes.map((code) => (
-        ALLERGEN_LABELS[code] ? (
+      {segments.map((seg, i) => {
+        const code = matchAllergenCode(seg);
+        const label = code ? (ALLERGEN_LABELS[code][lang] || ALLERGEN_LABELS[code].fr) : seg;
+        return (
           <span
-            key={code}
-            title={ALLERGEN_LABELS[code][lang] || ALLERGEN_LABELS[code].fr}
+            key={i}
             className="flex items-center gap-1 text-[10px] rounded-full px-2 py-0.5"
             style={{ color: textColor, background: "rgba(128,128,128,0.15)" }}
           >
-            <span>{ALLERGEN_ICONS[code] || "⚠️"}</span>
-            {ALLERGEN_LABELS[code][lang] || ALLERGEN_LABELS[code].fr}
+            <span>{code ? (ALLERGEN_ICONS[code] || "⚠️") : "⚠️"}</span>
+            {label}
           </span>
-        ) : null
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -302,7 +329,7 @@ function ClassicDish({ r, lang, accent, theme }) {
         <span className="text-sm font-semibold shrink-0" style={{ color: accent }}>{r.sellPrice.toFixed(2)} €</span>
       </div>
       {description && <p className="text-xs mt-1.5 leading-relaxed" style={{ color: theme.muted }}>{description}</p>}
-      <AllergenChips codes={r.allergenCodes} lang={lang} textColor={theme.muted} />
+      <AllergenChips text={r.allergens} lang={lang} textColor={theme.muted} />
     </>
   );
 }
@@ -319,7 +346,7 @@ function ElegantDish({ r, lang, accent, theme }) {
         <span className="text-sm font-semibold shrink-0" style={{ color: accent }}>{r.sellPrice.toFixed(2)} €</span>
       </div>
       {description && <p className="text-xs mt-1 italic" style={{ color: theme.muted }}>{description}</p>}
-      <AllergenChips codes={r.allergenCodes} lang={lang} textColor={theme.muted} />
+      <AllergenChips text={r.allergens} lang={lang} textColor={theme.muted} />
     </div>
   );
 }
@@ -337,7 +364,7 @@ function BistroDish({ r, lang, accent, theme }) {
         </span>
       </div>
       {description && <p className="text-xs mt-1.5 leading-relaxed" style={{ color: theme.muted }}>{description}</p>}
-      <AllergenChips codes={r.allergenCodes} lang={lang} textColor={theme.muted} />
+      <AllergenChips text={r.allergens} lang={lang} textColor={theme.muted} />
     </div>
   );
 }
