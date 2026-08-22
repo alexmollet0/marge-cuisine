@@ -2621,6 +2621,145 @@ function marginMessage(roundedMargin, effectiveTarget, tier, lang) {
   return roundedMargin < 50 ? tr("marginLowMsg") : tr("marginLowFixMsg");
 }
 
+// Petite barre journalière en SVG plutôt qu'une vraie librairie de graphiques (2026-08-19) —
+// "sobre et fonctionnel" demandé explicitement par l'utilisateur, et évite une dépendance de plus
+// pour un simple graphique à barres. `series` = [{date, value}], la barre la plus haute définit
+// l'échelle ; une valeur à 0 reste visible (trait fin) pour ne jamais donner l'impression d'un jour
+// manquant dans les données.
+function DailyBarChart({ series, color, height = 90 }) {
+  const max = Math.max(1, ...series.map((d) => d.value));
+  const barWidth = 100 / series.length;
+  return (
+    <svg viewBox={`0 0 100 ${height}`} preserveAspectRatio="none" className="w-full" style={{ height }}>
+      {series.map((d, i) => {
+        const h = Math.max(1, (d.value / max) * (height - 4));
+        return (
+          <rect
+            key={d.date}
+            x={i * barWidth + barWidth * 0.15}
+            y={height - h}
+            width={barWidth * 0.7}
+            height={h}
+            fill={color}
+            opacity={d.value === 0 ? 0.25 : 0.9}
+          >
+            <title>{`${d.date} : ${d.value}`}</title>
+          </rect>
+        );
+      })}
+    </svg>
+  );
+}
+
+// Tableau de bord admin (2026-08-19), demandé par l'utilisateur pour suivre visites/clics/essais/
+// abonnements/emails sans passer par des requêtes manuelles à chaque fois. Visible UNIQUEMENT
+// depuis son propre compte (onglet caché injecté par `App`, voir `isAdmin`) — jamais pour un autre
+// utilisateur Chefup, revérifié aussi côté serveur (`api/admin-dashboard.js`, l'email pourrait en
+// théorie être falsifié côté client). Style volontairement sobre (cartes + barres simples),
+// cohérent avec le reste de l'app plutôt qu'un vrai tableau de bord analytics élaboré.
+function AdminDashboard() {
+  const [state, setState] = useState({ status: "loading", data: null });
+  const [days, setDays] = useState(30);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState((s) => ({ status: "loading", data: s.data }));
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`/api/admin-dashboard?days=${days}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "dashboard error");
+        if (!cancelled) setState({ status: "ready", data });
+      } catch (e) {
+        if (!cancelled) setState({ status: "error", data: null });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [days]);
+
+  if (state.status === "loading" && !state.data) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="animate-spin text-white/40" size={24} />
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return <p className="text-white/50 text-sm text-center py-10">Impossible de charger le tableau de bord.</p>;
+  }
+
+  const { kpis, dailySeries, users } = state.data;
+  const kpiCards = [
+    { label: "Visites", value: kpis.views },
+    { label: "Clics « essai »", value: kpis.startClicks },
+    { label: "Scans", value: kpis.scans },
+    { label: "Comptes total", value: kpis.totalUsers },
+    { label: "Essais en cours", value: kpis.activeTrials },
+    { label: "Abonnés actifs", value: kpis.activeSubs },
+    { label: "Annulés", value: kpis.canceled },
+    { label: "Essais expirés", value: kpis.expiredNoSub },
+  ];
+
+  return (
+    <div className="pb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">Tableau de bord</h2>
+        <select
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="bg-black/20 text-white/70 text-xs rounded px-2 py-1.5 outline-none"
+          style={{ colorScheme: "dark" }}
+        >
+          <option value={7}>7 jours</option>
+          <option value={30}>30 jours</option>
+          <option value={90}>90 jours</option>
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+        {kpiCards.map((c) => (
+          <div key={c.label} className="rounded-xl p-3 border border-white/10" style={{ background: "#26221C" }}>
+            <div className="text-white text-xl font-display">{c.value}</div>
+            <div className="text-white/40 text-[10px] uppercase tracking-wide mt-0.5">{c.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#26221C" }}>
+        <div className="text-white/50 text-[10px] uppercase tracking-wide mb-2">Visites par jour</div>
+        <DailyBarChart series={dailySeries.map((d) => ({ date: d.date, value: d.views }))} color={BRAND_SOLID} />
+      </div>
+
+      <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#26221C" }}>
+        <div className="text-white/50 text-[10px] uppercase tracking-wide p-4 pb-2">Comptes ({users.length})</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-white/40 text-left border-b border-white/10">
+                <th className="px-4 py-2 font-normal">Email</th>
+                <th className="px-4 py-2 font-normal">Inscrit le</th>
+                <th className="px-4 py-2 font-normal">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.email} className="border-b border-white/5 last:border-0">
+                  <td className="px-4 py-2 text-white/80 whitespace-nowrap">{u.email}</td>
+                  <td className="px-4 py-2 text-white/50 whitespace-nowrap">{new Date(u.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-2 text-white/70 whitespace-nowrap">{u.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [ingredients, setIngredients] = useState(SEED_INGREDIENTS);
   const [recipes, setRecipes] = useState(buildSeedRecipes("fr"));
@@ -2643,11 +2782,18 @@ export default function App() {
   // DigitalMenuModal) — jamais stocké, récupéré une fois depuis la session déjà active
   // (AuthGate garantit qu'il y en a toujours une à ce stade).
   const [menuUserId, setMenuUserId] = useState(null);
+  // Tableau de bord admin (2026-08-19) : visible uniquement depuis le compte personnel de
+  // l'utilisateur, jamais pour un autre compte Chefup — vérifié aussi côté serveur
+  // (api/admin-dashboard.js) puisque l'email pourrait en théorie être falsifié côté client.
+  const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setMenuUserId(data.session?.user?.id || null));
+    supabase.auth.getSession().then(({ data }) => {
+      setMenuUserId(data.session?.user?.id || null);
+      setIsAdmin(data.session?.user?.email === "alexmollet0@gmail.com");
+    });
   }, []);
   const [activeId, setActiveId] = useState("r1");
-  const [activeTab, setActiveTab] = useState("recipes"); // 'recipes' | 'scanner' | 'pantry'
+  const [activeTab, setActiveTab] = useState("recipes"); // 'recipes' | 'scanner' | 'pantry' | 'admin'
   const [hidePricesPrint, setHidePricesPrint] = useState(false);
   const [allergenSheetOpen, setAllergenSheetOpen] = useState(false);
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
@@ -6622,6 +6768,8 @@ export default function App() {
             </button>
           </div>
         )}
+
+        {activeTab === "admin" && isAdmin && <AdminDashboard />}
       </main>
 
       {/* ---------------- NAVIGATION PAR ONGLETS (bas d'écran) ---------------- */}
@@ -6633,6 +6781,7 @@ export default function App() {
           { id: "recipes", label: t("recipes"), icon: Receipt },
           { id: "scanner", label: t("scanTab"), icon: Camera },
           { id: "pantry", label: t("pantry"), icon: Package },
+          ...(isAdmin ? [{ id: "admin", label: "Admin", icon: TrendingUp }] : []),
         ].map((tabDef) => {
           const TabIcon = tabDef.icon;
           const isActive = activeTab === tabDef.id;
