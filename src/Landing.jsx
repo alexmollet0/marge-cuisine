@@ -34,6 +34,7 @@ const PRICING_FEATURE_KEYS = [
   "landingPricingFeature2",
   "landingPricingFeature3",
   "landingPricingFeature4",
+  "landingPricingFeature5",
 ];
 
 const STEPS = [

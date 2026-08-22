@@ -734,7 +734,7 @@ export const TR = {
     landingPricingCta: "Démarrer mon essai gratuit", landingPricingPerMonth: "/ mois",
     landingLegalNotice: "Mentions légales", landingTerms: "CGV", landingPrivacy: "Confidentialité",
     landingPricingFeature1: "Recettes et marges illimitées", landingPricingFeature2: "Scan de factures par IA",
-    landingPricingFeature3: "Fiches techniques & allergènes imprimables", landingPricingFeature4: "Résiliable à tout moment",
+    landingPricingFeature3: "Fiches techniques & allergènes imprimables", landingPricingFeature4: "Carte digitale avec QR code", landingPricingFeature5: "Résiliable à tout moment",
   },
   es: {
     appTitle: "Chefup", saved: "Guardado", loading: "Cargando…", greeting: "Hola Chef",
@@ -963,7 +963,7 @@ export const TR = {
     landingPricingCta: "Empezar mi prueba gratuita", landingPricingPerMonth: "/ mes",
     landingLegalNotice: "Aviso legal", landingTerms: "Condiciones", landingPrivacy: "Privacidad",
     landingPricingFeature1: "Recetas y márgenes ilimitados", landingPricingFeature2: "Escaneo de facturas con IA",
-    landingPricingFeature3: "Fichas técnicas y de alérgenos imprimibles", landingPricingFeature4: "Cancelable en cualquier momento",
+    landingPricingFeature3: "Fichas técnicas y de alérgenos imprimibles", landingPricingFeature4: "Carta digital con código QR", landingPricingFeature5: "Cancelable en cualquier momento",
   },
   en: {
     appTitle: "Chefup", saved: "Saved", loading: "Loading…", greeting: "Hello Chef",
@@ -1192,7 +1192,7 @@ export const TR = {
     landingPricingCta: "Start my free trial", landingPricingPerMonth: "/ month",
     landingLegalNotice: "Legal notice", landingTerms: "Terms", landingPrivacy: "Privacy",
     landingPricingFeature1: "Unlimited recipes and margins", landingPricingFeature2: "AI invoice scanning",
-    landingPricingFeature3: "Printable spec & allergen sheets", landingPricingFeature4: "Cancel anytime",
+    landingPricingFeature3: "Printable spec & allergen sheets", landingPricingFeature4: "Digital menu with QR code", landingPricingFeature5: "Cancel anytime",
   },
 };
 
