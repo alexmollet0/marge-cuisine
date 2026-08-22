@@ -2652,11 +2652,12 @@ function DailyBarChart({ series, color, height = 90 }) {
 }
 
 // Tableau de bord admin (2026-08-19), demandé par l'utilisateur pour suivre visites/clics/essais/
-// abonnements/emails sans passer par des requêtes manuelles à chaque fois. Visible UNIQUEMENT
-// depuis son propre compte (onglet caché injecté par `App`, voir `isAdmin`) — jamais pour un autre
-// utilisateur Chefup, revérifié aussi côté serveur (`api/admin-dashboard.js`, l'email pourrait en
-// théorie être falsifié côté client). Style volontairement sobre (cartes + barres simples),
-// cohérent avec le reste de l'app plutôt qu'un vrai tableau de bord analytics élaboré.
+// abonnements/emails sans passer par des requêtes manuelles à chaque fois. Ouvert en plein écran
+// depuis un bouton "Admin" dans la fenêtre "Mon compte" (voir `accountMenuOpen`), visible
+// UNIQUEMENT depuis son propre compte (`isAdmin`) — jamais pour un autre utilisateur Chefup,
+// revérifié aussi côté serveur (`api/admin-dashboard.js`, l'email pourrait en théorie être
+// falsifié côté client). Style volontairement sobre (cartes + barres simples), cohérent avec le
+// reste de l'app plutôt qu'un vrai tableau de bord analytics élaboré.
 function AdminDashboard() {
   const [state, setState] = useState({ status: "loading", data: null });
   const [days, setDays] = useState(30);
@@ -2786,6 +2787,7 @@ export default function App() {
   // l'utilisateur, jamais pour un autre compte Chefup — vérifié aussi côté serveur
   // (api/admin-dashboard.js) puisque l'email pourrait en théorie être falsifié côté client.
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminDashboardOpen, setAdminDashboardOpen] = useState(false);
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setMenuUserId(data.session?.user?.id || null);
@@ -2793,7 +2795,7 @@ export default function App() {
     });
   }, []);
   const [activeId, setActiveId] = useState("r1");
-  const [activeTab, setActiveTab] = useState("recipes"); // 'recipes' | 'scanner' | 'pantry' | 'admin'
+  const [activeTab, setActiveTab] = useState("recipes"); // 'recipes' | 'scanner' | 'pantry'
   const [hidePricesPrint, setHidePricesPrint] = useState(false);
   const [allergenSheetOpen, setAllergenSheetOpen] = useState(false);
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
@@ -4798,9 +4800,31 @@ export default function App() {
             >
               <Mail size={12} /> {t("contactButton")}
             </button>
+            {isAdmin && (
+              <button
+                onClick={() => { setAccountMenuOpen(false); setAdminDashboardOpen(true); }}
+                className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] flex items-center justify-center gap-2 mb-2"
+              >
+                <TrendingUp size={12} /> Admin
+              </button>
+            )}
             <button onClick={() => setAccountMenuOpen(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]">
               {t("close")}
             </button>
+          </div>
+        </div>
+      )}
+
+      {adminDashboardOpen && isAdmin && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col print:hidden">
+          <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-white/10" style={{ background: "#26221C" }}>
+            <span className="text-white font-display uppercase text-sm tracking-wide">Tableau de bord</span>
+            <button onClick={() => setAdminDashboardOpen(false)} className="text-white/60 hover:text-white p-1">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4" style={{ background: "#1B1815" }}>
+            <AdminDashboard />
           </div>
         </div>
       )}
@@ -6768,8 +6792,6 @@ export default function App() {
             </button>
           </div>
         )}
-
-        {activeTab === "admin" && isAdmin && <AdminDashboard />}
       </main>
 
       {/* ---------------- NAVIGATION PAR ONGLETS (bas d'écran) ---------------- */}
@@ -6781,7 +6803,6 @@ export default function App() {
           { id: "recipes", label: t("recipes"), icon: Receipt },
           { id: "scanner", label: t("scanTab"), icon: Camera },
           { id: "pantry", label: t("pantry"), icon: Package },
-          ...(isAdmin ? [{ id: "admin", label: "Admin", icon: TrendingUp }] : []),
         ].map((tabDef) => {
           const TabIcon = tabDef.icon;
           const isActive = activeTab === tabDef.id;
