@@ -118,11 +118,11 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           <div className="space-y-1.5 text-xs">
             <div className="flex justify-between text-white/50">
               <span>{t("landingPreviewCost")}</span>
-              <span className="text-white/80">5,20 €</span>
+              <span className="text-white/80">4,80 €</span>
             </div>
             <div className="flex justify-between text-white/50">
               <span>{t("landingPreviewPrice")}</span>
-              <span className="text-white/80">20,90 €</span>
+              <span className="text-white/80">21 €</span>
             </div>
           </div>
         </div>
