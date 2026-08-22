@@ -2734,6 +2734,37 @@ function AdminDashboard() {
         <DailyBarChart series={dailySeries.map((d) => ({ date: d.date, value: d.views }))} color={BRAND_SOLID} />
       </div>
 
+      {/* Détail jour par jour (2026-08-19) — le graphique seul ne suffisait pas pour savoir
+          précisément "ma vidéo TikTok du 19 août m'a rapporté combien de visites", demandé
+          explicitement par l'utilisateur. Un chiffre exact par ligne, pas une barre à interpréter. */}
+      <div className="rounded-xl border border-white/10 overflow-hidden mb-5" style={{ background: "#26221C" }}>
+        <div className="text-white/50 text-[10px] uppercase tracking-wide p-4 pb-2">Détail par jour</div>
+        <div className="overflow-x-auto max-h-64 overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-white/40 text-left border-b border-white/10">
+                <th className="px-4 py-2 font-normal">Date</th>
+                <th className="px-4 py-2 font-normal">Visites</th>
+                <th className="px-4 py-2 font-normal">Clics "essai"</th>
+                <th className="px-4 py-2 font-normal">Scans</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...dailySeries].reverse().map((d) => (
+                <tr key={d.date} className="border-b border-white/5 last:border-0">
+                  <td className="px-4 py-2 text-white/80 whitespace-nowrap">
+                    {new Date(d.date + "T00:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                  </td>
+                  <td className="px-4 py-2 text-white/70 whitespace-nowrap">{d.views}</td>
+                  <td className="px-4 py-2 text-white/70 whitespace-nowrap">{d.startClicks}</td>
+                  <td className="px-4 py-2 text-white/70 whitespace-nowrap">{d.scans}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#26221C" }}>
         <div className="text-white/50 text-[10px] uppercase tracking-wide p-4 pb-2">Comptes ({users.length})</div>
         <div className="overflow-x-auto">

@@ -3,7 +3,13 @@ import { Receipt, Percent, Printer, Package } from "lucide-react";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
 
 // Fire-and-forget, jamais bloquant pour le visiteur — voir api/landing.js (POST).
+// `?notrack=1` dans l'URL désactive le comptage (2026-08-19) : demandé par l'utilisateur qui
+// consulte souvent son propre site (téléphone + ordinateur) et voulait ne plus fausser ses propres
+// statistiques — utile aussi pour Claude, qui vérifie régulièrement le site après un déploiement.
+// Mettre ce lien en favori (`https://getchefup.com/?notrack=1`) sur chaque appareil utilisé pour
+// se contrôler soi-même.
 function logLandingEvent(event) {
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("notrack") === "1") return;
   fetch("/api/landing", {
     method: "POST",
     headers: { "content-type": "application/json" },
