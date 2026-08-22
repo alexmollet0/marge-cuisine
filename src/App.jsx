@@ -1289,13 +1289,19 @@ function effectiveUnitPrice(ing) {
   return sup.price / (1 - loss / 100);
 }
 
-// Variation par rapport à la dernière mise à jour de prix connue (les 2 dernières
-// entrées de l'historique, tous fournisseurs confondus par simplicité — voir note
-// dans CLAUDE.md sur la limite si l'ingrédient a plusieurs fournisseurs à prix différents).
-// Retourne null s'il n'y a pas assez d'historique pour comparer.
+// Variation par rapport à la dernière mise à jour de prix connue du MÊME fournisseur actif
+// (les 2 dernières entrées d'historique qui lui appartiennent). Filtré par supplierId (ou par
+// nom pour les entrées anciennes sans supplierId, avant ce correctif) pour ne jamais comparer
+// le prix actuel à celui d'un AUTRE fournisseur de cet ingrédient — bug réel trouvé par
+// l'utilisateur (2026-08-22) : un ingrédient avec 2 fournisseurs (ex: une estimation de
+// départ à 1€ jamais nettoyée, à côté du vrai fournisseur à 7,50€) pouvait comparer une
+// nouvelle saisie à ce mauvais fournisseur et afficher une variation absurde (ex: 900%).
+// Retourne null s'il n'y a pas assez d'historique pour ce fournisseur pour comparer.
 function priceVariation(ing) {
-  const h = ing?.history;
-  if (!h || h.length < 2) return null;
+  const sup = activeSupplier(ing);
+  if (!sup) return null;
+  const h = (ing?.history || []).filter((e) => (e.supplierId ? e.supplierId === sup.id : e.supplierName === sup.name));
+  if (h.length < 2) return null;
   const previous = h[h.length - 2].price;
   const current = h[h.length - 1].price;
   if (!previous) return null;
@@ -3144,7 +3150,7 @@ export default function App() {
         if (!sup) return ing;
         const history =
           newPrice !== sup.price
-            ? [...(ing.history || []), { date: today(), price: newPrice, supplierName: sup.name }].slice(-15)
+            ? [...(ing.history || []), { date: today(), price: newPrice, supplierName: sup.name, supplierId: sup.id }].slice(-15)
             : ing.history;
         return {
           ...ing,
@@ -3221,7 +3227,7 @@ export default function App() {
       let suppliers, selectedSupplierId, history = i.history || [];
       if (currentSup) {
         if (wizardData.price !== currentSup.price) {
-          history = [...history, { date: today(), price: wizardData.price, supplierName: currentSup.name }].slice(-15);
+          history = [...history, { date: today(), price: wizardData.price, supplierName: currentSup.name, supplierId: currentSup.id }].slice(-15);
         }
         suppliers = i.suppliers.map((s) => (s.id === currentSup.id ? { ...s, price: wizardData.price, priceSource: wizardData.isEstimate ? "estimate" : "manual" } : s));
         selectedSupplierId = i.selectedSupplierId;
@@ -3266,7 +3272,7 @@ export default function App() {
       const suppliers = i.suppliers.map((s) => {
         if (s.id !== supId) return s;
         if (field === "price" && value !== s.price) {
-          historyPatch = [...historyPatch, { date: today(), price: value, supplierName: s.name }].slice(-15);
+          historyPatch = [...historyPatch, { date: today(), price: value, supplierName: s.name, supplierId: s.id }].slice(-15);
           return { ...s, price: value, priceSource: "manual" };
         }
         return { ...s, [field]: value };
@@ -4305,7 +4311,7 @@ export default function App() {
         category: catalogGuess ? catalogGuess.category : "autres",
         selectedSupplierId: sId,
         suppliers: [{ id: sId, name: supplierName, price: finalPrice, priceSource: "scan" }],
-        history: [{ date: today(), price: finalPrice, supplierName }],
+        history: [{ date: today(), price: finalPrice, supplierName, supplierId: sId }],
         lastUpdated: today(),
       };
       setIngredients((ings) => [...ings, ni]);
@@ -4330,7 +4336,11 @@ export default function App() {
             suppliers = [...suppliers, { id: newSupplierId, name: supplierName, price: finalPrice, priceSource: "scan" }];
             newSelectedSupplierId = newSupplierId;
           }
-          const history = [...(ing.history || []), { date: today(), price: finalPrice, supplierName }].slice(-15);
+          const priorPrice = existing ? existing.price : undefined;
+          const history =
+            finalPrice !== priorPrice
+              ? [...(ing.history || []), { date: today(), price: finalPrice, supplierName, supplierId: newSelectedSupplierId }].slice(-15)
+              : ing.history;
           const renamed = item.renameOnImport && item.name ? { name: item.name, catalogId: null } : {};
           return { ...ing, unit: finalUnit, suppliers, history, lastUpdated: today(), ...renamed, selectedSupplierId: newSelectedSupplierId };
         })
