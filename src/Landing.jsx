@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Receipt, Percent, Printer, Package } from "lucide-react";
+import { Receipt, Percent, Printer, Package, QrCode } from "lucide-react";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
 
 // Fire-and-forget, jamais bloquant pour le visiteur — voir api/landing.js (POST).
@@ -20,6 +20,7 @@ function logLandingEvent(event) {
 const FEATURES = [
   { icon: Receipt, titleKey: "landingFeatureScanTitle", descKey: "landingFeatureScanDesc" },
   { icon: Percent, titleKey: "landingFeatureMarginTitle", descKey: "landingFeatureMarginDesc" },
+  { icon: QrCode, titleKey: "landingFeatureMenuTitle", descKey: "landingFeatureMenuDesc" },
   { icon: Printer, titleKey: "landingFeaturePrintTitle", descKey: "landingFeaturePrintDesc" },
   { icon: Package, titleKey: "landingFeaturePantryTitle", descKey: "landingFeaturePantryDesc" },
 ];
@@ -83,6 +84,7 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
               {t("landingCtaLogin")}
             </button>
           </div>
+          <p className="text-emerald-400/90 text-xs font-semibold mt-3">{t("landingPricingTrial")}</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
