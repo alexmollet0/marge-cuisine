@@ -1,6 +1,10 @@
 import React, { useEffect } from "react";
-import { Receipt, Percent, Printer, Package, QrCode } from "lucide-react";
+import { Receipt, Percent, Printer, Package, QrCode, Camera } from "lucide-react";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
+
+// Même vert que TIER_COLORS.high (src/App.jsx, marge "haute") — dupliqué ici plutôt qu'exporté
+// pour ne pas élargir la surface exportée d'App.jsx pour une seule couleur déjà stable.
+const MARGIN_HIGH_COLOR = "#10B981";
 
 // Fire-and-forget, jamais bloquant pour le visiteur — voir api/landing.js (POST).
 // `?notrack=1` dans l'URL désactive le comptage (2026-08-19) : demandé par l'utilisateur qui
@@ -30,6 +34,12 @@ const PRICING_FEATURE_KEYS = [
   "landingPricingFeature2",
   "landingPricingFeature3",
   "landingPricingFeature4",
+];
+
+const STEPS = [
+  { icon: Camera, titleKey: "landingStep1Title", descKey: "landingStep1Desc" },
+  { icon: Percent, titleKey: "landingStep2Title", descKey: "landingStep2Desc" },
+  { icon: QrCode, titleKey: "landingStep3Title", descKey: "landingStep3Desc" },
 ];
 
 // Écran d'accueil public, montré avant le formulaire de connexion tant que
@@ -85,6 +95,62 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
             </button>
           </div>
           <p className="text-emerald-400/90 text-xs font-semibold mt-3">{t("landingPricingTrial")}</p>
+          <p className="text-white/40 text-xs italic mt-5 max-w-md mx-auto">{t("billingFounderStory")}</p>
+        </div>
+
+        {/* Aperçu illustratif (2026-08-19) : pas une vraie capture d'écran (indisponible dans cet
+            environnement), mais une reconstitution simplifiée d'une fiche recette pour donner un
+            avant-goût concret plutôt que de tout décrire en texte — demandé par l'utilisateur pour
+            améliorer la conversion d'un trafic froid (TikTok) qui ne connaît pas encore l'app. */}
+        <div
+          className="max-w-xs mx-auto rounded-2xl p-4 border border-white/10 mb-12"
+          style={{ background: "#26221C" }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-white font-display uppercase text-xs tracking-wide">{t("landingPreviewDish")}</span>
+            <span
+              className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full font-semibold shrink-0"
+              style={{ background: `${MARGIN_HIGH_COLOR}22`, color: MARGIN_HIGH_COLOR }}
+            >
+              75% {t("landingPreviewMarginLabel")}
+            </span>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between text-white/50">
+              <span>{t("landingPreviewCost")}</span>
+              <span className="text-white/80">5,20 €</span>
+            </div>
+            <div className="flex justify-between text-white/50">
+              <span>{t("landingPreviewPrice")}</span>
+              <span className="text-white/80">20,90 €</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-12">
+          <h2 className="text-center font-display text-white/90 uppercase text-xs tracking-widest mb-6">
+            {t("landingHowItWorksTitle")}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {STEPS.map(({ icon: Icon, titleKey, descKey }, i) => (
+              <div key={titleKey} className="text-center px-2">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3 font-display text-sm relative"
+                  style={{ background: `${BRAND_SOLID}22`, color: BRAND_SOLID }}
+                >
+                  <Icon size={18} />
+                  <span
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] flex items-center justify-center text-white font-semibold"
+                    style={{ background: BRAND_GRADIENT }}
+                  >
+                    {i + 1}
+                  </span>
+                </div>
+                <h3 className="text-white font-display uppercase text-xs tracking-wide mb-1.5">{t(titleKey)}</h3>
+                <p className="text-white/50 text-xs leading-relaxed">{t(descKey)}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
