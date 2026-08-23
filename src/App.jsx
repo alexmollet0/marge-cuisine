@@ -2731,6 +2731,10 @@ function activityDetail(e) {
 function AdminDashboard() {
   const [state, setState] = useState({ status: "loading", data: null });
   const [days, setDays] = useState(30);
+  // Filtre du flux d'activité sur un seul compte (2026-08-23), demandé après le 2e essai gratuit
+  // réel — cliquer un email (dans "Comptes" ou directement dans le flux) isole ses actions au lieu
+  // de tout mélanger. Purement côté client (le flux complet est déjà rapatrié en une requête).
+  const [selectedEmail, setSelectedEmail] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -2771,6 +2775,7 @@ function AdminDashboard() {
   }
 
   const { kpis, dailySeries, users, activityFeed = [] } = state.data;
+  const visibleActivity = selectedEmail ? activityFeed.filter((e) => e.email === selectedEmail) : activityFeed;
   const kpiCards = [
     { label: "Visites", value: kpis.views },
     { label: "Clics « essai »", value: kpis.startClicks },
@@ -2812,9 +2817,22 @@ function AdminDashboard() {
           (nombre de lignes, alertes) — voir api/scan-events.js (écriture) et
           api/admin-dashboard.js (lecture). Se rafraîchit tout seul (voir le useEffect ci-dessus). */}
       <div className="rounded-xl border border-white/10 overflow-hidden mb-5" style={{ background: "#26221C" }}>
-        <div className="flex items-center justify-between p-4 pb-2">
-          <div className="text-white/50 text-[10px] uppercase tracking-wide">Activité récente (tous comptes)</div>
-          <div className="text-white/30 text-[10px]">Se rafraîchit automatiquement</div>
+        <div className="flex items-center justify-between p-4 pb-2 gap-2 flex-wrap">
+          <div className="text-white/50 text-[10px] uppercase tracking-wide">
+            Activité récente {selectedEmail ? "" : "(tous comptes)"}
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedEmail && (
+              <button
+                onClick={() => setSelectedEmail(null)}
+                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full"
+                style={{ background: BRAND_SOLID, color: "white" }}
+              >
+                {selectedEmail} <X size={11} />
+              </button>
+            )}
+            <div className="text-white/30 text-[10px]">Se rafraîchit automatiquement</div>
+          </div>
         </div>
         <div className="overflow-x-auto max-h-96 overflow-y-auto">
           <table className="w-full text-xs">
@@ -2827,17 +2845,25 @@ function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {activityFeed.length === 0 && (
+              {visibleActivity.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-white/40 text-center">Aucune activité enregistrée pour l'instant.</td>
+                  <td colSpan={4} className="px-4 py-4 text-white/40 text-center">
+                    {selectedEmail ? "Aucune activité pour ce compte." : "Aucune activité enregistrée pour l'instant."}
+                  </td>
                 </tr>
               )}
-              {activityFeed.map((e) => (
+              {visibleActivity.map((e) => (
                 <tr key={e.id} className="border-b border-white/5 last:border-0">
                   <td className="px-4 py-2 text-white/50 whitespace-nowrap">
                     {new Date(e.createdAt).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </td>
-                  <td className="px-4 py-2 text-white/80 whitespace-nowrap">{e.email}</td>
+                  <td
+                    className="px-4 py-2 text-white/80 whitespace-nowrap cursor-pointer hover:underline"
+                    onClick={() => setSelectedEmail(e.email)}
+                    title="Filtrer sur ce compte"
+                  >
+                    {e.email}
+                  </td>
                   <td className="px-4 py-2 text-white/70 whitespace-nowrap">{ACTIVITY_LABELS[e.type] || e.type}</td>
                   <td className="px-4 py-2 text-white/50">{activityDetail(e)}</td>
                 </tr>
@@ -2884,7 +2910,9 @@ function AdminDashboard() {
       </div>
 
       <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#26221C" }}>
-        <div className="text-white/50 text-[10px] uppercase tracking-wide p-4 pb-2">Comptes ({users.length})</div>
+        <div className="text-white/50 text-[10px] uppercase tracking-wide p-4 pb-2">
+          Comptes ({users.length}) — clique un compte pour filtrer son activité ci-dessus
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
@@ -2896,7 +2924,11 @@ function AdminDashboard() {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.email} className="border-b border-white/5 last:border-0">
+                <tr
+                  key={u.email}
+                  onClick={() => setSelectedEmail(u.email)}
+                  className={`border-b border-white/5 last:border-0 cursor-pointer hover:bg-white/5 ${selectedEmail === u.email ? "bg-white/5" : ""}`}
+                >
                   <td className="px-4 py-2 text-white/80 whitespace-nowrap">{u.email}</td>
                   <td className="px-4 py-2 text-white/50 whitespace-nowrap">{new Date(u.createdAt).toLocaleDateString()}</td>
                   <td className="px-4 py-2 text-white/70 whitespace-nowrap">{u.status}</td>
