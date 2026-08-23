@@ -42,6 +42,9 @@ import {
   LogIn,
   ChefHat,
   Smartphone,
+  Share,
+  MoreVertical,
+  ArrowRight,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -550,6 +553,8 @@ export const TR = {
     billingManageSubscription: "Abonnement", billingPortalError: "Impossible d'ouvrir la page d'abonnement, réessaie dans un instant.",
     myAccount: "Mon compte",
     installAppButton: "Installer l'app", installModalTitle: "Installer Chefup",
+    installBannerText: "Installe Chefup sur ton téléphone pour l'ouvrir en un tap, comme une vraie app.",
+    installDiagramShareLabel: "Partager", installDiagramMenuLabel: "Menu", installDiagramHomeLabel: "Écran d'accueil", installDiagramInstallLabel: "Installer",
     installInstructionsIOS: "Appuie sur le bouton Partager (le carré avec la flèche) en bas de Safari, puis choisis « Sur l'écran d'accueil ».",
     installInstructionsAndroid: "Appuie sur le menu ⋮ de Chrome, puis choisis « Installer l'application » (ou « Ajouter à l'écran d'accueil »).",
     installInstructionsGeneric: "Cherche « Ajouter à l'écran d'accueil » ou « Installer l'application » dans le menu de ton navigateur.",
@@ -783,6 +788,8 @@ export const TR = {
     billingManageSubscription: "Suscripción", billingPortalError: "No se pudo abrir la página de suscripción, inténtalo de nuevo en un momento.",
     myAccount: "Mi cuenta",
     installAppButton: "Instalar la app", installModalTitle: "Instalar Chefup",
+    installBannerText: "Instala Chefup en tu teléfono para abrirla en un toque, como una app de verdad.",
+    installDiagramShareLabel: "Compartir", installDiagramMenuLabel: "Menú", installDiagramHomeLabel: "Pantalla de inicio", installDiagramInstallLabel: "Instalar",
     installInstructionsIOS: "Toca el botón Compartir (el cuadrado con la flecha) en la parte inferior de Safari y elige «Añadir a pantalla de inicio».",
     installInstructionsAndroid: "Toca el menú ⋮ de Chrome y elige «Instalar aplicación» (o «Añadir a pantalla de inicio»).",
     installInstructionsGeneric: "Busca «Añadir a pantalla de inicio» o «Instalar aplicación» en el menú de tu navegador.",
@@ -1016,6 +1023,8 @@ export const TR = {
     billingManageSubscription: "Subscription", billingPortalError: "Couldn't open the subscription page, try again in a moment.",
     myAccount: "My account",
     installAppButton: "Install the app", installModalTitle: "Install Chefup",
+    installBannerText: "Install Chefup on your phone to open it in one tap, like a real app.",
+    installDiagramShareLabel: "Share", installDiagramMenuLabel: "Menu", installDiagramHomeLabel: "Home screen", installDiagramInstallLabel: "Install",
     installInstructionsIOS: "Tap the Share button (the square with an arrow) at the bottom of Safari, then choose \"Add to Home Screen\".",
     installInstructionsAndroid: "Tap Chrome's ⋮ menu, then choose \"Install app\" (or \"Add to Home screen\").",
     installInstructionsGeneric: "Look for \"Add to Home screen\" or \"Install app\" in your browser's menu.",
@@ -2687,6 +2696,35 @@ function marginMessage(roundedMargin, effectiveTarget, tier, lang) {
 // pour un simple graphique à barres. `series` = [{date, value}], la barre la plus haute définit
 // l'échelle ; une valeur à 0 reste visible (trait fin) pour ne jamais donner l'impression d'un jour
 // manquant dans les données.
+// Petit schéma "étape 1 → étape 2" pour la fenêtre d'instructions d'installation (2026-08-23) —
+// demandé par l'utilisateur, du texte seul étant jugé pas assez clair. Une icône représentant le
+// bouton réel du navigateur (partage iOS / menu ⋮ Android), un point qui pulse pour attirer l'œil
+// dessus, une flèche, et l'icône d'arrivée (écran d'accueil). Volontairement schématique plutôt
+// qu'une vraie capture d'écran (qui se périmerait au moindre changement d'interface du navigateur).
+function InstallDiagram({ sourceIcon: SourceIcon, sourceLabel, targetLabel }) {
+  return (
+    <div className="flex items-center justify-center gap-3 my-4 py-4 rounded-xl" style={{ background: "#1B1815" }}>
+      <div className="flex flex-col items-center gap-1.5">
+        <div className="relative">
+          <div className="w-11 h-11 rounded-xl border border-white/20 flex items-center justify-center">
+            <SourceIcon size={18} className="text-white/70" />
+          </div>
+          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-ping" style={{ background: BRAND_SOLID }} />
+          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full" style={{ background: BRAND_SOLID }} />
+        </div>
+        <span className="text-white/40 text-[10px]">{sourceLabel}</span>
+      </div>
+      <ArrowRight size={18} className="text-white/25 shrink-0" />
+      <div className="flex flex-col items-center gap-1.5">
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{ background: BRAND_GRADIENT }}>
+          <Smartphone size={18} className="text-white" />
+        </div>
+        <span className="text-white/40 text-[10px]">{targetLabel}</span>
+      </div>
+    </div>
+  );
+}
+
 function DailyBarChart({ series, color, height = 90 }) {
   const max = Math.max(1, ...series.map((d) => d.value));
   const barWidth = 100 / series.length;
@@ -3128,6 +3166,16 @@ export default function App() {
   // instructions à la place (`installInstructionsOpen`).
   const [installPromptReady, setInstallPromptReady] = useState(!!window.__chefupInstallPrompt);
   const [installInstructionsOpen, setInstallInstructionsOpen] = useState(false);
+  // Bandeau discret sur l'écran d'accueil des recettes (2026-08-23) : le bouton dans "Mon compte"
+  // était jugé trop caché par l'utilisateur. Ignorable sans y toucher (juste une croix, jamais
+  // bloquant), mémorisé en localStorage pour ne plus jamais réapparaître une fois fermé.
+  const [installBannerDismissed, setInstallBannerDismissed] = useState(() => {
+    try { return localStorage.getItem("chefup:installBannerDismissed") === "1"; } catch { return false; }
+  });
+  const dismissInstallBanner = () => {
+    setInstallBannerDismissed(true);
+    try { localStorage.setItem("chefup:installBannerDismissed", "1"); } catch {}
+  };
   const isStandaloneApp =
     typeof window !== "undefined" &&
     (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator?.standalone === true);
@@ -5145,10 +5193,15 @@ export default function App() {
             style={{ background: "#26221C" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-1">
               <Smartphone size={16} className="text-[#8B5CF6]" />
               <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("installModalTitle")}</h3>
             </div>
+            <InstallDiagram
+              sourceIcon={isIOSDevice ? Share : MoreVertical}
+              sourceLabel={isIOSDevice ? t("installDiagramShareLabel") : t("installDiagramMenuLabel")}
+              targetLabel={isIOSDevice ? t("installDiagramHomeLabel") : t("installDiagramInstallLabel")}
+            />
             <p className="text-white/70 text-sm mb-5">
               {isIOSDevice ? t("installInstructionsIOS") : t("installInstructionsAndroid")}
             </p>
@@ -6287,6 +6340,30 @@ export default function App() {
               <span className="font-display text-white/50 text-[11px] uppercase tracking-widest">{t("appTitle")}</span>
             </div>
             <h1 className="font-display text-white text-xl mb-5">{t("greeting")}</h1>
+
+            {/* Bandeau "Installer l'app" (2026-08-23) : visible dès l'écran d'accueil, pas juste
+                enfoui dans "Mon compte" — demandé explicitement par l'utilisateur, qui trouvait
+                l'ancien emplacement pas assez visible. Discret et ignorable (juste une croix). */}
+            {!isStandaloneApp && !installBannerDismissed && (
+              <div className="flex items-center gap-2.5 mb-4 rounded-xl pl-3 pr-2 py-2.5 border border-white/10" style={{ background: "#26221C" }}>
+                <div className="relative shrink-0">
+                  <Smartphone size={16} className="text-[#8B5CF6]" />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-ping" style={{ background: "#22D3EE" }} />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ background: "#22D3EE" }} />
+                </div>
+                <span className="text-white/70 text-xs flex-1 leading-snug">{t("installBannerText")}</span>
+                <button
+                  onClick={handleInstallClick}
+                  className="text-[11px] font-display uppercase tracking-wide px-3 py-1.5 rounded-full shrink-0 active:scale-95 transition-transform"
+                  style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                >
+                  {t("installAppButton")}
+                </button>
+                <button onClick={dismissInstallBanner} className="text-white/30 hover:text-white/60 shrink-0 p-1" title={t("close")}>
+                  <X size={14} />
+                </button>
+              </div>
+            )}
 
             {/* Message d'accueil orienté action, distinct du rappel plus tardif dans l'onglet
                 garde-manger (celui-ci parle de "prix estimé", un terme que le tout premier
