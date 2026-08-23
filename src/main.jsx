@@ -45,6 +45,24 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
 }
+
+// Capture de l'invite d'installation Chrome/Edge (2026-08-23), pour un vrai bouton "Installer
+// l'application" DANS l'app plutôt que de compter sur l'utilisateur pour trouver le menu du
+// navigateur lui-même (demandé par l'utilisateur après un test réel où il ne trouvait rien).
+// Chrome ne déclenche cet événement que si le site est jugé installable (manifest + service
+// worker, voir plus haut) — d'où `window.__chefupInstallPrompt`, lu par le bouton dans App.jsx
+// (accountMenuOpen). ⚠️ Sur iOS Safari, cet événement n'existe pas du tout — Apple interdit à
+// n'importe quel site de déclencher "Sur l'écran d'accueil" par programme, seul le geste manuel
+// (bouton Partager) fonctionne ; App.jsx affiche des instructions à la place dans ce cas.
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  window.__chefupInstallPrompt = e;
+  window.dispatchEvent(new Event("chefup:install-available"));
+});
+window.addEventListener("appinstalled", () => {
+  window.__chefupInstallPrompt = null;
+  window.dispatchEvent(new Event("chefup:install-available"));
+});
 // Signal le plus direct d'une restauration depuis le bfcache : à ne jamais laisser passer sans
 // vérifier, c'est exactement le scénario qui a caché le correctif du scanner sur un téléphone.
 window.addEventListener("pageshow", (event) => {

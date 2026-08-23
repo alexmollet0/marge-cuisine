@@ -41,6 +41,7 @@ import {
   Globe,
   LogIn,
   ChefHat,
+  Smartphone,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -548,6 +549,10 @@ export const TR = {
     billingSubscribeButton: "S'abonner maintenant", billingSecureNote: "Paiement sécurisé par Stripe.", billingCheckoutError: "Impossible d'ouvrir la page de paiement, réessaie dans un instant.",
     billingManageSubscription: "Abonnement", billingPortalError: "Impossible d'ouvrir la page d'abonnement, réessaie dans un instant.",
     myAccount: "Mon compte",
+    installAppButton: "Installer l'app", installModalTitle: "Installer Chefup",
+    installInstructionsIOS: "Appuie sur le bouton Partager (le carré avec la flèche) en bas de Safari, puis choisis « Sur l'écran d'accueil ».",
+    installInstructionsAndroid: "Appuie sur le menu ⋮ de Chrome, puis choisis « Installer l'application » (ou « Ajouter à l'écran d'accueil »).",
+    installInstructionsGeneric: "Cherche « Ajouter à l'écran d'accueil » ou « Installer l'application » dans le menu de ton navigateur.",
     contactButton: "Nous contacter", contactModalTitle: "Nous contacter",
     contactHint: "Un bug, une idée d'amélioration ? Écris-nous, on te répond directement par email.",
     contactPlaceholder: "Décris ton problème ou ta suggestion...",
@@ -777,6 +782,10 @@ export const TR = {
     billingSubscribeButton: "Suscribirme ahora", billingSecureNote: "Pago seguro con Stripe.", billingCheckoutError: "No se pudo abrir la página de pago, inténtalo de nuevo en un momento.",
     billingManageSubscription: "Suscripción", billingPortalError: "No se pudo abrir la página de suscripción, inténtalo de nuevo en un momento.",
     myAccount: "Mi cuenta",
+    installAppButton: "Instalar la app", installModalTitle: "Instalar Chefup",
+    installInstructionsIOS: "Toca el botón Compartir (el cuadrado con la flecha) en la parte inferior de Safari y elige «Añadir a pantalla de inicio».",
+    installInstructionsAndroid: "Toca el menú ⋮ de Chrome y elige «Instalar aplicación» (o «Añadir a pantalla de inicio»).",
+    installInstructionsGeneric: "Busca «Añadir a pantalla de inicio» o «Instalar aplicación» en el menú de tu navegador.",
     contactButton: "Contáctanos", contactModalTitle: "Contáctanos",
     contactHint: "¿Un fallo, una idea de mejora? Escríbenos, te respondemos directamente por email.",
     contactPlaceholder: "Describe tu problema o tu sugerencia...",
@@ -1006,6 +1015,10 @@ export const TR = {
     billingSubscribeButton: "Subscribe now", billingSecureNote: "Secure payment by Stripe.", billingCheckoutError: "Couldn't open the payment page, try again in a moment.",
     billingManageSubscription: "Subscription", billingPortalError: "Couldn't open the subscription page, try again in a moment.",
     myAccount: "My account",
+    installAppButton: "Install the app", installModalTitle: "Install Chefup",
+    installInstructionsIOS: "Tap the Share button (the square with an arrow) at the bottom of Safari, then choose \"Add to Home Screen\".",
+    installInstructionsAndroid: "Tap Chrome's ⋮ menu, then choose \"Install app\" (or \"Add to Home screen\").",
+    installInstructionsGeneric: "Look for \"Add to Home screen\" or \"Install app\" in your browser's menu.",
     contactButton: "Contact us", contactModalTitle: "Contact us",
     contactHint: "A bug, an idea to improve Chefup? Write to us, we'll reply directly by email.",
     contactPlaceholder: "Describe your issue or suggestion...",
@@ -3105,6 +3118,38 @@ export default function App() {
   // des apps (Paramètres reste réservé aux réglages de calcul : TVA, marge, rappels, réinitialiser).
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
+  // Installation sur l'écran d'accueil (2026-08-23) : bouton "Installer l'app" DANS le menu "Mon
+  // compte", demandé par l'utilisateur après avoir cherché en vain un raccourci visible dans
+  // l'app elle-même. `installPromptReady` reflète si Chrome/Edge a capturé l'invite native
+  // (`window.__chefupInstallPrompt`, voir src/main.jsx) — si oui, un clic déclenche directement la
+  // vraie boîte de dialogue d'installation du navigateur. Sinon (iOS Safari, qui n'expose AUCUN
+  // moyen programmatique de déclencher "Sur l'écran d'accueil" — restriction Apple, pas une limite
+  // de cette app — ou navigateur qui ne supporte pas l'installation), un clic affiche des
+  // instructions à la place (`installInstructionsOpen`).
+  const [installPromptReady, setInstallPromptReady] = useState(!!window.__chefupInstallPrompt);
+  const [installInstructionsOpen, setInstallInstructionsOpen] = useState(false);
+  const isStandaloneApp =
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator?.standalone === true);
+  const isIOSDevice = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+  useEffect(() => {
+    const handler = () => setInstallPromptReady(!!window.__chefupInstallPrompt);
+    window.addEventListener("chefup:install-available", handler);
+    return () => window.removeEventListener("chefup:install-available", handler);
+  }, []);
+  const handleInstallClick = async () => {
+    setAccountMenuOpen(false);
+    const promptEvent = window.__chefupInstallPrompt;
+    if (promptEvent) {
+      promptEvent.prompt();
+      try { await promptEvent.userChoice; } catch (e) {}
+      window.__chefupInstallPrompt = null;
+      setInstallPromptReady(false);
+    } else {
+      setInstallInstructionsOpen(true);
+    }
+  };
+
   const [addWizardOpen, setAddWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1); // 1 nom/recherche, 2 prix+unité, 3 catégorie (création only), "success"
   const [wizardQuery, setWizardQuery] = useState("");
@@ -5073,7 +5118,45 @@ export default function App() {
                 <TrendingUp size={12} /> Admin
               </button>
             )}
+            {!isStandaloneApp && (
+              <button
+                onClick={handleInstallClick}
+                className={
+                  installPromptReady
+                    ? "w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full flex items-center justify-center gap-2 mb-2"
+                    : "w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] flex items-center justify-center gap-2 mb-2"
+                }
+                style={installPromptReady ? { background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW } : undefined}
+              >
+                <Smartphone size={12} /> {t("installAppButton")}
+              </button>
+            )}
             <button onClick={() => setAccountMenuOpen(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]">
+              {t("close")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {installInstructionsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setInstallInstructionsOpen(false)}>
+          <div
+            className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10"
+            style={{ background: "#26221C" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Smartphone size={16} className="text-[#8B5CF6]" />
+              <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("installModalTitle")}</h3>
+            </div>
+            <p className="text-white/70 text-sm mb-5">
+              {isIOSDevice ? t("installInstructionsIOS") : t("installInstructionsAndroid")}
+            </p>
+            {!isIOSDevice && <p className="text-white/40 text-xs mb-5">{t("installInstructionsGeneric")}</p>}
+            <button
+              onClick={() => setInstallInstructionsOpen(false)}
+              className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+            >
               {t("close")}
             </button>
           </div>
