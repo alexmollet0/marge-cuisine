@@ -33,6 +33,18 @@ const checkForNewVersion = () => {
 };
 document.addEventListener("visibilitychange", checkForNewVersion);
 window.addEventListener("focus", checkForNewVersion);
+
+// Service worker minimal (2026-08-23), uniquement pour que Chrome propose "Installer
+// l'application" (confirmé manquant par un test réel avant cet ajout — sans service worker actif,
+// Chrome n'affiche jamais l'icône/le menu d'installation, sur bureau comme sur Android ; iOS Safari
+// n'a pas cette contrainte, "Sur l'écran d'accueil" fonctionnait déjà). Voir public/sw.js : il ne
+// met RIEN en cache, exprès, pour ne jamais interférer avec la détection de nouveau déploiement
+// juste au-dessus.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
 // Signal le plus direct d'une restauration depuis le bfcache : à ne jamais laisser passer sans
 // vérifier, c'est exactement le scénario qui a caché le correctif du scanner sur un téléphone.
 window.addEventListener("pageshow", (event) => {
