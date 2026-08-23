@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Installation sur l'écran d'accueil (2026-08-23) — manifest + icônes générées depuis la
+         même silhouette que favicon.svg (voir scripts/gen-icons.ps1), pas de service worker : ça
+         suffit pour "Ajouter à l'écran d'accueil" en plein écran sur iOS/Android, sans le chantier
+         supplémentaire (et le risque non testable en local) d'un vrai mode hors-ligne. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#1B1815" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Chefup" />
     <title>Chefup</title>
     <meta name="description" content="Calcule tes marges de restaurant en 2 minutes. Scan de factures fournisseurs par IA, garde-manger, fiches recettes. Essai gratuit 7 jours, sans carte bancaire." />
     <meta property="og:type" content="website" />

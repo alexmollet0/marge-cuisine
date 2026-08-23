@@ -39,6 +39,8 @@ import {
   RotateCw,
   QrCode,
   Globe,
+  LogIn,
+  ChefHat,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -2702,15 +2704,28 @@ function DailyBarChart({ series, color, height = 90 }) {
 // depuis un bouton "Admin" dans la fenêtre "Mon compte" (voir `accountMenuOpen`), visible
 // UNIQUEMENT depuis son propre compte (`isAdmin`) — jamais pour un autre utilisateur Chefup,
 // revérifié aussi côté serveur (`api/admin-dashboard.js`, l'email pourrait en théorie être
-// falsifié côté client). Style volontairement sobre (cartes + barres simples), cohérent avec le
-// reste de l'app plutôt qu'un vrai tableau de bord analytics élaboré.
-// Flux d'activité par compte (2026-08-23) : libellés FR pour les types écrits par
-// api/scan-events.js (POST) et le résumé humain de leur `meta`, voir api/admin-dashboard.js.
+// falsifié côté client).
+//
+// Refonte (2026-08-23) : la toute première version (KPI + flux global + tableau "Comptes" à
+// fusionner soi-même en cliquant) a été jugée "pas pratique du tout" par l'utilisateur après ses
+// 2 premiers essais gratuits réels. Nouvelle logique : 2 onglets — "Comptes" (par défaut, l'usage
+// principal : suivre CE que fait une personne précise) présente une liste de cartes-comptes triée
+// par activité la plus récente, avec un point vert "en ligne" quand < 5 min, un badge de statut
+// coloré, et un clic déplie directement la chronologie de CE compte (icônes + temps relatif type
+// "il y a 3 min" plutôt que des dates absolues à décoder) — plus besoin de cliquer puis remonter
+// chercher un tableau séparé. "Aperçu" garde les KPI marketing (visites/clics/graphique), moins
+// urgents pour du suivi en direct, écartés du premier écran pour ne pas noyer l'essentiel.
 const ACTIVITY_LABELS = {
   login: "Connexion",
   recipe_created: "Recette créée",
   scan_invoice: "Scan facture",
   scan_recipe: "Scan fiche recette",
+};
+const ACTIVITY_ICON = {
+  login: { Icon: LogIn, color: "#9CA3AF" },
+  recipe_created: { Icon: ChefHat, color: BRAND_SOLID },
+  scan_invoice: { Icon: Receipt, color: "#38BDF8" },
+  scan_recipe: { Icon: ClipboardList, color: "#F59E0B" },
 };
 function activityDetail(e) {
   const m = e.meta || {};
@@ -2727,14 +2742,33 @@ function activityDetail(e) {
   }
   return "";
 }
+// Temps relatif FR ("à l'instant", "il y a 3 min"...) — bien plus lisible d'un coup d'œil qu'une
+// date absolue pour répondre à la vraie question de l'utilisateur : "est-il en train d'utiliser
+// l'app là maintenant ?".
+function relativeTimeFr(iso) {
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diffMin < 1) return "à l'instant";
+  if (diffMin < 60) return `il y a ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `il y a ${diffH} h`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD === 1) return "hier";
+  if (diffD < 7) return `il y a ${diffD} j`;
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+function accountStatusColor(status) {
+  if (status === "Abonné actif") return TIER_COLORS.high;
+  if (status === "Paiement en retard") return TIER_COLORS.mid;
+  if (status.startsWith("Essai (")) return BRAND_SOLID;
+  return TIER_COLORS.low; // Annulé / Essai expiré
+}
 
 function AdminDashboard() {
   const [state, setState] = useState({ status: "loading", data: null });
   const [days, setDays] = useState(30);
-  // Filtre du flux d'activité sur un seul compte (2026-08-23), demandé après le 2e essai gratuit
-  // réel — cliquer un email (dans "Comptes" ou directement dans le flux) isole ses actions au lieu
-  // de tout mélanger. Purement côté client (le flux complet est déjà rapatrié en une requête).
-  const [selectedEmail, setSelectedEmail] = useState(null);
+  const [dashTab, setDashTab] = useState("comptes"); // "comptes" | "apercu"
+  // Compte dont la chronologie est dépliée (2026-08-23) — un seul à la fois, comme un accordéon.
+  const [expandedEmail, setExpandedEmail] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -2775,7 +2809,20 @@ function AdminDashboard() {
   }
 
   const { kpis, dailySeries, users, activityFeed = [] } = state.data;
-  const visibleActivity = selectedEmail ? activityFeed.filter((e) => e.email === selectedEmail) : activityFeed;
+
+  // Dernière activité connue par compte (pour trier + savoir qui est "en ligne" maintenant) —
+  // repli sur la date d'inscription pour un compte sans aucun événement encore enregistré.
+  const lastActivityByEmail = new Map();
+  activityFeed.forEach((e) => {
+    const prev = lastActivityByEmail.get(e.email);
+    if (!prev || new Date(e.createdAt) > new Date(prev)) lastActivityByEmail.set(e.email, e.createdAt);
+  });
+  const accountsSorted = [...users].sort((a, b) => {
+    const at = new Date(lastActivityByEmail.get(a.email) || a.createdAt).getTime();
+    const bt = new Date(lastActivityByEmail.get(b.email) || b.createdAt).getTime();
+    return bt - at;
+  });
+
   const kpiCards = [
     { label: "Visites", value: kpis.views },
     { label: "Clics « essai »", value: kpis.startClicks },
@@ -2787,157 +2834,188 @@ function AdminDashboard() {
     { label: "Essais expirés", value: kpis.expiredNoSub },
   ];
 
+  const TabButton = ({ id, label }) => (
+    <button
+      onClick={() => setDashTab(id)}
+      className="px-4 py-2 rounded-full text-xs font-medium transition"
+      style={
+        dashTab === id
+          ? { background: BRAND_SOLID, color: "white" }
+          : { background: "transparent", color: "rgba(255,255,255,0.5)" }
+      }
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="pb-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">Tableau de bord</h2>
-        <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="bg-black/20 text-white/70 text-xs rounded px-2 py-1.5 outline-none"
-          style={{ colorScheme: "dark" }}
-        >
-          <option value={7}>7 jours</option>
-          <option value={30}>30 jours</option>
-          <option value={90}>90 jours</option>
-        </select>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
-        {kpiCards.map((c) => (
-          <div key={c.label} className="rounded-xl p-3 border border-white/10" style={{ background: "#26221C" }}>
-            <div className="text-white text-xl font-display">{c.value}</div>
-            <div className="text-white/40 text-[10px] uppercase tracking-wide mt-0.5">{c.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Flux d'activité par compte (2026-08-23), demandé par l'utilisateur pour suivre en direct
-          son tout premier essai gratuit réel : connexions, recettes créées, scans + leur résultat
-          (nombre de lignes, alertes) — voir api/scan-events.js (écriture) et
-          api/admin-dashboard.js (lecture). Se rafraîchit tout seul (voir le useEffect ci-dessus). */}
-      <div className="rounded-xl border border-white/10 overflow-hidden mb-5" style={{ background: "#26221C" }}>
-        <div className="flex items-center justify-between p-4 pb-2 gap-2 flex-wrap">
-          <div className="text-white/50 text-[10px] uppercase tracking-wide">
-            Activité récente {selectedEmail ? "" : "(tous comptes)"}
-          </div>
-          <div className="flex items-center gap-2">
-            {selectedEmail && (
-              <button
-                onClick={() => setSelectedEmail(null)}
-                className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full"
-                style={{ background: BRAND_SOLID, color: "white" }}
-              >
-                {selectedEmail} <X size={11} />
-              </button>
-            )}
-            <div className="text-white/30 text-[10px]">Se rafraîchit automatiquement</div>
-          </div>
+        <div className="flex items-center gap-1 rounded-full p-1" style={{ background: "#1B1815" }}>
+          <TabButton id="comptes" label="Comptes" />
+          <TabButton id="apercu" label="Aperçu" />
         </div>
-        <div className="overflow-x-auto max-h-96 overflow-y-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-white/40 text-left border-b border-white/10">
-                <th className="px-4 py-2 font-normal">Heure</th>
-                <th className="px-4 py-2 font-normal">Compte</th>
-                <th className="px-4 py-2 font-normal">Action</th>
-                <th className="px-4 py-2 font-normal">Détail</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleActivity.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-4 text-white/40 text-center">
-                    {selectedEmail ? "Aucune activité pour ce compte." : "Aucune activité enregistrée pour l'instant."}
-                  </td>
-                </tr>
-              )}
-              {visibleActivity.map((e) => (
-                <tr key={e.id} className="border-b border-white/5 last:border-0">
-                  <td className="px-4 py-2 text-white/50 whitespace-nowrap">
-                    {new Date(e.createdAt).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                  </td>
-                  <td
-                    className="px-4 py-2 text-white/80 whitespace-nowrap cursor-pointer hover:underline"
-                    onClick={() => setSelectedEmail(e.email)}
-                    title="Filtrer sur ce compte"
+      </div>
+
+      {dashTab === "comptes" ? (
+        <div>
+          <div className="text-white/30 text-[11px] mb-3">Tape un compte pour voir tout ce qu'il fait, dans l'ordre.</div>
+          <div className="space-y-2">
+            {accountsSorted.map((u) => {
+              const lastAt = lastActivityByEmail.get(u.email) || u.createdAt;
+              const isLive = Date.now() - new Date(lastAt).getTime() < 5 * 60 * 1000;
+              const isOpen = expandedEmail === u.email;
+              const timeline = activityFeed.filter((e) => e.email === u.email);
+              const stats = {
+                recipes: timeline.filter((e) => e.type === "recipe_created").length,
+                scans: timeline.filter((e) => e.type === "scan_invoice" || e.type === "scan_recipe").length,
+              };
+              const initial = (u.email[0] || "?").toUpperCase();
+              return (
+                <div key={u.email} className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#26221C" }}>
+                  <button
+                    onClick={() => setExpandedEmail(isOpen ? null : u.email)}
+                    className="w-full flex items-center gap-3 p-3 text-left"
                   >
-                    {e.email}
-                  </td>
-                  <td className="px-4 py-2 text-white/70 whitespace-nowrap">{ACTIVITY_LABELS[e.type] || e.type}</td>
-                  <td className="px-4 py-2 text-white/50">{activityDetail(e)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div className="relative shrink-0">
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-display text-sm"
+                        style={{ background: accountStatusColor(u.status) }}
+                      >
+                        {initial}
+                      </div>
+                      {isLive && (
+                        <span
+                          className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2"
+                          style={{ background: "#10B981", borderColor: "#26221C" }}
+                          title="En ligne (actif il y a moins de 5 min)"
+                        />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-white/90 text-sm truncate">{u.email}</div>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                          style={{ background: `${accountStatusColor(u.status)}25`, color: accountStatusColor(u.status) }}
+                        >
+                          {u.status}
+                        </span>
+                        <span className="text-white/40 text-[11px]">
+                          {isLive ? "en ligne" : `vu ${relativeTimeFr(lastAt)}`}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="hidden sm:flex items-center gap-3 text-white/40 text-[11px] shrink-0">
+                      <span className="flex items-center gap-1"><ChefHat size={12} /> {stats.recipes}</span>
+                      <span className="flex items-center gap-1"><Receipt size={12} /> {stats.scans}</span>
+                    </div>
+                    <ChevronDown
+                      size={16}
+                      className="text-white/30 shrink-0 transition-transform"
+                      style={{ transform: isOpen ? "rotate(180deg)" : "none" }}
+                    />
+                  </button>
+                  {isOpen && (
+                    <div className="border-t border-white/10 px-3 pb-3 pt-2">
+                      {timeline.length === 0 ? (
+                        <div className="text-white/30 text-xs py-3 text-center">
+                          Aucune action enregistrée pour ce compte pour l'instant.
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                          {timeline.map((e) => {
+                            const cfg = ACTIVITY_ICON[e.type] || { Icon: Clock, color: "#9CA3AF" };
+                            const Icon = cfg.Icon;
+                            return (
+                              <div key={e.id} className="flex items-start gap-2.5">
+                                <div
+                                  className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                                  style={{ background: `${cfg.color}25` }}
+                                >
+                                  <Icon size={13} style={{ color: cfg.color }} />
+                                </div>
+                                <div className="min-w-0 flex-1 pb-0.5">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-white/80 text-xs font-medium">{ACTIVITY_LABELS[e.type] || e.type}</span>
+                                    <span className="text-white/30 text-[10px]">{relativeTimeFr(e.createdAt)}</span>
+                                  </div>
+                                  {activityDetail(e) && <div className="text-white/40 text-[11px] mt-0.5">{activityDetail(e)}</div>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div>
+          <div className="flex justify-end mb-3">
+            <select
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              className="bg-black/20 text-white/70 text-xs rounded px-2 py-1.5 outline-none"
+              style={{ colorScheme: "dark" }}
+            >
+              <option value={7}>7 jours</option>
+              <option value={30}>30 jours</option>
+              <option value={90}>90 jours</option>
+            </select>
+          </div>
 
-      <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#26221C" }}>
-        <div className="text-white/50 text-[10px] uppercase tracking-wide mb-2">Visites par jour</div>
-        <DailyBarChart series={dailySeries.map((d) => ({ date: d.date, value: d.views }))} color={BRAND_SOLID} />
-      </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
+            {kpiCards.map((c) => (
+              <div key={c.label} className="rounded-xl p-3 border border-white/10" style={{ background: "#26221C" }}>
+                <div className="text-white text-xl font-display">{c.value}</div>
+                <div className="text-white/40 text-[10px] uppercase tracking-wide mt-0.5">{c.label}</div>
+              </div>
+            ))}
+          </div>
 
-      {/* Détail jour par jour (2026-08-19) — le graphique seul ne suffisait pas pour savoir
-          précisément "ma vidéo TikTok du 19 août m'a rapporté combien de visites", demandé
-          explicitement par l'utilisateur. Un chiffre exact par ligne, pas une barre à interpréter. */}
-      <div className="rounded-xl border border-white/10 overflow-hidden mb-5" style={{ background: "#26221C" }}>
-        <div className="text-white/50 text-[10px] uppercase tracking-wide p-4 pb-2">Détail par jour</div>
-        <div className="overflow-x-auto max-h-64 overflow-y-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-white/40 text-left border-b border-white/10">
-                <th className="px-4 py-2 font-normal">Date</th>
-                <th className="px-4 py-2 font-normal">Visites</th>
-                <th className="px-4 py-2 font-normal">Clics "essai"</th>
-                <th className="px-4 py-2 font-normal">Scans</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...dailySeries].reverse().map((d) => (
-                <tr key={d.date} className="border-b border-white/5 last:border-0">
-                  <td className="px-4 py-2 text-white/80 whitespace-nowrap">
-                    {new Date(d.date + "T00:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
-                  </td>
-                  <td className="px-4 py-2 text-white/70 whitespace-nowrap">{d.views}</td>
-                  <td className="px-4 py-2 text-white/70 whitespace-nowrap">{d.startClicks}</td>
-                  <td className="px-4 py-2 text-white/70 whitespace-nowrap">{d.scans}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+          <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#26221C" }}>
+            <div className="text-white/50 text-[10px] uppercase tracking-wide mb-2">Visites par jour</div>
+            <DailyBarChart series={dailySeries.map((d) => ({ date: d.date, value: d.views }))} color={BRAND_SOLID} />
+          </div>
 
-      <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#26221C" }}>
-        <div className="text-white/50 text-[10px] uppercase tracking-wide p-4 pb-2">
-          Comptes ({users.length}) — clique un compte pour filtrer son activité ci-dessus
+          {/* Détail jour par jour (2026-08-19) — le graphique seul ne suffisait pas pour savoir
+              précisément "ma vidéo TikTok du 19 août m'a rapporté combien de visites", demandé
+              explicitement par l'utilisateur. Un chiffre exact par ligne, pas une barre à interpréter. */}
+          <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#26221C" }}>
+            <div className="text-white/50 text-[10px] uppercase tracking-wide p-4 pb-2">Détail par jour</div>
+            <div className="overflow-x-auto max-h-64 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-white/40 text-left border-b border-white/10">
+                    <th className="px-4 py-2 font-normal">Date</th>
+                    <th className="px-4 py-2 font-normal">Visites</th>
+                    <th className="px-4 py-2 font-normal">Clics "essai"</th>
+                    <th className="px-4 py-2 font-normal">Scans</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...dailySeries].reverse().map((d) => (
+                    <tr key={d.date} className="border-b border-white/5 last:border-0">
+                      <td className="px-4 py-2 text-white/80 whitespace-nowrap">
+                        {new Date(d.date + "T00:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                      </td>
+                      <td className="px-4 py-2 text-white/70 whitespace-nowrap">{d.views}</td>
+                      <td className="px-4 py-2 text-white/70 whitespace-nowrap">{d.startClicks}</td>
+                      <td className="px-4 py-2 text-white/70 whitespace-nowrap">{d.scans}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-white/40 text-left border-b border-white/10">
-                <th className="px-4 py-2 font-normal">Email</th>
-                <th className="px-4 py-2 font-normal">Inscrit le</th>
-                <th className="px-4 py-2 font-normal">Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr
-                  key={u.email}
-                  onClick={() => setSelectedEmail(u.email)}
-                  className={`border-b border-white/5 last:border-0 cursor-pointer hover:bg-white/5 ${selectedEmail === u.email ? "bg-white/5" : ""}`}
-                >
-                  <td className="px-4 py-2 text-white/80 whitespace-nowrap">{u.email}</td>
-                  <td className="px-4 py-2 text-white/50 whitespace-nowrap">{new Date(u.createdAt).toLocaleDateString()}</td>
-                  <td className="px-4 py-2 text-white/70 whitespace-nowrap">{u.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
