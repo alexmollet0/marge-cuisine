@@ -12,6 +12,20 @@ const inputClass =
 
 const AUTH_LANG_KEY = "chefup:authLang";
 
+// Flux d'activité admin (2026-08-23, voir api/scan-events.js + AdminDashboard dans App.jsx) :
+// journalise chaque (re)connexion réelle, fire-and-forget (jamais bloquant, jamais d'erreur
+// remontée à l'écran de connexion). Fires aussi bien sur une vraie saisie identifiants que sur
+// une session restaurée au chargement de l'onglet — les deux comptent comme un signal de
+// présence utile pour suivre l'activité d'un compte, voir le commentaire sur loginKey plus bas.
+function logLoginActivity(sess) {
+  if (!sess?.access_token) return;
+  fetch("/api/scan-events", {
+    method: "POST",
+    headers: { "content-type": "application/json", Authorization: `Bearer ${sess.access_token}` },
+    body: JSON.stringify({ type: "login" }),
+  }).catch(() => {});
+}
+
 function guessAuthLang() {
   try {
     const saved = localStorage.getItem(AUTH_LANG_KEY);
@@ -107,7 +121,10 @@ export default function AuthGate({ children }) {
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess);
       if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
-      if (event === "SIGNED_IN") setLoginKey((k) => k + 1);
+      if (event === "SIGNED_IN") {
+        setLoginKey((k) => k + 1);
+        logLoginActivity(sess);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);

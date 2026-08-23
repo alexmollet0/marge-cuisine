@@ -1310,6 +1310,25 @@ function priceVariation(ing) {
   return { pct: Math.round(Math.abs(pct)), dir: pct > 0 ? "up" : "down" };
 }
 
+// Flux d'activité admin (2026-08-23, voir AdminDashboard + api/scan-events.js) : journalise une
+// action utilisateur simple (recette créée...) en fire-and-forget, jamais bloquant/visible pour
+// l'utilisateur lui-même. Les scans ont déjà leur propre appel dédié (runScanPipeline), qui écrit
+// à la fois dans scan_events (stats agrégées) ET, côté serveur, dans le même flux d'activité —
+// pas besoin de dupliquer l'appel ici pour eux.
+function logActivity(type, meta) {
+  (async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      await fetch("/api/scan-events", {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ type, meta }),
+      });
+    } catch (e) {}
+  })();
+}
+
 function NumField({ value, onChange, className, allowDecimal = true, ...rest }) {
   const [local, setLocal] = useState(value === 0 || value === undefined || value === null ? "" : String(value));
   const focusedRef = useRef(false);
@@ -2685,14 +2704,38 @@ function DailyBarChart({ series, color, height = 90 }) {
 // revérifié aussi côté serveur (`api/admin-dashboard.js`, l'email pourrait en théorie être
 // falsifié côté client). Style volontairement sobre (cartes + barres simples), cohérent avec le
 // reste de l'app plutôt qu'un vrai tableau de bord analytics élaboré.
+// Flux d'activité par compte (2026-08-23) : libellés FR pour les types écrits par
+// api/scan-events.js (POST) et le résumé humain de leur `meta`, voir api/admin-dashboard.js.
+const ACTIVITY_LABELS = {
+  login: "Connexion",
+  recipe_created: "Recette créée",
+  scan_invoice: "Scan facture",
+  scan_recipe: "Scan fiche recette",
+};
+function activityDetail(e) {
+  const m = e.meta || {};
+  if (e.type === "recipe_created") return m.name ? `« ${m.name} »` : "";
+  if (e.type === "scan_invoice" || e.type === "scan_recipe") {
+    if (m.zeroItems) return "Aucune ligne détectée";
+    const bits = [`${m.foodItems ?? 0} ligne(s) alimentaire(s)`];
+    if (m.excludedItems) bits.push(`${m.excludedItems} écartée(s)`);
+    if (m.lowConfidenceItems) bits.push(`${m.lowConfidenceItems} confiance basse`);
+    if (m.priceInconsistentItems) bits.push(`${m.priceInconsistentItems} prix incohérent`);
+    if (m.pricingUnknownItems) bits.push(`${m.pricingUnknownItems} prix inconnu`);
+    if (!m.supplierKnown) bits.push("fournisseur non lu");
+    return bits.join(" · ");
+  }
+  return "";
+}
+
 function AdminDashboard() {
   const [state, setState] = useState({ status: "loading", data: null });
   const [days, setDays] = useState(30);
 
   useEffect(() => {
     let cancelled = false;
-    setState((s) => ({ status: "loading", data: s.data }));
-    (async () => {
+    const load = async (background) => {
+      if (!background) setState((s) => ({ status: "loading", data: s.data }));
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const res = await fetch(`/api/admin-dashboard?days=${days}`, {
@@ -2702,10 +2745,18 @@ function AdminDashboard() {
         if (!res.ok) throw new Error(data.error || "dashboard error");
         if (!cancelled) setState({ status: "ready", data });
       } catch (e) {
-        if (!cancelled) setState({ status: "error", data: null });
+        // En arrière-plan (rafraîchissement auto), on garde l'affichage précédent plutôt que
+        // de basculer sur un écran d'erreur pour un simple raté réseau ponctuel.
+        if (!cancelled && !background) setState({ status: "error", data: null });
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    load(false);
+    // Rafraîchissement automatique pendant que le tableau de bord reste ouvert (2026-08-23) —
+    // demandé pour pouvoir suivre en direct l'activité d'un compte (connexions, scans, recettes)
+    // sans avoir à rouvrir la fenêtre. 25s : assez réactif pour "suivre en direct", assez espacé
+    // pour ne pas spammer l'API.
+    const interval = setInterval(() => load(true), 25000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [days]);
 
   if (state.status === "loading" && !state.data) {
@@ -2719,7 +2770,7 @@ function AdminDashboard() {
     return <p className="text-white/50 text-sm text-center py-10">Impossible de charger le tableau de bord.</p>;
   }
 
-  const { kpis, dailySeries, users } = state.data;
+  const { kpis, dailySeries, users, activityFeed = [] } = state.data;
   const kpiCards = [
     { label: "Visites", value: kpis.views },
     { label: "Clics « essai »", value: kpis.startClicks },
@@ -2754,6 +2805,46 @@ function AdminDashboard() {
             <div className="text-white/40 text-[10px] uppercase tracking-wide mt-0.5">{c.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* Flux d'activité par compte (2026-08-23), demandé par l'utilisateur pour suivre en direct
+          son tout premier essai gratuit réel : connexions, recettes créées, scans + leur résultat
+          (nombre de lignes, alertes) — voir api/scan-events.js (écriture) et
+          api/admin-dashboard.js (lecture). Se rafraîchit tout seul (voir le useEffect ci-dessus). */}
+      <div className="rounded-xl border border-white/10 overflow-hidden mb-5" style={{ background: "#26221C" }}>
+        <div className="flex items-center justify-between p-4 pb-2">
+          <div className="text-white/50 text-[10px] uppercase tracking-wide">Activité récente (tous comptes)</div>
+          <div className="text-white/30 text-[10px]">Se rafraîchit automatiquement</div>
+        </div>
+        <div className="overflow-x-auto max-h-96 overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-white/40 text-left border-b border-white/10">
+                <th className="px-4 py-2 font-normal">Heure</th>
+                <th className="px-4 py-2 font-normal">Compte</th>
+                <th className="px-4 py-2 font-normal">Action</th>
+                <th className="px-4 py-2 font-normal">Détail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activityFeed.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-white/40 text-center">Aucune activité enregistrée pour l'instant.</td>
+                </tr>
+              )}
+              {activityFeed.map((e) => (
+                <tr key={e.id} className="border-b border-white/5 last:border-0">
+                  <td className="px-4 py-2 text-white/50 whitespace-nowrap">
+                    {new Date(e.createdAt).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                  </td>
+                  <td className="px-4 py-2 text-white/80 whitespace-nowrap">{e.email}</td>
+                  <td className="px-4 py-2 text-white/70 whitespace-nowrap">{ACTIVITY_LABELS[e.type] || e.type}</td>
+                  <td className="px-4 py-2 text-white/50">{activityDetail(e)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#26221C" }}>
@@ -3111,6 +3202,7 @@ export default function App() {
     setActiveId(nr.id);
     setActiveTab("recipes");
     setRecipeSubView("detail");
+    logActivity("recipe_created", { name: nr.name });
   };
 
   const duplicateRecipe = (r) => {
@@ -4624,6 +4716,7 @@ export default function App() {
     setActiveTab("recipes");
     setRecipeSubView("detail");
     closeScanRecipe();
+    logActivity("recipe_created", { name: newRecipe.name });
   };
 
   // L'objectif propre à la recette (`targetMargin`, éditable dans la fiche) prévaut sur le

@@ -5,13 +5,24 @@
 // aucune erreur visible côté client). Voir aussi api/landing.js, fusionné pour la même raison le
 // même jour.
 //
-// POST (authentifié, `requireUser`) : enregistre quelques compteurs agrégés par scan (combien de
-// lignes détectées/exclues/incertaines) — jamais de contenu de facture (pas de nom de produit, pas
-// de prix, pas de fournisseur), uniquement des nombres. Invisible dans l'app elle-même.
+// POST (authentifié, `requireUser`) :
+// - Sans `type` explicite (chemin historique, réservé au scanner de factures/fiches) : enregistre
+//   quelques compteurs agrégés par scan dans `scan_events` (combien de lignes détectées/exclues/
+//   incertaines) — jamais de contenu de facture (pas de nom de produit, pas de prix, pas de
+//   fournisseur), uniquement des nombres. En plus (2026-08-23), miroir best-effort dans
+//   `activity_events` (mêmes compteurs en `meta`) pour alimenter le flux d'activité par compte du
+//   tableau de bord admin (voir api/admin-dashboard.js).
+// - `type: "login" | "recipe_created"` (2026-08-23, nouveau) : écrit uniquement dans
+//   `activity_events`, pour le même flux d'activité — permet à l'utilisateur (fondateur) de suivre
+//   en direct ce qu'un compte fait dans l'app (connexions, recettes créées, scans + leur résultat)
+//   sans dépendre de logs Vercel. `meta` est un objet libre, jamais de données sensibles au-delà
+//   d'un nom de recette.
 //
 // GET (protégé par `ADMIN_SECRET`, `?secret=...&days=30&raw=1`) : résumé chiffré de la fiabilité
-// du scanner sur l'ensemble des comptes.
+// du scanner sur l'ensemble des comptes (inchangé, lit toujours scan_events).
 import { requireUser, getSupabaseAdmin } from "./_lib.js";
+
+const SIMPLE_ACTIVITY_TYPES = new Set(["login", "recipe_created"]);
 
 export default async function handler(req, res) {
   const supabaseAdmin = getSupabaseAdmin();
@@ -21,10 +32,24 @@ export default async function handler(req, res) {
     if (!user) return res.status(401).json({ error: "Non authentifié." });
 
     const b = req.body || {};
+
+    if (SIMPLE_ACTIVITY_TYPES.has(b.type)) {
+      try {
+        const { error } = await supabaseAdmin
+          .from("activity_events")
+          .insert({ user_id: user.id, type: b.type, meta: b.meta && typeof b.meta === "object" ? b.meta : {} });
+        if (error) throw error;
+        return res.status(200).json({ ok: true });
+      } catch (e) {
+        return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+      }
+    }
+
     const toInt = (v) => (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+    const scanner = b.scanner === "recipe" ? "recipe" : "invoice";
     const row = {
       user_id: user.id,
-      scanner: b.scanner === "recipe" ? "recipe" : "invoice",
+      scanner,
       supplier_known: !!b.supplierKnown,
       total_items: toInt(b.totalItems),
       food_items: toInt(b.foodItems),
@@ -39,6 +64,26 @@ export default async function handler(req, res) {
     try {
       const { error } = await supabaseAdmin.from("scan_events").insert(row);
       if (error) throw error;
+      // Miroir best-effort dans le flux d'activité unifié — ne doit jamais faire échouer la
+      // réponse au client si activity_events n'existe pas encore ou si l'écriture échoue.
+      supabaseAdmin
+        .from("activity_events")
+        .insert({
+          user_id: user.id,
+          type: scanner === "recipe" ? "scan_recipe" : "scan_invoice",
+          meta: {
+            supplierKnown: row.supplier_known,
+            totalItems: row.total_items,
+            foodItems: row.food_items,
+            excludedItems: row.excluded_items,
+            zeroItems: row.zero_items,
+            lowConfidenceItems: row.low_confidence_items,
+            priceInconsistentItems: row.price_inconsistent_items,
+            pricingUnknownItems: row.pricing_unknown_items,
+          },
+        })
+        .then(() => {})
+        .catch(() => {});
       return res.status(200).json({ ok: true });
     } catch (e) {
       // Best-effort : un échec ici ne doit jamais faire échouer le scan lui-même côté client

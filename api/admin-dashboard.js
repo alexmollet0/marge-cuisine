@@ -22,11 +22,17 @@ export default async function handler(req, res) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    const [landingRes, scanRes, subRes, usersRes] = await Promise.all([
+    const [landingRes, scanRes, subRes, usersRes, activityRes] = await Promise.all([
       supabaseAdmin.from("landing_events").select("event_type, created_at").gte("created_at", since),
       supabaseAdmin.from("scan_events").select("created_at").gte("created_at", since),
       supabaseAdmin.from("subscriptions").select("user_id, status"),
       supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
+      // Flux d'activité par compte (2026-08-23) : connexions, recettes créées, scans + leur résultat
+      // — voir api/scan-events.js. Pas filtré par `days` (c'est un flux récent à surveiller, pas une
+      // série historique) ; la table peut ne pas encore exister sur un déploiement pas encore migré,
+      // d'où le fallback silencieux à un tableau vide plutôt qu'une erreur qui casserait tout le reste
+      // du dashboard.
+      supabaseAdmin.from("activity_events").select("*").order("created_at", { ascending: false }).limit(200),
     ]);
     if (landingRes.error) throw landingRes.error;
     if (scanRes.error) throw scanRes.error;
@@ -37,6 +43,14 @@ export default async function handler(req, res) {
     const scanRows = scanRes.data || [];
     const subByUser = new Map((subRes.data || []).map((s) => [s.user_id, s]));
     const authUsers = usersRes.data?.users || [];
+    const emailById = new Map(authUsers.map((u) => [u.id, u.email]));
+    const activityFeed = (activityRes.error ? [] : activityRes.data || []).map((e) => ({
+      id: e.id,
+      type: e.type,
+      createdAt: e.created_at,
+      email: emailById.get(e.user_id) || "?",
+      meta: e.meta || {},
+    }));
 
     // Série journalière (visites + scans) sur la période demandée, jours sans donnée inclus à 0
     // pour ne jamais donner l'impression trompeuse d'un trou dans les données.
@@ -84,7 +98,7 @@ export default async function handler(req, res) {
       scans: scanRows.length,
     };
 
-    return res.status(200).json({ periodDays: days, kpis, dailySeries, users: usersOut });
+    return res.status(200).json({ periodDays: days, kpis, dailySeries, users: usersOut, activityFeed });
   } catch (e) {
     return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
   }
