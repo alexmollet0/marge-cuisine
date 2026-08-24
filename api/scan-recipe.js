@@ -1,6 +1,10 @@
 // Fonction serveur Vercel dédiée au scanner de fiche recette/technique existante — distincte de
 // api/scan-invoice.js (autre besoin, autre prompt), pour ne jamais risquer de faire régresser le
 // scanner de factures en le modifiant. Même principe d'exécution (clé API côté serveur uniquement).
+// maxDuration : même raison que dans api/scan-invoice.js — sans ce réglage la plateforme peut tuer
+// la fonction avant la fin et renvoyer une page HTML que le client ne sait pas interpréter.
+export const config = { maxDuration: 60 };
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Méthode non autorisée" });
@@ -96,8 +100,10 @@ Réponds toujours avec un JSON valide, même sur une fiche manuscrite, mal cadr�
     });
 
     if (!response.ok) {
-      const detail = await response.text();
-      return res.status(502).json({ error: "L'IA n'a pas pu traiter l'image.", detail });
+      // Détail brut jamais renvoyé au client (voir api/scan-invoice.js) : logs Vercel uniquement.
+      const detail = await response.text().catch(() => "");
+      console.error(`[scan-recipe] HTTP ${response.status}`, detail.slice(0, 800));
+      return res.status(502).json({ error: "L'IA n'a pas pu traiter le document." });
     }
 
     const data = await response.json();
@@ -114,7 +120,8 @@ Réponds toujours avec un JSON valide, même sur une fiche manuscrite, mal cadr�
     try {
       parsed = JSON.parse(raw);
     } catch (e) {
-      return res.status(502).json({ error: "Réponse de l'IA illisible.", detail: raw ? raw.slice(0, 500) : "(réponse vide)" });
+      console.error("[scan-recipe] JSON illisible", (raw || "(vide)").slice(0, 800));
+      return res.status(502).json({ error: "Réponse de l'IA illisible." });
     }
 
     return res.status(200).json(parsed);

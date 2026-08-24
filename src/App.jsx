@@ -45,6 +45,7 @@ import {
   Share,
   MoreVertical,
   ArrowRight,
+  RefreshCw,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -567,6 +568,45 @@ export const TR = {
     contactError: "Erreur pendant l'envoi, réessaie.",
     scanInvoice: "Scanner une facture", scanning: "Analyse de la facture en cours…",
     scanError: "Erreur pendant l'analyse", scanRetry: "Réessayer",
+    // ---- Échecs de scan (2026-08-24) : jamais de détail technique, toujours une cause
+    // compréhensible + des actions concrètes. Codes gérés : voir SCAN_ERR_CODES dans le composant.
+    scanningPatience: "Ça peut prendre jusqu'à une minute sur une facture chargée — reste sur cet écran.",
+    scanStep_prepare: "Préparation du document…",
+    scanStep_ocr: "Lecture du texte…",
+    scanStep_ai: "Analyse des lignes…",
+    scanErrWhatToDo: "Ce que tu peux faire",
+    scanRetrySamePhoto: "Réessayer avec la même photo",
+    scanRetryOtherFile: "Autre fichier",
+    scanReportProblem: "Nous signaler",
+    scanReportPrefill: "Bonjour, je n'arrive pas à scanner ma facture. Voici ce que je faisais :",
+    scanErrTitle_offline: "Connexion perdue",
+    scanErrBody_offline: "Ta facture n'a pas pu être envoyée : l'appareil n'était plus connecté à internet pendant l'analyse.",
+    scanErrTips_offline: ["Vérifie ton wifi ou tes données mobiles", "Éloigne-toi des murs épais si tu es en réserve ou en cave", "Puis appuie sur Réessayer : ta photo est gardée, rien à reprendre"],
+    scanErrTitle_ai_timeout: "L'analyse a été trop longue",
+    scanErrBody_ai_timeout: "Le document n'a pas pu être analysé dans le temps imparti. C'est presque toujours une facture très chargée ou une connexion lente.",
+    scanErrTips_ai_timeout: ["Réessaie une fois : ça passe souvent du deuxième coup", "Si ta facture fait plus de 15 lignes, photographie-la en deux fois (moitié haute, puis moitié basse)", "Si ton fournisseur t'envoie un PDF, utilise-le : c'est plus rapide et plus fiable qu'une photo"],
+    scanErrTitle_ai_busy: "Trop de demandes en ce moment",
+    scanErrBody_ai_busy: "L'analyse est momentanément saturée. Rien n'est perdu de ton côté.",
+    scanErrTips_ai_busy: ["Attends une minute, puis appuie sur Réessayer", "Si ça se reproduit trois fois de suite, préviens-nous : on regarde tout de suite"],
+    scanErrTitle_ai_unavailable: "Analyse indisponible pour le moment",
+    scanErrBody_ai_unavailable: "Le souci vient de notre côté, pas de ta facture ni de ton téléphone. Aucune de tes données n'est touchée.",
+    scanErrTips_ai_unavailable: ["Réessaie dans quelques minutes", "Si c'est toujours bloqué, appuie sur « Nous signaler » : le message part avec ce qu'il nous faut pour comprendre, et on te répond", "En attendant, tu peux saisir tes prix à la main dans le garde-manger"],
+    scanErrTitle_ai_unreadable: "Résultat inexploitable",
+    scanErrBody_ai_unreadable: "Le document a bien été reçu, mais l'analyse n'a rien renvoyé d'utilisable.",
+    scanErrTips_ai_unreadable: ["Réessaie : le résultat change souvent d'un essai à l'autre", "Recadre sur le tableau des produits, sans le reste de la page", "Si tu as le PDF du fournisseur, envoie-le plutôt que la photo"],
+    scanErrTitle_file_unreadable: "Fichier impossible à ouvrir",
+    scanErrBody_file_unreadable: "Ce fichier n'a pas pu être lu comme une image ni comme un PDF. Certains formats de photo ne sont pas reconnus par le navigateur.",
+    scanErrTips_file_unreadable: ["Reprends la facture en photo directement depuis Chefup", "Ou choisis la photo dans ta galerie plutôt que dans l'application Fichiers", "Un PDF envoyé par ton fournisseur fonctionne aussi très bien"],
+    scanErrTitle_file_too_big: "Document trop lourd",
+    scanErrBody_file_too_big: "Le fichier envoyé dépasse la taille acceptée.",
+    scanErrTips_file_too_big: ["Prends la facture en photo depuis Chefup plutôt que d'envoyer un fichier très lourd", "Si c'est un PDF de plusieurs dizaines de pages, envoie seulement la page des produits"],
+    scanErrTitle_bad_request: "Document non reçu",
+    scanErrBody_bad_request: "Aucun document exploitable n'est arrivé jusqu'à l'analyse.",
+    scanErrTips_bad_request: ["Recommence en sélectionnant à nouveau ta facture", "Si ça se répète, préviens-nous"],
+    scanErrTitle_unknown: "Le scan n'a pas abouti",
+    scanErrBody_unknown: "Quelque chose s'est mal passé pendant l'analyse. Rien n'a été modifié dans ton garde-manger.",
+    scanErrTips_unknown: ["Appuie sur Réessayer : ça suffit dans la plupart des cas", "Si le problème revient, appuie sur « Nous signaler » — on te répond vite", "Tes recettes et tes prix ne sont jamais touchés par un scan raté"],
+    scanNoItemsTips: ["Recadre la photo sur le tableau des produits, sans l'en-tête ni le bas de page", "Pose la facture bien à plat, sans pli ni ombre, avec une bonne lumière", "Sur une facture longue, fais deux photos : la moitié haute, puis la moitié basse", "Si ton fournisseur t'envoie un PDF, utilise-le : c'est la méthode la plus fiable"],
     scanResultTitle: "Résultat du scan", scanImagePreviewLabel: "Voir l'image envoyée à l'IA (diagnostic)", scanRotateHint: "Photo de travers ? Pivote-la avant d'analyser.", scanAnalyzeButton: "Analyser", scanSupplier: "Fournisseur",
     scanDate: "Date", scanAssignTo: "Associer à", scanNewIngredient: "🆕 Nouvel ingrédient",
     scanLinkedSure: "Ingrédient existant", scanLinkedGuess: "Suggestion, vérifie",
@@ -803,6 +843,43 @@ export const TR = {
     contactError: "Error al enviar, inténtalo de nuevo.",
     scanInvoice: "Escanear una factura", scanning: "Analizando la factura…",
     scanError: "Error durante el análisis", scanRetry: "Reintentar",
+    scanningPatience: "Puede tardar hasta un minuto en una factura larga — quédate en esta pantalla.",
+    scanStep_prepare: "Preparando el documento…",
+    scanStep_ocr: "Leyendo el texto…",
+    scanStep_ai: "Analizando las líneas…",
+    scanErrWhatToDo: "Qué puedes hacer",
+    scanRetrySamePhoto: "Reintentar con la misma foto",
+    scanRetryOtherFile: "Otro archivo",
+    scanReportProblem: "Avisarnos",
+    scanReportPrefill: "Hola, no consigo escanear mi factura. Esto es lo que estaba haciendo:",
+    scanErrTitle_offline: "Conexión perdida",
+    scanErrBody_offline: "Tu factura no se pudo enviar: el dispositivo perdió la conexión a internet durante el análisis.",
+    scanErrTips_offline: ["Comprueba el wifi o los datos móviles", "Aléjate de los muros gruesos si estás en el almacén o la bodega", "Luego pulsa Reintentar: tu foto se ha guardado, no hay que repetirla"],
+    scanErrTitle_ai_timeout: "El análisis ha tardado demasiado",
+    scanErrBody_ai_timeout: "No se pudo analizar el documento a tiempo. Casi siempre es una factura muy cargada o una conexión lenta.",
+    scanErrTips_ai_timeout: ["Reintenta una vez: suele funcionar al segundo intento", "Si tu factura tiene más de 15 líneas, fotografíala en dos veces (mitad de arriba y mitad de abajo)", "Si tu proveedor te envía un PDF, úsalo: es más rápido y más fiable que una foto"],
+    scanErrTitle_ai_busy: "Demasiadas peticiones ahora mismo",
+    scanErrBody_ai_busy: "El análisis está saturado momentáneamente. No has perdido nada.",
+    scanErrTips_ai_busy: ["Espera un minuto y pulsa Reintentar", "Si se repite tres veces seguidas, avísanos: lo miramos enseguida"],
+    scanErrTitle_ai_unavailable: "Análisis no disponible por ahora",
+    scanErrBody_ai_unavailable: "El problema es nuestro, no de tu factura ni de tu teléfono. Ninguno de tus datos se ve afectado.",
+    scanErrTips_ai_unavailable: ["Reintenta dentro de unos minutos", "Si sigue bloqueado, pulsa «Avisarnos»: el mensaje sale con lo que necesitamos para entenderlo y te respondemos", "Mientras tanto, puedes introducir tus precios a mano en la despensa"],
+    scanErrTitle_ai_unreadable: "Resultado inutilizable",
+    scanErrBody_ai_unreadable: "El documento llegó bien, pero el análisis no devolvió nada aprovechable.",
+    scanErrTips_ai_unreadable: ["Reintenta: el resultado suele cambiar de un intento a otro", "Reencuadra sobre la tabla de productos, sin el resto de la página", "Si tienes el PDF del proveedor, envíalo en vez de la foto"],
+    scanErrTitle_file_unreadable: "No se puede abrir el archivo",
+    scanErrBody_file_unreadable: "Este archivo no se pudo leer como imagen ni como PDF. El navegador no reconoce algunos formatos de foto.",
+    scanErrTips_file_unreadable: ["Vuelve a fotografiar la factura directamente desde Chefup", "O elige la foto en tu galería en vez de en la aplicación Archivos", "Un PDF enviado por tu proveedor también funciona muy bien"],
+    scanErrTitle_file_too_big: "Documento demasiado pesado",
+    scanErrBody_file_too_big: "El archivo enviado supera el tamaño admitido.",
+    scanErrTips_file_too_big: ["Fotografía la factura desde Chefup en vez de enviar un archivo muy pesado", "Si es un PDF de decenas de páginas, envía solo la página de los productos"],
+    scanErrTitle_bad_request: "Documento no recibido",
+    scanErrBody_bad_request: "No llegó ningún documento aprovechable al análisis.",
+    scanErrTips_bad_request: ["Empieza de nuevo seleccionando otra vez tu factura", "Si se repite, avísanos"],
+    scanErrTitle_unknown: "El escaneo no ha funcionado",
+    scanErrBody_unknown: "Algo ha fallado durante el análisis. No se ha modificado nada en tu despensa.",
+    scanErrTips_unknown: ["Pulsa Reintentar: basta en la mayoría de los casos", "Si el problema vuelve, pulsa «Avisarnos» — te respondemos rápido", "Tus recetas y tus precios nunca se ven afectados por un escaneo fallido"],
+    scanNoItemsTips: ["Reencuadra la foto sobre la tabla de productos, sin el encabezado ni el pie de página", "Pon la factura bien plana, sin pliegues ni sombras, con buena luz", "En una factura larga, haz dos fotos: la mitad de arriba y luego la de abajo", "Si tu proveedor te envía un PDF, úsalo: es el método más fiable"],
     scanResultTitle: "Resultado del escaneo", scanImagePreviewLabel: "Ver la imagen enviada a la IA (diagnóstico)", scanRotateHint: "¿Foto torcida? Gírala antes de analizar.", scanAnalyzeButton: "Analizar", scanSupplier: "Proveedor",
     scanDate: "Fecha", scanAssignTo: "Asociar a", scanNewIngredient: "🆕 Nuevo ingrediente",
     scanLinkedSure: "Ingrediente existente", scanLinkedGuess: "Sugerencia, verifica",
@@ -1039,6 +1116,43 @@ export const TR = {
     contactError: "Error sending the message, try again.",
     scanInvoice: "Scan an invoice", scanning: "Analyzing the invoice…",
     scanError: "Error during analysis", scanRetry: "Retry",
+    scanningPatience: "This can take up to a minute on a long invoice — stay on this screen.",
+    scanStep_prepare: "Preparing the document…",
+    scanStep_ocr: "Reading the text…",
+    scanStep_ai: "Analyzing the lines…",
+    scanErrWhatToDo: "What you can do",
+    scanRetrySamePhoto: "Retry with the same photo",
+    scanRetryOtherFile: "Another file",
+    scanReportProblem: "Report it",
+    scanReportPrefill: "Hi, I can't scan my invoice. Here is what I was doing:",
+    scanErrTitle_offline: "Connection lost",
+    scanErrBody_offline: "Your invoice could not be sent: the device lost its internet connection during the analysis.",
+    scanErrTips_offline: ["Check your wifi or mobile data", "Move away from thick walls if you are in a storeroom or cellar", "Then tap Retry: your photo is kept, nothing to redo"],
+    scanErrTitle_ai_timeout: "The analysis took too long",
+    scanErrBody_ai_timeout: "The document could not be analyzed in time. It is almost always a very dense invoice or a slow connection.",
+    scanErrTips_ai_timeout: ["Try once more: it often works on the second attempt", "If your invoice has more than 15 lines, photograph it in two parts (top half, then bottom half)", "If your supplier sends you a PDF, use it: faster and more reliable than a photo"],
+    scanErrTitle_ai_busy: "Too many requests right now",
+    scanErrBody_ai_busy: "The analysis is briefly overloaded. Nothing is lost on your side.",
+    scanErrTips_ai_busy: ["Wait a minute, then tap Retry", "If it happens three times in a row, tell us: we look into it straight away"],
+    scanErrTitle_ai_unavailable: "Analysis unavailable right now",
+    scanErrBody_ai_unavailable: "The problem is on our side, not with your invoice or your phone. None of your data is affected.",
+    scanErrTips_ai_unavailable: ["Try again in a few minutes", "If it is still stuck, tap \"Report it\": the message includes what we need to understand, and we reply", "In the meantime you can enter your prices by hand in the pantry"],
+    scanErrTitle_ai_unreadable: "Unusable result",
+    scanErrBody_ai_unreadable: "The document arrived fine, but the analysis returned nothing usable.",
+    scanErrTips_ai_unreadable: ["Try again: the result often changes between attempts", "Crop tighter on the product table, without the rest of the page", "If you have the supplier's PDF, send that instead of a photo"],
+    scanErrTitle_file_unreadable: "File could not be opened",
+    scanErrBody_file_unreadable: "This file could not be read as an image or a PDF. Some photo formats are not recognized by the browser.",
+    scanErrTips_file_unreadable: ["Photograph the invoice again directly from Chefup", "Or pick the photo from your gallery rather than from the Files app", "A PDF sent by your supplier also works very well"],
+    scanErrTitle_file_too_big: "Document too heavy",
+    scanErrBody_file_too_big: "The file you sent is larger than what we accept.",
+    scanErrTips_file_too_big: ["Photograph the invoice from Chefup instead of sending a very heavy file", "If it is a PDF with dozens of pages, send only the products page"],
+    scanErrTitle_bad_request: "Document not received",
+    scanErrBody_bad_request: "No usable document reached the analysis.",
+    scanErrTips_bad_request: ["Start again by selecting your invoice once more", "If it keeps happening, let us know"],
+    scanErrTitle_unknown: "The scan did not go through",
+    scanErrBody_unknown: "Something went wrong during the analysis. Nothing was changed in your pantry.",
+    scanErrTips_unknown: ["Tap Retry: that is enough in most cases", "If the problem comes back, tap \"Report it\" — we reply quickly", "Your recipes and prices are never touched by a failed scan"],
+    scanNoItemsTips: ["Crop the photo to the product table, without the header or the footer", "Lay the invoice flat, no folds or shadows, with good light", "On a long invoice, take two photos: the top half, then the bottom half", "If your supplier sends you a PDF, use it: it is the most reliable method"],
     scanResultTitle: "Scan result", scanImagePreviewLabel: "View the image sent to the AI (diagnostic)", scanRotateHint: "Photo sideways? Rotate it before analyzing.", scanAnalyzeButton: "Analyze", scanSupplier: "Supplier",
     scanDate: "Date", scanAssignTo: "Assign to", scanNewIngredient: "🆕 New ingredient",
     scanLinkedSure: "Existing ingredient", scanLinkedGuess: "Suggestion, please check",
@@ -2774,16 +2888,41 @@ const ACTIVITY_LABELS = {
   recipe_created: "Recette créée",
   scan_invoice: "Scan facture",
   scan_recipe: "Scan fiche recette",
+  scan_failed: "Scan ÉCHOUÉ",
 };
 const ACTIVITY_ICON = {
   login: { Icon: LogIn, color: "#9CA3AF" },
   recipe_created: { Icon: ChefHat, color: BRAND_SOLID },
   scan_invoice: { Icon: Receipt, color: "#38BDF8" },
   scan_recipe: { Icon: ClipboardList, color: "#F59E0B" },
+  scan_failed: { Icon: AlertTriangle, color: TIER_COLORS.low },
+};
+// Codes d'échec de scan connus. Toute valeur hors de cette liste retombe sur "unknown" côté
+// affichage, pour ne jamais montrer une clé de traduction brute au restaurateur.
+const SCAN_ERR_CODES = ["offline", "ai_timeout", "ai_busy", "ai_unavailable", "ai_unreadable", "file_unreadable", "file_too_big", "bad_request"];
+// Les mêmes codes traduits en clair pour le tableau de bord admin (usage interne, français).
+const SCAN_FAIL_REASONS = {
+  offline: "connexion perdue côté client",
+  ai_timeout: "délai dépassé (document trop long / réseau lent)",
+  ai_busy: "service d'IA saturé",
+  ai_unavailable: "service d'IA indisponible (à vérifier côté Vercel)",
+  ai_unreadable: "réponse de l'IA illisible",
+  file_unreadable: "fichier illisible par le navigateur",
+  file_too_big: "document trop volumineux",
+  bad_request: "requête sans document",
+  unknown: "cause inconnue",
 };
 function activityDetail(e) {
   const m = e.meta || {};
   if (e.type === "recipe_created") return m.name ? `« ${m.name} »` : "";
+  if (e.type === "scan_failed") {
+    const bits = [SCAN_FAIL_REASONS[m.code] || m.code || "cause inconnue"];
+    if (m.httpStatus) bits.push(`HTTP ${m.httpStatus}`);
+    if (m.online === false) bits.push("appareil hors ligne");
+    if (m.mode) bits.push(m.mode === "pdf_text" ? "PDF texte" : "photo");
+    if (m.fileType) bits.push(m.fileType);
+    return bits.join(" · ");
+  }
   if (e.type === "scan_invoice" || e.type === "scan_recipe") {
     if (m.zeroItems) return "Aucune ligne détectée";
     const bits = [`${m.foodItems ?? 0} ligne(s) alimentaire(s)`];
@@ -3238,6 +3377,14 @@ export default function App() {
   // d'admettre ne pas pouvoir le lire. Un bouton pivoter manuel avant analyse règle ce cas
   // universellement, sans dépendre de la fiabilité de la métadonnée EXIF.
   const [scanPendingImage, setScanPendingImage] = useState(null); // { base64, mediaType }
+  // Étape en cours pendant l'analyse ("prepare" | "ocr" | "ai") — affichée à l'écran pour que
+  // l'attente ne ressemble jamais à un blocage. Un scan peut prendre 30 à 60 secondes sur un
+  // document dense : sans indication de progression, l'utilisateur croit que c'est planté et ferme.
+  const [scanStep, setScanStep] = useState(null);
+  // Dernière image réellement envoyée + par quel bouton le fichier est arrivé, pour proposer un
+  // "Réessayer" en un seul tap après un échec au lieu de tout faire recommencer.
+  const [lastScanImage, setLastScanImage] = useState(null); // { base64, mediaType }
+  const [lastScanSource, setLastScanSource] = useState("file"); // "file" | "camera"
   const [reviewStackOpen, setReviewStackOpen] = useState(false);
   const [stackTotal, setStackTotal] = useState(0);
   const [expandedReviewIdx, setExpandedReviewIdx] = useState(null);
@@ -4021,7 +4168,12 @@ export default function App() {
       canvas.height = height;
       canvas.getContext("2d").drawImage(source, 0, 0, width, height);
       const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-      return { base64: dataUrl.split(",")[1], mediaType: "image/jpeg" };
+      const base64 = dataUrl.split(",")[1] || "";
+      // Certains navigateurs mobiles renvoient "data:," (chaîne vide) quand la conversion échoue,
+      // au lieu de lever une erreur. Sans ce garde-fou on envoyait une image vide au serveur, qui
+      // répondait "document non reçu" — un message trompeur pour un problème d'image en réalité.
+      if (base64.length < 100) throw new Error("image_encode_failed");
+      return { base64, mediaType: "image/jpeg" };
     };
     try {
       const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -4050,7 +4202,14 @@ export default function App() {
               width = Math.round(width * scale);
               height = Math.round(height * scale);
             }
-            resolve(drawToCanvas(img, width, height));
+            // try/catch obligatoire : une exception levée ici (dans un gestionnaire d'événement)
+            // ne rejetterait PAS la promesse — elle la laisserait en attente pour toujours, et le
+            // scan resterait bloqué sur "Analyse en cours…" sans jamais afficher d'erreur.
+            try {
+              resolve(drawToCanvas(img, width, height));
+            } catch (err) {
+              reject(err);
+            }
           };
           img.src = reader.result;
         };
@@ -4067,16 +4226,24 @@ export default function App() {
       const img = new Image();
       img.onerror = () => reject(new Error("Image illisible"));
       img.onload = () => {
-        const swap = ((degrees % 180) + 180) % 180 !== 0;
-        const canvas = document.createElement("canvas");
-        canvas.width = swap ? img.height : img.width;
-        canvas.height = swap ? img.width : img.height;
-        const ctx = canvas.getContext("2d");
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((degrees * Math.PI) / 180);
-        ctx.drawImage(img, -img.width / 2, -img.height / 2);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-        resolve({ base64: dataUrl.split(",")[1], mediaType: "image/jpeg" });
+        // try/catch : une exception dans ce gestionnaire d'événement ne rejetterait pas la
+        // promesse, elle la laisserait en attente indéfiniment (bouton pivoter sans effet visible).
+        try {
+          const swap = ((degrees % 180) + 180) % 180 !== 0;
+          const canvas = document.createElement("canvas");
+          canvas.width = swap ? img.height : img.width;
+          canvas.height = swap ? img.width : img.height;
+          const ctx = canvas.getContext("2d");
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((degrees * Math.PI) / 180);
+          ctx.drawImage(img, -img.width / 2, -img.height / 2);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          const rotated = dataUrl.split(",")[1] || "";
+          if (rotated.length < 100) throw new Error("image_encode_failed");
+          resolve({ base64: rotated, mediaType: "image/jpeg" });
+        } catch (err) {
+          reject(err);
+        }
       };
       img.src = `data:${mediaType};base64,${base64}`;
     });
@@ -4094,13 +4261,17 @@ export default function App() {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
+    // Plafond de taille : le serveur ne garde de toute façon que les 12000 premiers caractères,
+    // et un PDF de plusieurs dizaines de pages pouvait produire une requête si volumineuse qu'elle
+    // était refusée par la plateforme avant même d'arriver (erreur incompréhensible côté client).
+    const MAX_PDF_CHARS = 20000;
     let fullText = "";
-    for (let i = 1; i <= pdf.numPages; i++) {
+    for (let i = 1; i <= pdf.numPages && fullText.length < MAX_PDF_CHARS; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
       fullText += content.items.map((it) => it.str).join(" ") + "\n";
     }
-    if (fullText.trim().length > 40) return { text: fullText.trim() };
+    if (fullText.trim().length > 40) return { text: fullText.trim().slice(0, MAX_PDF_CHARS) };
 
     const page = await pdf.getPage(1);
     const viewport = page.getViewport({ scale: 2 });
@@ -4118,15 +4289,41 @@ export default function App() {
   // ligne voisine confondue). Best-effort et jamais bloquant : si l'OCR échoue ou n'est pas
   // disponible, le scan continue normalement sans lui. Import dynamique pour la même raison que
   // pdfjs-dist ci-dessus (grosse librairie, chargée seulement au moment de scanner une photo).
+  // ⚠️ Deux garde-fous ajoutés le 2026-08-24 après audit, tous deux liés à des scans qui restaient
+  // bloqués sur "Analyse en cours…" sans jamais aboutir :
+  // 1. UNE SEULE langue chargée (celle de l'interface) au lieu de "fra+spa+eng". tesseract.js
+  //    télécharge son moteur WebAssembly ET un fichier de données par langue depuis un CDN externe
+  //    au premier scan : trois langues, c'est trois fois plus de mégaoctets à télécharger avant
+  //    même que l'analyse commence — sur la connexion mobile d'une cuisine, c'est très long. L'OCR
+  //    n'est qu'un INDICE donné à l'IA en plus de l'image, pas la lecture principale : lire une
+  //    facture française avec le seul modèle français ne dégrade rien.
+  // 2. Délai maximum : si le CDN est lent, bloqué (réseau d'entreprise, bloqueur de pub) ou
+  //    injoignable, l'attente pouvait durer indéfiniment sans qu'aucune erreur ne soit levée. On
+  //    abandonne désormais l'OCR au bout de OCR_TIMEOUT_MS et le scan continue sans lui.
+  const OCR_TIMEOUT_MS = 20000;
+  const OCR_LANG = { fr: "fra", es: "spa", en: "eng" };
   const runOcr = async (base64) => {
+    let worker = null;
     try {
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("fra+spa+eng");
-      const { data } = await worker.recognize(`data:image/jpeg;base64,${base64}`);
-      await worker.terminate();
-      return (data.text || "").trim();
+      // .catch() attaché tout de suite : si l'OCR échoue APRÈS que le délai a déjà expiré, la
+      // promesse rejetée n'a plus personne pour l'attendre et provoquerait une erreur non gérée.
+      const ocrPromise = (async () => {
+        const { createWorker } = await import("tesseract.js");
+        worker = await createWorker(OCR_LANG[lang] || "fra");
+        const { data } = await worker.recognize(`data:image/jpeg;base64,${base64}`);
+        return (data.text || "").trim();
+      })().catch(() => "");
+      const text = await Promise.race([
+        ocrPromise,
+        new Promise((resolve) => setTimeout(() => resolve(null), OCR_TIMEOUT_MS)),
+      ]);
+      return text || "";
     } catch (e) {
       return "";
+    } finally {
+      // Toujours libérer le worker, y compris quand le délai a expiré pendant qu'il travaillait
+      // encore — sinon il continue à tourner en arrière-plan et à consommer la batterie.
+      try { await worker?.terminate(); } catch (e) {}
     }
   };
 
@@ -4353,37 +4550,50 @@ export default function App() {
     setScanResult(null);
     setScanImagePreview(null);
     setScanPendingImage(null);
+    // Oublier la photo du scan précédent : sinon "Réessayer avec la même photo" renverrait l'image
+    // d'avant si le nouveau document (un PDF par exemple) échoue dès l'ouverture du fichier.
+    setLastScanImage(null);
     setReviewStackOpen(false);
     setExpandedReviewIdx(null);
     const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name || "");
+    setLastScanSource(isPdf ? "file" : e.target === fileInputRef.current ? "camera" : "file");
     if (!isPdf) {
       setScanning(true);
+      setScanStep("prepare");
       try {
         const { base64, mediaType } = await compressImageFile(file);
         setScanImagePreview(`data:${mediaType};base64,${base64}`);
         setScanPendingImage({ base64, mediaType });
       } catch (err) {
-        setScanErr(err.message || "Erreur inconnue");
+        // Fichier que le navigateur n'arrive pas à ouvrir comme une image : format exotique
+        // (HEIC brut sorti de l'app Fichiers d'un iPhone), fichier tronqué, image corrompue.
+        setScanErr({ code: "file_unreadable" });
+        logScanFailure("file_unreadable", { fileType: file.type || "?" });
       } finally {
         setScanning(false);
+        setScanStep(null);
       }
       return;
     }
     setScanning(true);
+    setScanStep("prepare");
     try {
       const pdfResult = await readPdfFile(file);
       let payload;
       if (pdfResult.text) {
         payload = { text: pdfResult.text, lang };
       } else {
+        setScanStep("ocr");
         const ocrText = await runOcr(pdfResult.base64);
         payload = { image: pdfResult.base64, mediaType: pdfResult.mediaType, ocrText, lang };
         setScanImagePreview(`data:${pdfResult.mediaType};base64,${pdfResult.base64}`);
       }
       await runScanPipeline(payload);
     } catch (err) {
-      setScanErr(err.message || "Erreur inconnue");
+      setScanErr({ code: "file_unreadable" });
+      logScanFailure("file_unreadable", { fileType: "pdf" });
       setScanning(false);
+      setScanStep(null);
     }
   };
 
@@ -4391,41 +4601,105 @@ export default function App() {
   // qui sera réellement envoyée au clic sur "Analyser".
   const rotateScanPendingImage = async (degrees) => {
     if (!scanPendingImage) return;
-    const rotated = await rotateImageBase64(scanPendingImage.base64, scanPendingImage.mediaType, degrees);
-    setScanPendingImage(rotated);
-    setScanImagePreview(`data:${rotated.mediaType};base64,${rotated.base64}`);
+    // Un échec de rotation ne doit jamais rester silencieux (l'utilisateur appuierait dans le vide)
+    // ni faire perdre la photo déjà en attente : on garde la photo telle quelle et on explique.
+    try {
+      const rotated = await rotateImageBase64(scanPendingImage.base64, scanPendingImage.mediaType, degrees);
+      setScanPendingImage(rotated);
+      setScanImagePreview(`data:${rotated.mediaType};base64,${rotated.base64}`);
+    } catch (err) {
+      setScanErr({ code: "file_unreadable" });
+    }
   };
 
   // Lance réellement l'analyse de la photo en attente (OCR + appel IA), une fois que
   // l'utilisateur a confirmé (éventuellement après l'avoir pivotée).
-  const confirmScanImage = async () => {
-    if (!scanPendingImage) return;
-    const { base64, mediaType } = scanPendingImage;
+  const confirmScanImage = async (imageOverride = null) => {
+    const source = imageOverride || scanPendingImage;
+    if (!source) return;
+    const { base64, mediaType } = source;
     setScanning(true);
+    setScanErr(null);
     setScanPendingImage(null);
+    // Mémorisée pour pouvoir RENVOYER exactement la même photo en un tap après un échec, sans
+    // redemander au restaurateur de retrouver son fichier / reprendre sa photo (frein majeur :
+    // après un échec, un utilisateur qui doit tout recommencer abandonne).
+    setLastScanImage({ base64, mediaType });
     try {
+      setScanStep("ocr");
       const ocrText = await runOcr(base64);
       await runScanPipeline({ image: base64, mediaType, ocrText, lang });
     } catch (err) {
-      setScanErr(err.message || "Erreur inconnue");
+      setScanErr({ code: "unknown" });
+      logScanFailure("unknown", {});
       setScanning(false);
+      setScanStep(null);
     }
+  };
+
+  // Renvoie la dernière image analysée telle quelle (après un échec réseau/serveur) — un seul tap,
+  // aucun fichier à re-sélectionner.
+  const retryLastScan = () => {
+    if (lastScanImage) return confirmScanImage(lastScanImage);
+    // Pas d'image en mémoire (échec côté PDF ou fichier illisible) : on rouvre le bon sélecteur,
+    // celui par lequel le restaurateur était passé, jamais l'appareil photo par défaut.
+    if (lastScanSource === "camera") fileInputRef.current?.click();
+    else fileInputLibraryRef.current?.click();
+  };
+
+  // Journal des ÉCHECS de scan (2026-08-24). Jusqu'ici seuls les scans réussis étaient enregistrés :
+  // quand un client disait "ça ne marche pas", le tableau de bord admin restait vide et il était
+  // impossible de savoir s'il avait seulement essayé, ni pourquoi ça avait échoué. Fire-and-forget,
+  // jamais bloquant, aucune donnée de facture — juste un code d'erreur.
+  const logScanFailure = (code, meta = {}) => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        await fetch("/api/scan-events", {
+          method: "POST",
+          headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ type: "scan_failed", meta: { scanner: "invoice", code, online: navigator.onLine, ...meta } }),
+        });
+      } catch (e) {}
+    })();
   };
 
   // Envoie le payload à l'IA et traite le résultat — partagé par le chemin PDF (automatique) et
   // le chemin photo (après confirmation/rotation éventuelle via confirmScanImage).
   const runScanPipeline = async (payload) => {
+    // Délai maximum côté navigateur. Sans ça, une connexion qui se coupe en pleine requête (cas
+    // très courant en cuisine : wifi capricieux, passage en 4G) laissait la roue tourner
+    // indéfiniment, sans erreur, sans issue — l'utilisateur ne pouvait que fermer et recommencer.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 75000);
     try {
+      setScanStep("ai");
       const res = await fetch("/api/scan-invoice", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
-      const data = await res.json();
+      // ⚠️ Ne JAMAIS faire res.json() directement : quand la plateforme coupe la fonction (délai
+      // dépassé) ou refuse la requête, elle répond une page HTML, pas du JSON — res.json() levait
+      // alors une erreur technique ("Unexpected token '<'…") affichée telle quelle au restaurateur.
+      const bodyText = await res.text();
+      let data = {};
+      try { data = bodyText ? JSON.parse(bodyText) : {}; } catch (e) { data = {}; }
       if (!res.ok) {
-        const debugDetail = data.detail || data.raw;
-        const msg = debugDetail ? `${data.error} (${debugDetail})` : data.error || "Échec de l'analyse";
-        throw new Error(msg);
+        // Le serveur renvoie un code non technique (voir api/scan-invoice.js). S'il n'y en a pas,
+        // c'est que la réponse ne vient pas de notre code (page d'erreur de la plateforme) : on
+        // déduit la cause du statut HTTP.
+        const code =
+          data.code ||
+          (res.status === 504 || res.status === 408 ? "ai_timeout" :
+           res.status === 413 ? "file_too_big" :
+           res.status === 429 || res.status === 503 ? "ai_busy" : "ai_unavailable");
+        const err = new Error(code);
+        err.scanCode = code;
+        err.httpStatus = res.status;
+        throw err;
       }
       // Date du dernier scan réussi, utilisée uniquement par le rappel d'inactivité par email
       // (api/send-reminders.js) — fire-and-forget, un échec ici ne doit jamais bloquer le scan.
@@ -4449,7 +4723,10 @@ export default function App() {
         const text = normalizeStr(`${it.name || ""} ${it.rawLabel || ""}`);
         return FOOTER_KEYWORDS.some((kw) => text.includes(kw));
       };
-      const items = (data.items || [])
+      const items = (Array.isArray(data.items) ? data.items : [])
+        .filter((it) => it && typeof it === "object")
+        // String() défensif : un nom renvoyé comme nombre ferait planter .trim() (écran blanc).
+        .map((it) => (typeof it.name === "string" || it.name == null ? it : { ...it, name: String(it.name) }))
         .filter((it) => it.name && it.name.trim())
         .filter((it) => !looksLikeFooter(it))
         .map((it) => {
@@ -4594,9 +4871,18 @@ export default function App() {
         setExpandedReviewIdx(null);
       }
     } catch (err) {
-      setScanErr(err.message || "Erreur inconnue");
+      // Classement en catégories compréhensibles par un restaurateur, jamais un message technique.
+      // "AbortError" = notre propre délai de 75s dépassé ; un fetch qui échoue sans réponse du tout
+      // (TypeError) = connexion perdue, appareil hors ligne, ou tunnel réseau coupé.
+      const code =
+        err.scanCode ||
+        (err.name === "AbortError" ? "ai_timeout" : !navigator.onLine || err.name === "TypeError" ? "offline" : "unknown");
+      setScanErr({ code, status: err.httpStatus || null });
+      logScanFailure(code, { httpStatus: err.httpStatus || null, mode: payload.text ? "pdf_text" : "image" });
     } finally {
+      clearTimeout(timeoutId);
       setScanning(false);
+      setScanStep(null);
     }
   };
 
@@ -4729,8 +5015,26 @@ export default function App() {
     setScanImagePreview(null);
     setScanImageZoomed(false);
     setScanPendingImage(null);
+    setScanStep(null);
+    setLastScanImage(null);
     setReviewStackOpen(false);
     setExpandedReviewIdx(null);
+  };
+
+  // Tout code d'erreur inattendu retombe sur "unknown" : garantit qu'un message compréhensible
+  // s'affiche toujours, jamais une clé de traduction brute à l'écran.
+  const scanErrCode = scanErr && SCAN_ERR_CODES.includes(scanErr.code) ? scanErr.code : "unknown";
+
+  // Ouvre le formulaire de contact avec un message déjà pré-rempli décrivant l'échec, pour que le
+  // restaurateur n'ait qu'à cliquer "Envoyer" — et que nous, on reçoive un vrai diagnostic (code
+  // d'erreur, statut) plutôt qu'un "ça ne marche pas" impossible à reproduire. Le code entre
+  // crochets ne révèle rien du fonctionnement interne, c'est juste un repère de corrélation.
+  const reportScanProblem = (codeOverride = null) => {
+    const code = codeOverride || scanErr?.code || "unknown";
+    setContactMessage(`${t("scanReportPrefill")}\n\n[${code}${scanErr?.status ? `/${scanErr.status}` : ""}]`);
+    setContactSent(false);
+    setContactErr(null);
+    setContactModalOpen(true);
   };
 
   // ---------------- Scanner de fiche recette (photo/PDF -> pré-remplissage d'une recette) ----------------
@@ -5269,7 +5573,7 @@ export default function App() {
       />
 
       {contactModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setContactModalOpen(false)}>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setContactModalOpen(false)}>
           <div
             className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10"
             style={{ background: "#26221C" }}
@@ -5605,7 +5909,11 @@ export default function App() {
       )}
 
       {scanOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeScan}>
+        // ⚠️ Le clic à côté ne ferme PAS pendant l'analyse : un scan prend 30 à 60 secondes, et un
+        // tap distrait sur le fond noir effaçait tout le résultat au moment où il arrivait — le
+        // restaurateur voyait alors simplement "il ne s'est rien passé", sans aucune erreur.
+        // La croix reste disponible pour annuler volontairement.
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={() => { if (!scanning) closeScan(); }}>
           <div
             className="rounded-2xl p-5 w-full max-w-xl max-h-[85vh] overflow-y-auto font-body border border-white/10"
             style={{ background: "#26221C" }}
@@ -5678,19 +5986,65 @@ export default function App() {
             {scanning && (
               <div className="flex flex-col items-center justify-center py-10 text-white/60 text-sm gap-3">
                 <Loader2 size={26} className="animate-spin" style={{ color: BRAND_SOLID }} />
-                {t("scanning")}
+                <div className="text-center">
+                  <div>{t("scanning")}</div>
+                  {scanStep && <div className="text-white/35 text-[11px] mt-1">{t(`scanStep_${scanStep}`)}</div>}
+                  <div className="text-white/25 text-[11px] mt-2">{t("scanningPatience")}</div>
+                </div>
               </div>
             )}
 
+            {/* Écran d'erreur repensé (2026-08-24) : plus jamais un message technique brut. Trois
+                choses systématiquement présentes — ce qui s'est passé, quoi faire concrètement, et
+                un moyen de nous joindre en un tap sans quitter l'app. Objectif explicite : qu'un
+                restaurateur bloqué à son premier scan ne reparte pas en silence. */}
             {scanErr && !scanning && (
-              <div className="text-center py-6">
-                <div className="text-[#B23A2E] text-sm mb-3">{t("scanError")} : {scanErr}</div>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-xs uppercase tracking-wide px-3 py-1.5 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
-                >
-                  {t("scanRetry")}
-                </button>
+              <div className="py-2">
+                <div className="rounded-xl p-4 mb-3" style={{ background: `${TIER_COLORS.low}14`, border: `1px solid ${TIER_COLORS.low}40` }}>
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle size={18} className="shrink-0 mt-0.5" style={{ color: TIER_COLORS.low }} />
+                    <div className="min-w-0">
+                      <div className="text-white font-semibold text-sm mb-1">{t(`scanErrTitle_${scanErrCode}`)}</div>
+                      <div className="text-white/60 text-xs leading-relaxed">{t(`scanErrBody_${scanErrCode}`)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl p-3 mb-3" style={{ background: "rgba(255,255,255,0.04)" }}>
+                  <div className="text-white/50 text-[11px] uppercase tracking-wide font-display mb-1.5">{t("scanErrWhatToDo")}</div>
+                  <ul className="text-white/70 text-xs leading-relaxed space-y-1">
+                    {t(`scanErrTips_${scanErrCode}`).map((tip, i) => (
+                      <li key={i} className="flex gap-2">
+                        <span style={{ color: BRAND_SOLID }}>•</span>
+                        <span>{tip}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={retryLastScan}
+                    className="w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                    style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+                  >
+                    <RefreshCw size={14} /> {lastScanImage ? t("scanRetrySamePhoto") : t("scanRetry")}
+                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => fileInputLibraryRef.current?.click()}
+                      className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                    >
+                      {t("scanRetryOtherFile")}
+                    </button>
+                    <button
+                      onClick={() => reportScanProblem()}
+                      className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                    >
+                      {t("scanReportProblem")}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -5738,7 +6092,48 @@ export default function App() {
                 )}
 
                 {scanResult.items.length === 0 ? (
-                  <div className="text-white/40 text-sm py-4 text-center">{t("scanNoItems")}</div>
+                  // Cas très fréquent d'abandon : le document a bien été analysé mais rien n'en est
+                  // ressorti. Avant, une seule phrase grise, aucun bouton — l'utilisateur devait
+                  // deviner qu'il pouvait réessayer. Désormais : explication + conseils concrets +
+                  // les mêmes boutons que l'écran d'erreur (renvoyer la photo, autre fichier, nous
+                  // écrire), pour qu'il ne reste jamais dans une impasse.
+                  <div className="py-2">
+                    <div className="text-white/60 text-sm leading-relaxed mb-3">{t("scanNoItems")}</div>
+                    <div className="rounded-xl p-3 mb-3" style={{ background: "rgba(255,255,255,0.04)" }}>
+                      <div className="text-white/50 text-[11px] uppercase tracking-wide font-display mb-1.5">{t("scanErrWhatToDo")}</div>
+                      <ul className="text-white/70 text-xs leading-relaxed space-y-1">
+                        {t("scanNoItemsTips").map((tip, i) => (
+                          <li key={i} className="flex gap-2">
+                            <span style={{ color: BRAND_SOLID }}>•</span>
+                            <span>{tip}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={retryLastScan}
+                        className="w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                        style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+                      >
+                        <RefreshCw size={14} /> {lastScanImage ? t("scanRetrySamePhoto") : t("scanRetry")}
+                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => fileInputLibraryRef.current?.click()}
+                          className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                        >
+                          {t("scanRetryOtherFile")}
+                        </button>
+                        <button
+                          onClick={() => reportScanProblem("no_items")}
+                          className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                        >
+                          {t("scanReportProblem")}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   (() => {
                     const withIdx = scanResult.items.map((item, idx) => ({ item, idx }));

@@ -22,7 +22,14 @@
 // du scanner sur l'ensemble des comptes (inchangé, lit toujours scan_events).
 import { requireUser, getSupabaseAdmin } from "./_lib.js";
 
-const SIMPLE_ACTIVITY_TYPES = new Set(["login", "recipe_created"]);
+// `scan_failed` (2026-08-24) : un scan qui ÉCHOUE (réseau coupé, délai dépassé, IA indisponible,
+// fichier illisible) n'écrivait jusqu'ici strictement rien nulle part — le journal `scan_events`
+// n'est alimenté qu'après une réponse réussie. Résultat concret : quand la première vraie cliente
+// a signalé "je n'arrive pas à importer mes factures", le tableau de bord admin ne montrait AUCUN
+// scan pour son compte, impossible de savoir si elle avait seulement essayé. Ces échecs partent
+// donc désormais dans `activity_events` (aucune nouvelle table, aucune nouvelle fonction Vercel —
+// le plafond de 12 est atteint), avec uniquement un code d'erreur et le type de fichier en `meta`.
+const SIMPLE_ACTIVITY_TYPES = new Set(["login", "recipe_created", "scan_failed"]);
 
 export default async function handler(req, res) {
   const supabaseAdmin = getSupabaseAdmin();

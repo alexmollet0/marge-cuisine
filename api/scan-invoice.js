@@ -15,23 +15,46 @@ CODES PAYS D'ORIGINE FRÉQUENTS sur une facture de fruits/légumes (à ne jamais
   en: null,
 };
 
+// Durée maximale de la fonction. Sans ce réglage, une facture longue peut dépasser la durée par
+// défaut du plan (10s sur l'ancien réglage Hobby) : Vercel tue alors la fonction et renvoie une
+// page d'erreur HTML, que le client ne sait pas interpréter (il obtenait un message technique
+// incompréhensible du type "Unexpected token '<'"). Voir aussi UPSTREAM_TIMEOUT_MS plus bas : on
+// préfère toujours répondre nous-mêmes proprement AVANT que la plateforme ne coupe.
+export const config = { maxDuration: 60 };
+
+// On coupe l'appel à l'IA un peu avant la limite de la fonction, pour avoir le temps de renvoyer
+// un JSON d'erreur propre plutôt que de se faire tuer par la plateforme.
+const UPSTREAM_TIMEOUT_MS = 45000;
+
+// Codes d'erreur renvoyés au client. Volontairement grossiers et non techniques : le client les
+// traduit en message actionnable pour le restaurateur, sans jamais exposer le détail interne
+// (clé API, solde de crédits, message brut du fournisseur d'IA...). Le vrai détail part dans les
+// logs Vercel via console.error, consultables par nous seuls.
+// - ai_unavailable : service d'IA indisponible/mal configuré de notre côté (rien à faire pour le client)
+// - ai_busy        : trop de demandes en ce moment, réessayer dans un instant
+// - ai_timeout     : le document a mis trop de temps à être analysé
+// - ai_unreadable  : l'IA a répondu quelque chose d'inexploitable
+// - bad_request    : requête invalide (aucun document reçu)
+const fail = (res, status, code, logLabel, logDetail) => {
+  if (logLabel) console.error(`[scan-invoice] ${logLabel}`, typeof logDetail === "string" ? logDetail.slice(0, 800) : logDetail);
+  return res.status(status).json({ code });
+};
+
 // Fonction serveur Vercel (jamais exécutée dans le navigateur : la clé API
 // reste ici, côté serveur, et n'est jamais visible par le client).
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Méthode non autorisée" });
+    return res.status(405).json({ code: "bad_request" });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({
-      error: "Clé API manquante côté serveur (variable ANTHROPIC_API_KEY non configurée sur Vercel).",
-    });
+    return fail(res, 503, "ai_unavailable", "ANTHROPIC_API_KEY manquante sur Vercel");
   }
 
   const { image, mediaType, text, ocrText, lang } = req.body || {};
   if (!image && !text) {
-    return res.status(400).json({ error: "Aucune image ni texte reçu." });
+    return fail(res, 400, "bad_request", "payload sans image ni texte");
   }
 
   const prompt = `Tu es un assistant spécialisé dans la lecture de factures et bons de livraison fournisseurs pour la restauration.
@@ -172,9 +195,12 @@ Le champ "name" d'un item doit TOUJOURS correspondre à du texte que tu peux ré
   }
   content.push({ type: "text", text: prompt });
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
+      signal: controller.signal,
       headers: {
         "content-type": "application/json",
         "x-api-key": apiKey,
@@ -193,8 +219,13 @@ Le champ "name" d'un item doit TOUJOURS correspondre à du texte que tu peux ré
     });
 
     if (!response.ok) {
-      const detail = await response.text();
-      return res.status(502).json({ error: "L'IA n'a pas pu traiter l'image.", detail });
+      // Le détail brut du fournisseur d'IA (solde de crédits épuisé, clé invalide, surcharge...)
+      // ne doit JAMAIS remonter jusqu'au restaurateur : il n'y peut rien et ça exposerait le
+      // fonctionnement interne. On garde le détail dans les logs Vercel, on ne renvoie qu'un code.
+      const detail = await response.text().catch(() => "");
+      // 429 = trop de requêtes, 529 = surcharge temporaire du fournisseur : réessayer aide vraiment.
+      const busy = response.status === 429 || response.status === 529 || response.status === 503;
+      return fail(res, busy ? 503 : 502, busy ? "ai_busy" : "ai_unavailable", `HTTP ${response.status}`, detail);
     }
 
     const data = await response.json();
@@ -213,11 +244,25 @@ Le champ "name" d'un item doit TOUJOURS correspondre à du texte que tu peux ré
     try {
       parsed = JSON.parse(raw);
     } catch (e) {
-      return res.status(502).json({ error: "Réponse de l'IA illisible.", detail: raw ? raw.slice(0, 500) : "(réponse vide)" });
+      return fail(res, 502, "ai_unreadable", "JSON illisible", raw || "(réponse vide)");
     }
 
-    return res.status(200).json(parsed);
+    // Normalisation défensive : le client itère sur `items` en supposant un tableau. Si l'IA
+    // renvoie autre chose (objet groupé par section, valeur unique...), on aplatit ici plutôt que
+    // de laisser planter le navigateur du restaurateur avec une erreur incompréhensible.
+    let items = parsed && parsed.items;
+    if (!Array.isArray(items)) {
+      if (items && typeof items === "object") items = Object.values(items).flat().filter((x) => x && typeof x === "object");
+      else items = [];
+    }
+
+    return res.status(200).json({ supplier: parsed?.supplier ?? null, date: parsed?.date ?? null, items });
   } catch (e) {
-    return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+    if (e.name === "AbortError") {
+      return fail(res, 504, "ai_timeout", "délai dépassé côté IA");
+    }
+    return fail(res, 500, "ai_unavailable", "exception", e.message);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
