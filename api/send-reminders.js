@@ -1,9 +1,21 @@
-// Rappels par email (inactivité + marge sous objectif), déclenchés une fois par jour par le
-// cron Vercel (voir vercel.json) sur cette même route. Protégé par CRON_SECRET (Vercel l'envoie
-// automatiquement en en-tête Authorization pour l'appel cron ; pour un test manuel, passer
-// ?secret=... dans l'URL). Ajouter ?dryRun=1 pour voir ce qui SERAIT envoyé sans rien envoyer
-// ni écrire dans Supabase — à utiliser en premier avant tout vrai envoi.
-import { getSupabaseAdmin, sendEmail } from "./_lib.js";
+// Rappels par email (inactivité + marge sous objectif + accueil), déclenchés une fois par jour
+// par le cron Vercel (voir vercel.json) sur cette même route, en GET — protégé par CRON_SECRET
+// (Vercel l'envoie automatiquement en en-tête Authorization pour l'appel cron ; pour un test
+// manuel, passer ?secret=... dans l'URL). Ajouter ?dryRun=1 pour voir ce qui SERAIT envoyé sans
+// rien envoyer ni écrire dans Supabase — à utiliser en premier avant tout vrai envoi.
+//
+// POST (2026-08-24, nouveau) : déclenché par le client (`src/Auth.jsx`) juste après la toute
+// première connexion d'un compte, authentifié par le token de session (`requireUser`, pas
+// CRON_SECRET — différent modèle d'auth, voir plus bas). Programme (ne envoie pas tout de suite)
+// un email d'accueil humain via Resend (`scheduled_at`), à une heure choisie selon le fuseau
+// horaire du navigateur de l'utilisateur — voir `computeWelcomeSendAt`.
+import { getSupabaseAdmin, sendEmail, requireUser } from "./_lib.js";
+
+// Comptes à ne jamais inscrire à l'email d'accueil automatique (2026-08-24) — actuellement un
+// seul cas : cliente déjà accompagnée personnellement suite à un problème de scan signalé via le
+// formulaire de contact (voir CLAUDE.md, section support client), un email automatique "as-tu
+// besoin d'aide ?" serait redondant/déroutant juste après. Comparaison insensible à la casse.
+const WELCOME_EMAIL_EXCLUDED = ["casavostra.ajaccio@gmail.com"];
 
 const INACTIVITY_DAYS = 21; // 3 semaines sans scan
 const INACTIVITY_RENOTIFY_DAYS = 14; // ne relance pas avant ce délai après un 1er rappel
@@ -20,6 +32,46 @@ const TRIAL_DAYS = 7; // doit rester synchronisé avec TRIAL_DAYS dans src/Billi
 
 function daysBetween(from, to) {
   return (to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24);
+}
+
+// Convertit une heure "murale" (année/mois/jour/heure/minute) dans un fuseau IANA donné en
+// l'instant UTC correspondant — sans dépendance externe (Intl suffit). Approche par convergence :
+// on part d'une estimation, on mesure l'écart avec l'heure que ça donnerait réellement dans ce
+// fuseau, et on corrige (2 passes suffisent, gère les transitions heure d'été/hiver).
+function zonedTimeToUtc(year, month, day, hour, minute, timeZone) {
+  let guess = Date.UTC(year, month - 1, day, hour, minute);
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+  for (let i = 0; i < 2; i++) {
+    const parts = Object.fromEntries(fmt.formatToParts(new Date(guess)).map((p) => [p.type, p.value]));
+    const gotUtcMs = Date.UTC(+parts.year, +parts.month - 1, +parts.day, parts.hour === "24" ? 0 : +parts.hour, +parts.minute);
+    const wantUtcMs = Date.UTC(year, month - 1, day, hour, minute);
+    guess += wantUtcMs - gotUtcMs;
+  }
+  return new Date(guess);
+}
+
+// Heure d'envoi du mail d'accueil (2026-08-24) : "quelques heures après l'inscription", sauf le
+// soir/la nuit (>=19h ou <7h locales) où on reporte au lendemain 9h locales plutôt que d'envoyer
+// en pleine soirée — demandé explicitement par l'utilisateur. `timeZone` vient du navigateur du
+// nouvel inscrit (capturé côté client, voir src/Auth.jsx) ; repli sur un simple +3h si le fuseau
+// est absent/invalide (mieux qu'échouer silencieusement).
+function computeWelcomeSendAt(now, timeZone) {
+  try {
+    const fmt = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false });
+    const parts = Object.fromEntries(fmt.formatToParts(now).map((p) => [p.type, p.value]));
+    const hour = parts.hour === "24" ? 0 : +parts.hour;
+    if (hour >= 19 || hour < 7) {
+      const dayOffset = hour >= 19 ? 1 : 0; // après 19h -> demain 9h ; avant 7h -> aujourd'hui 9h
+      const base = new Date(Date.UTC(+parts.year, +parts.month - 1, +parts.day));
+      base.setUTCDate(base.getUTCDate() + dayOffset);
+      return zonedTimeToUtc(base.getUTCFullYear(), base.getUTCMonth() + 1, base.getUTCDate(), 9, 0, timeZone);
+    }
+    return new Date(now.getTime() + 3 * 60 * 60 * 1000);
+  } catch (e) {
+    return new Date(now.getTime() + 3 * 60 * 60 * 1000);
+  }
 }
 
 // --- Calcul de marge, dupliqué volontairement de src/App.jsx (effectiveUnitPrice / recipeMargin) ---
@@ -52,6 +104,13 @@ const EMAIL_COPY = {
     trialEndedSubject: "Ton essai gratuit est terminé",
     trialEndedBody:
       `<p>Ton essai gratuit de 7 jours sur Chefup est terminé. Abonne-toi pour continuer à garder un œil sur tes marges, ton garde-manger et tes fiches recettes — rien n'a été perdu, tout t'attend.</p>`,
+    welcomeSubject: "Une question, un souci avec le scan ?",
+    welcomeBody:
+      `<p>Salut,</p>
+      <p>Je m'appelle Alexandre, c'est moi qui ai créé Chefup.</p>
+      <p>Je voulais juste prendre de tes nouvelles maintenant que tu as créé ton compte. Si jamais tu bloques sur quelque chose — surtout sur le scanner de factures, c'est souvent l'étape la plus délicate au début — réponds directement à cet email, je te réponds moi-même.</p>
+      <p>Pas besoin d'un vrai problème pour m'écrire, une simple question suffit.</p>
+      <p>À bientôt,<br>Alexandre</p>`,
     cta: "Ouvrir Chefup",
     settingsHint: "Tu peux désactiver ces rappels à tout moment dans Chefup → Paramètres.",
   },
@@ -64,6 +123,13 @@ const EMAIL_COPY = {
     trialEndedSubject: "Tu prueba gratuita ha terminado",
     trialEndedBody:
       `<p>Tu prueba gratuita de 7 días en Chefup ha terminado. Suscríbete para seguir controlando tus márgenes, tu almacén y tus fichas de recetas — no se ha perdido nada, todo te espera.</p>`,
+    welcomeSubject: "¿Alguna duda o problema con el escaneo?",
+    welcomeBody:
+      `<p>Hola,</p>
+      <p>Me llamo Alexandre, soy quien creó Chefup.</p>
+      <p>Quería saber cómo te va ahora que has creado tu cuenta. Si te atascas en algo — sobre todo con el escáner de facturas, suele ser el paso más delicado al principio — responde directamente a este correo, te contesto yo mismo.</p>
+      <p>No hace falta que sea un problema grave, con una simple pregunta basta.</p>
+      <p>Hasta pronto,<br>Alexandre</p>`,
     cta: "Abrir Chefup",
     settingsHint: "Puedes desactivar estos avisos en cualquier momento en Chefup → Ajustes.",
   },
@@ -76,6 +142,13 @@ const EMAIL_COPY = {
     trialEndedSubject: "Your free trial has ended",
     trialEndedBody:
       `<p>Your 7-day free trial on Chefup has ended. Subscribe to keep an eye on your margins, pantry and recipe sheets — nothing was lost, it's all waiting for you.</p>`,
+    welcomeSubject: "Any question or issue with scanning?",
+    welcomeBody:
+      `<p>Hi,</p>
+      <p>I'm Alexandre, I built Chefup.</p>
+      <p>I just wanted to check in now that you've created your account. If you get stuck on anything — especially the invoice scanner, it's usually the trickiest part at first — just reply to this email, I'll answer you personally.</p>
+      <p>You don't need a real problem to write to me, a simple question is enough.</p>
+      <p>Talk soon,<br>Alexandre</p>`,
     cta: "Open Chefup",
     settingsHint: "You can turn off these reminders anytime in Chefup → Settings.",
   },
@@ -92,7 +165,60 @@ function wrapEmailHtml(bodyHtml, ctaLabel, settingsHint) {
   </div>`;
 }
 
+// Programme le mail d'accueil pour UN compte (déclenché par le client à la première connexion,
+// voir src/Auth.jsx) — authentifié par le token de session de ce compte, pas par CRON_SECRET.
+async function handleScheduleWelcome(req, res) {
+  const user = await requireUser(req);
+  if (!user) return res.status(401).json({ error: "Non authentifié." });
+  const email = user.email;
+  if (!email) return res.status(400).json({ error: "Compte sans email." });
+  if (WELCOME_EMAIL_EXCLUDED.includes(email.toLowerCase())) {
+    return res.status(200).json({ ok: true, skipped: "excluded" });
+  }
+
+  const admin = getSupabaseAdmin();
+  const { data: rows } = await admin
+    .from("kv_store").select("key,value").eq("user_id", user.id).in("key", ["notifState", "lang", "settings"]);
+  const kv = {};
+  for (const row of rows || []) {
+    try { kv[row.key] = JSON.parse(row.value); } catch { kv[row.key] = null; }
+  }
+  if (kv.settings?.emailRemindersEnabled === false) {
+    return res.status(200).json({ ok: true, skipped: "reminders_disabled" });
+  }
+  const notifState = kv.notifState || {};
+  // Idempotent : ne programme/renvoie jamais deux fois pour le même compte, que ce soit via cet
+  // appel client ou via le rattrapage du cron (voir plus bas) — l'un ou l'autre, jamais les deux.
+  if (notifState.welcomeEmailScheduledAt || notifState.welcomeEmailSentAt) {
+    return res.status(200).json({ ok: true, skipped: "already_scheduled" });
+  }
+
+  const lang = EMAIL_COPY[kv.lang] ? kv.lang : "fr";
+  const copy = EMAIL_COPY[lang];
+  const now = new Date();
+  const timeZone = typeof req.body?.timeZone === "string" ? req.body.timeZone : "Europe/Paris";
+  const sendAt = computeWelcomeSendAt(now, timeZone);
+
+  try {
+    await sendEmail(
+      email, copy.welcomeSubject, wrapEmailHtml(copy.welcomeBody, copy.cta, copy.settingsHint),
+      null, sendAt.toISOString(), process.env.CONTACT_EMAIL || undefined
+    );
+  } catch (e) {
+    return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+  }
+
+  const nextState = { ...notifState, welcomeEmailScheduledAt: now.toISOString() };
+  await admin.from("kv_store").upsert(
+    { user_id: user.id, key: "notifState", value: JSON.stringify(nextState), updated_at: now.toISOString() },
+    { onConflict: "user_id,key" }
+  );
+  return res.status(200).json({ ok: true, sendAt: sendAt.toISOString() });
+}
+
 export default async function handler(req, res) {
+  if (req.method === "POST") return handleScheduleWelcome(req, res);
+
   const secretFromHeader = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   const secretFromQuery = req.query?.secret;
   const providedSecret = secretFromQuery || secretFromHeader;
@@ -165,6 +291,20 @@ export default async function handler(req, res) {
           }
           nextState.trialEndedEmailSentAt = now.toISOString();
         }
+      }
+
+      // --- Mail d'accueil : rattrapage pour les comptes déjà existants (2026-08-24) ---
+      // Le déclenchement normal se fait côté client à la première connexion (`handleScheduleWelcome`
+      // ci-dessus, timing précis selon le fuseau horaire). Ce bloc ne sert qu'à rattraper les
+      // comptes qui existaient déjà avant ce chantier (jamais programmé) ou dont le déclenchement
+      // client aurait échoué (bloqueur de pub, onglet fermé trop vite...) — envoyé immédiatement,
+      // sans logique de fuseau horaire (pas un "juste inscrit", la précision n'a plus de sens ici).
+      if (!notifState.welcomeEmailScheduledAt && !notifState.welcomeEmailSentAt && !WELCOME_EMAIL_EXCLUDED.includes(email.toLowerCase())) {
+        actions.push("welcome_backfill");
+        if (!dryRun) {
+          await sendEmail(email, copy.welcomeSubject, wrapEmailHtml(copy.welcomeBody, copy.cta, copy.settingsHint), null, null, process.env.CONTACT_EMAIL || undefined);
+        }
+        nextState.welcomeEmailSentAt = now.toISOString();
       }
 
       // --- Marge sous objectif (vérifiée chaque jour, mais seulement alertée après

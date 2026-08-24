@@ -26,6 +26,27 @@ function logLoginActivity(sess) {
   }).catch(() => {});
 }
 
+// Mail d'accueil humain (2026-08-24) : déclenché une seule fois, à la toute première connexion
+// d'un compte (détectée par "créé il y a moins de 10 minutes" — fonctionne que la confirmation
+// par email soit requise ou non, contrairement à un déclenchement juste après `signUp()` qui
+// n'a pas toujours de session active à ce moment-là). Le serveur (`api/send-reminders.js`,
+// `handleScheduleWelcome`) reste la vraie garde-fou contre un double envoi (`notifState`) — ce
+// heuristique côté client sert juste à ne pas spammer l'appel réseau inutilement à chaque
+// connexion normale. Fuseau horaire envoyé pour choisir la bonne heure d'envoi (voir
+// computeWelcomeSendAt côté serveur) — repli sur Europe/Paris si l'API Intl échoue.
+function maybeScheduleWelcomeEmail(sess) {
+  if (!sess?.access_token || !sess?.user?.created_at) return;
+  const accountAgeMs = Date.now() - new Date(sess.user.created_at).getTime();
+  if (accountAgeMs > 10 * 60 * 1000) return;
+  let timeZone = "Europe/Paris";
+  try { timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || timeZone; } catch (e) {}
+  fetch("/api/send-reminders", {
+    method: "POST",
+    headers: { "content-type": "application/json", Authorization: `Bearer ${sess.access_token}` },
+    body: JSON.stringify({ timeZone }),
+  }).catch(() => {});
+}
+
 function guessAuthLang() {
   try {
     const saved = localStorage.getItem(AUTH_LANG_KEY);
@@ -124,6 +145,7 @@ export default function AuthGate({ children }) {
       if (event === "SIGNED_IN") {
         setLoginKey((k) => k + 1);
         logLoginActivity(sess);
+        maybeScheduleWelcomeEmail(sess);
       }
     });
     return () => sub.subscription.unsubscribe();
