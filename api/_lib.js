@@ -28,6 +28,43 @@ export async function requireUser(req) {
   return data.user;
 }
 
+// Vérification "souple" de l'utilisateur (2026-08-24), pensée pour les endpoints COÛTEUX (scan IA)
+// où il faut deux choses à la fois, en apparence contradictoires :
+//  - empêcher un inconnu d'appeler l'endpoint en boucle et de consommer nos crédits d'IA ;
+//  - ne JAMAIS bloquer un vrai restaurateur à cause d'un incident qui n'a rien à voir avec lui.
+// D'où ce résultat en 4 états plutôt qu'un simple oui/non (contrairement à `requireUser`, qui
+// renvoie `null` aussi bien pour "aucun token" que pour "Supabase est en panne" — indistinguable,
+// donc inutilisable ici sans risquer de bloquer un client pendant une panne) :
+//  - "ok"           : token valide, c'est un client connecté ;
+//  - "missing"      : aucun token du tout → c'est la signature d'un appel automatisé, on refuse ;
+//  - "invalid"      : token présent mais explicitement refusé (expiré) → le client peut le
+//                     rafraîchir et relancer tout seul, l'app le fait automatiquement ;
+//  - "unverifiable" : impossible de savoir (Supabase injoignable, erreur 5xx, délai dépassé) →
+//                     ON LAISSE PASSER volontairement. Mieux vaut offrir un scan de trop que
+//                     bloquer un restaurateur pour une panne dont il n'est pas responsable.
+export async function checkUserSoft(req) {
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) return { status: "missing", user: null };
+  try {
+    // Délai court : la vérification ne doit jamais rallonger sensiblement un scan, et surtout
+    // jamais le faire échouer si Supabase met du temps à répondre.
+    const result = await Promise.race([
+      getSupabaseAdmin().auth.getUser(token),
+      new Promise((resolve) => setTimeout(() => resolve({ timedOut: true }), 5000)),
+    ]);
+    if (result?.timedOut) return { status: "unverifiable", user: null };
+    if (result?.data?.user) return { status: "ok", user: result.data.user };
+    // Seul un refus EXPLICITE compte comme un token invalide. Tout le reste (panne, limite de
+    // débit, erreur réseau) est traité comme "je ne sais pas", donc laissé passer.
+    const status = result?.error?.status;
+    if (status === 401 || status === 403) return { status: "invalid", user: null };
+    return { status: "unverifiable", user: null };
+  } catch (e) {
+    return { status: "unverifiable", user: null };
+  }
+}
+
 // Envoi d'email via l'API Resend (pas les templates d'auth Supabase, qui ne servent qu'à
 // signup/reset/magic link) — partagé par api/send-reminders.js et api/contact.js.
 // `attachments` (optionnel) : tableau au format Resend [{ filename, content (base64) }].

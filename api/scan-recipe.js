@@ -1,3 +1,5 @@
+import { checkUserSoft } from "./_lib.js";
+
 // Fonction serveur Vercel dédiée au scanner de fiche recette/technique existante — distincte de
 // api/scan-invoice.js (autre besoin, autre prompt), pour ne jamais risquer de faire régresser le
 // scanner de factures en le modifiant. Même principe d'exécution (clé API côté serveur uniquement).
@@ -20,6 +22,14 @@ export default async function handler(req, res) {
   const { image, mediaType, text, ocrText } = req.body || {};
   if (!image && !text) {
     return res.status(400).json({ error: "Aucune image ni texte reçu." });
+  }
+
+  // Même serrure souple que api/scan-invoice.js (voir checkUserSoft dans _lib.js) : cet endpoint
+  // consomme lui aussi des crédits d'IA et était tout aussi ouvert. Le bouton qui l'appelle est
+  // actuellement masqué dans l'app, mais l'adresse, elle, reste publique.
+  const auth = await checkUserSoft(req);
+  if (auth.status === "missing" || auth.status === "invalid") {
+    return res.status(401).json({ error: "Session expirée, reconnecte-toi puis réessaie." });
   }
 
   const prompt = `Tu es un assistant qui lit des fiches techniques/recettes de cuisine (photo, éventuellement manuscrite, ou texte numérique déjà extrait d'un PDF), pour aider un restaurateur à saisir rapidement une recette qu'il utilise déjà.

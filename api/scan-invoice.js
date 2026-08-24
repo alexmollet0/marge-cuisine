@@ -1,3 +1,5 @@
+import { checkUserSoft } from "./_lib.js";
+
 // Lexique de référence par langue d'interface, pour aider l'IA à reconnaître de vraies
 // abréviations de facture plutôt que de deviner. Construit UNIQUEMENT à partir de sources
 // publiques vérifiées (jamais d'abréviation inventée) — voir `lang` plus bas pour l'isolation
@@ -35,6 +37,8 @@ const UPSTREAM_TIMEOUT_MS = 45000;
 // - ai_timeout     : le document a mis trop de temps à être analysé
 // - ai_unreadable  : l'IA a répondu quelque chose d'inexploitable
 // - bad_request    : requête invalide (aucun document reçu)
+// - auth_required  : appel sans aucune preuve de compte (typiquement un script, pas un client)
+// - auth_expired   : jeton présent mais refusé — l'app le renouvelle et renvoie automatiquement
 const fail = (res, status, code, logLabel, logDetail) => {
   if (logLabel) console.error(`[scan-invoice] ${logLabel}`, typeof logDetail === "string" ? logDetail.slice(0, 800) : logDetail);
   return res.status(status).json({ code });
@@ -55,6 +59,21 @@ export default async function handler(req, res) {
   const { image, mediaType, text, ocrText, lang } = req.body || {};
   if (!image && !text) {
     return fail(res, 400, "bad_request", "payload sans image ni texte");
+  }
+
+  // Serrure sur l'endpoint (2026-08-24) : jusqu'ici n'importe qui sur internet pouvait envoyer des
+  // images ici et consommer nos crédits d'IA, l'adresse étant lisible en clair dans le bundle du
+  // navigateur. Volontairement SOUPLE (voir checkUserSoft dans _lib.js) : on ne refuse que dans les
+  // deux cas où on est certain — aucun token (appel automatisé) ou token explicitement refusé
+  // (expiré, l'app le rafraîchit et relance toute seule). En cas de doute (Supabase injoignable),
+  // on laisse passer : bloquer un restaurateur au moment où il scanne sa facture coûte infiniment
+  // plus cher qu'un scan offert à tort.
+  const auth = await checkUserSoft(req);
+  if (auth.status === "missing" || auth.status === "invalid") {
+    return fail(res, 401, auth.status === "missing" ? "auth_required" : "auth_expired", `auth ${auth.status}`);
+  }
+  if (auth.status === "unverifiable") {
+    console.warn("[scan-invoice] session non vérifiable (Supabase ?) — scan autorisé par précaution");
   }
 
   const prompt = `Tu es un assistant spécialisé dans la lecture de factures et bons de livraison fournisseurs pour la restauration.

@@ -603,6 +603,12 @@ export const TR = {
     scanErrTitle_bad_request: "Document non reçu",
     scanErrBody_bad_request: "Aucun document exploitable n'est arrivé jusqu'à l'analyse.",
     scanErrTips_bad_request: ["Recommence en sélectionnant à nouveau ta facture", "Si ça se répète, préviens-nous"],
+    scanErrTitle_auth_expired: "Ta connexion a expiré",
+    scanErrBody_auth_expired: "Par sécurité, ta session s'est terminée pendant l'analyse. Ta facture n'a pas été perdue.",
+    scanErrTips_auth_expired: ["Appuie sur Réessayer : dans la plupart des cas ça repart tout seul", "Si ça recommence, déconnecte-toi puis reconnecte-toi, et relance l'analyse", "Rien n'a été modifié dans ton garde-manger"],
+    scanErrTitle_auth_required: "Connexion nécessaire",
+    scanErrBody_auth_required: "L'analyse d'une facture demande d'être connecté à ton compte Chefup.",
+    scanErrTips_auth_required: ["Appuie sur Réessayer", "Si le problème persiste, déconnecte-toi puis reconnecte-toi", "Rien n'a été modifié dans ton garde-manger"],
     scanErrTitle_unknown: "Le scan n'a pas abouti",
     scanErrBody_unknown: "Quelque chose s'est mal passé pendant l'analyse. Rien n'a été modifié dans ton garde-manger.",
     scanErrTips_unknown: ["Appuie sur Réessayer : ça suffit dans la plupart des cas", "Si le problème revient, appuie sur « Nous signaler » — on te répond vite", "Tes recettes et tes prix ne sont jamais touchés par un scan raté"],
@@ -876,6 +882,12 @@ export const TR = {
     scanErrTitle_bad_request: "Documento no recibido",
     scanErrBody_bad_request: "No llegó ningún documento aprovechable al análisis.",
     scanErrTips_bad_request: ["Empieza de nuevo seleccionando otra vez tu factura", "Si se repite, avísanos"],
+    scanErrTitle_auth_expired: "Tu conexión ha caducado",
+    scanErrBody_auth_expired: "Por seguridad, tu sesión ha terminado durante el análisis. Tu factura no se ha perdido.",
+    scanErrTips_auth_expired: ["Pulsa Reintentar: en la mayoría de los casos vuelve a funcionar solo", "Si se repite, cierra sesión y vuelve a entrar, luego relanza el análisis", "No se ha modificado nada en tu despensa"],
+    scanErrTitle_auth_required: "Hace falta iniciar sesión",
+    scanErrBody_auth_required: "Analizar una factura requiere estar conectado a tu cuenta Chefup.",
+    scanErrTips_auth_required: ["Pulsa Reintentar", "Si el problema continúa, cierra sesión y vuelve a entrar", "No se ha modificado nada en tu despensa"],
     scanErrTitle_unknown: "El escaneo no ha funcionado",
     scanErrBody_unknown: "Algo ha fallado durante el análisis. No se ha modificado nada en tu despensa.",
     scanErrTips_unknown: ["Pulsa Reintentar: basta en la mayoría de los casos", "Si el problema vuelve, pulsa «Avisarnos» — te respondemos rápido", "Tus recetas y tus precios nunca se ven afectados por un escaneo fallido"],
@@ -1149,6 +1161,12 @@ export const TR = {
     scanErrTitle_bad_request: "Document not received",
     scanErrBody_bad_request: "No usable document reached the analysis.",
     scanErrTips_bad_request: ["Start again by selecting your invoice once more", "If it keeps happening, let us know"],
+    scanErrTitle_auth_expired: "Your session expired",
+    scanErrBody_auth_expired: "For security reasons your session ended during the analysis. Your invoice was not lost.",
+    scanErrTips_auth_expired: ["Tap Retry: in most cases it goes through straight away", "If it happens again, sign out and sign back in, then run the analysis again", "Nothing was changed in your pantry"],
+    scanErrTitle_auth_required: "Sign-in required",
+    scanErrBody_auth_required: "Analyzing an invoice requires being signed in to your Chefup account.",
+    scanErrTips_auth_required: ["Tap Retry", "If the problem persists, sign out and sign back in", "Nothing was changed in your pantry"],
     scanErrTitle_unknown: "The scan did not go through",
     scanErrBody_unknown: "Something went wrong during the analysis. Nothing was changed in your pantry.",
     scanErrTips_unknown: ["Tap Retry: that is enough in most cases", "If the problem comes back, tap \"Report it\" — we reply quickly", "Your recipes and prices are never touched by a failed scan"],
@@ -2899,7 +2917,7 @@ const ACTIVITY_ICON = {
 };
 // Codes d'échec de scan connus. Toute valeur hors de cette liste retombe sur "unknown" côté
 // affichage, pour ne jamais montrer une clé de traduction brute au restaurateur.
-const SCAN_ERR_CODES = ["offline", "ai_timeout", "ai_busy", "ai_unavailable", "ai_unreadable", "file_unreadable", "file_too_big", "bad_request"];
+const SCAN_ERR_CODES = ["offline", "ai_timeout", "ai_busy", "ai_unavailable", "ai_unreadable", "file_unreadable", "file_too_big", "bad_request", "auth_expired", "auth_required"];
 // Les mêmes codes traduits en clair pour le tableau de bord admin (usage interne, français).
 const SCAN_FAIL_REASONS = {
   offline: "connexion perdue côté client",
@@ -2910,6 +2928,8 @@ const SCAN_FAIL_REASONS = {
   file_unreadable: "fichier illisible par le navigateur",
   file_too_big: "document trop volumineux",
   bad_request: "requête sans document",
+  auth_expired: "session expirée (même après renouvellement automatique)",
+  auth_required: "appel sans compte connecté",
   unknown: "cause inconnue",
 };
 function activityDetail(e) {
@@ -4667,7 +4687,9 @@ export default function App() {
 
   // Envoie le payload à l'IA et traite le résultat — partagé par le chemin PDF (automatique) et
   // le chemin photo (après confirmation/rotation éventuelle via confirmScanImage).
-  const runScanPipeline = async (payload) => {
+  // `attempt` : 0 au premier envoi, 1 lors de la seule et unique nouvelle tentative automatique
+  // après un refus pour session expirée (voir plus bas). Jamais plus de deux envois.
+  const runScanPipeline = async (payload, attempt = 0) => {
     // Délai maximum côté navigateur. Sans ça, une connexion qui se coupe en pleine requête (cas
     // très courant en cuisine : wifi capricieux, passage en 4G) laissait la roue tourner
     // indéfiniment, sans erreur, sans issue — l'utilisateur ne pouvait que fermer et recommencer.
@@ -4675,9 +4697,20 @@ export default function App() {
     const timeoutId = setTimeout(() => controller.abort(), 75000);
     try {
       setScanStep("ai");
+      // Preuve de compte jointe à la requête (2026-08-24) : l'endpoint refuse désormais les appels
+      // sans compte connecté, pour que personne d'autre ne puisse consommer les crédits d'IA.
+      // getSession() rafraîchit déjà le jeton tout seul s'il vient d'expirer ; on ne bloque JAMAIS
+      // le scan si on n'arrive pas à le récupérer — c'est le serveur qui tranche, pas nous.
+      let accessToken = null;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        accessToken = session?.access_token || null;
+      } catch (e) {}
+      const headers = { "content-type": "application/json" };
+      if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
       const res = await fetch("/api/scan-invoice", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
@@ -4695,7 +4728,17 @@ export default function App() {
           data.code ||
           (res.status === 504 || res.status === 408 ? "ai_timeout" :
            res.status === 413 ? "file_too_big" :
+           res.status === 401 ? "auth_expired" :
            res.status === 429 || res.status === 503 ? "ai_busy" : "ai_unavailable");
+        // Session expirée : on la renouvelle et on renvoie la MÊME facture automatiquement, une
+        // seule fois, sans rien demander au restaurateur — il ne doit même pas s'apercevoir qu'il
+        // s'est passé quelque chose. Un message ne s'affichera que si ce second essai échoue aussi,
+        // ce qui voudrait alors dire qu'il est réellement déconnecté.
+        if ((code === "auth_expired" || code === "auth_required") && attempt === 0) {
+          try { await supabase.auth.refreshSession(); } catch (e) {}
+          clearTimeout(timeoutId);
+          return await runScanPipeline(payload, 1);
+        }
         const err = new Error(code);
         err.scanCode = code;
         err.httpStatus = res.status;
@@ -5064,9 +5107,16 @@ export default function App() {
         const ocrText = await runOcr(base64);
         payload = { image: base64, mediaType, ocrText, lang };
       }
+      // Même preuve de compte que le scanner de factures (voir runScanPipeline) : cet endpoint
+      // consomme aussi des crédits d'IA et refuse désormais les appels sans compte connecté.
+      const recipeHeaders = { "content-type": "application/json" };
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) recipeHeaders.Authorization = `Bearer ${session.access_token}`;
+      } catch (err) {}
       const res = await fetch("/api/scan-recipe", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: recipeHeaders,
         body: JSON.stringify(payload),
       });
       const data = await res.json();
