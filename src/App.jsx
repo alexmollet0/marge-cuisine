@@ -3253,6 +3253,16 @@ export default function App() {
   const [scanRecipeResult, setScanRecipeResult] = useState(null); // { name, portions, sellPrice, allergens, notes, lines: [...] }
   const fileInputRecipeLibraryRef = useRef(null);
 
+  // Signale à main.jsx qu'un scan (facture ou fiche recette) est en cours — le mécanisme de
+  // détection de bundle périmé (checkForNewVersion) recharge sinon la page sans avertissement dès
+  // que l'onglet reprend le focus, ce qui arrive typiquement juste après avoir pris une photo avec
+  // l'appareil photo natif du téléphone (quitter Chefup → photo → revenir = focus). Un rechargement
+  // à ce moment précis efface la photo en attente et oblige à tout recommencer. Ce flag ne
+  // supprime pas le rechargement, il le repousse simplement jusqu'à ce que le scan soit fermé.
+  useEffect(() => {
+    window.__chefupScanBusy = scanOpen || scanRecipeOpen;
+    return () => { window.__chefupScanBusy = false; };
+  }, [scanOpen, scanRecipeOpen]);
 
   const t = useCallback((key) => TR[lang][key] ?? TR.fr[key] ?? key, [lang]);
   const ingredientDisplayName = useCallback(

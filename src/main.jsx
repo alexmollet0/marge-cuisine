@@ -22,6 +22,11 @@ const menuMatch = window.location.pathname.match(/^\/menu\/([^/]+)/);
 const currentScriptSrc = document.querySelector('script[type="module"]')?.src || "";
 const checkForNewVersion = () => {
   if (document.visibilityState !== "visible" || !currentScriptSrc) return;
+  // Ne jamais recharger pendant qu'un scan (facture/fiche recette) est ouvert dans App.jsx — sinon
+  // le retour de focus après une photo prise avec l'appareil natif (le cas le plus fréquent sur
+  // téléphone) efface la photo en attente sans prévenir. Le flag est mis à jour par App.jsx ; on
+  // retentera simplement au prochain visibilitychange/focus, une fois le scan fermé.
+  if (window.__chefupScanBusy) return;
   fetch("/", { cache: "no-store" })
     .then((res) => res.text())
     .then((html) => {
