@@ -556,6 +556,7 @@ export const TR = {
     installBannerText: "Installe Chefup sur ton téléphone pour l'ouvrir en un tap, comme une vraie app.",
     installDiagramShareLabel: "Partager", installDiagramMenuLabel: "Menu", installDiagramHomeLabel: "Écran d'accueil", installDiagramInstallLabel: "Installer",
     installInstructionsIOS: "Appuie sur le bouton Partager (le carré avec la flèche) en bas de Safari, puis choisis « Sur l'écran d'accueil ».",
+    installInstructionsIOSChrome: "Appuie sur le bouton Partager ou le menu ⋯ de Chrome (selon la position sur ton téléphone), puis choisis « Ajouter à l'écran d'accueil ».",
     installInstructionsAndroid: "Appuie sur le menu ⋮ de Chrome, puis choisis « Installer l'application » (ou « Ajouter à l'écran d'accueil »).",
     installInstructionsGeneric: "Cherche « Ajouter à l'écran d'accueil » ou « Installer l'application » dans le menu de ton navigateur.",
     contactButton: "Nous contacter", contactModalTitle: "Nous contacter",
@@ -791,6 +792,7 @@ export const TR = {
     installBannerText: "Instala Chefup en tu teléfono para abrirla en un toque, como una app de verdad.",
     installDiagramShareLabel: "Compartir", installDiagramMenuLabel: "Menú", installDiagramHomeLabel: "Pantalla de inicio", installDiagramInstallLabel: "Instalar",
     installInstructionsIOS: "Toca el botón Compartir (el cuadrado con la flecha) en la parte inferior de Safari y elige «Añadir a pantalla de inicio».",
+    installInstructionsIOSChrome: "Toca el botón Compartir o el menú ⋯ de Chrome (según la posición en tu teléfono) y elige «Añadir a pantalla de inicio».",
     installInstructionsAndroid: "Toca el menú ⋮ de Chrome y elige «Instalar aplicación» (o «Añadir a pantalla de inicio»).",
     installInstructionsGeneric: "Busca «Añadir a pantalla de inicio» o «Instalar aplicación» en el menú de tu navegador.",
     contactButton: "Contáctanos", contactModalTitle: "Contáctanos",
@@ -1026,6 +1028,7 @@ export const TR = {
     installBannerText: "Install Chefup on your phone to open it in one tap, like a real app.",
     installDiagramShareLabel: "Share", installDiagramMenuLabel: "Menu", installDiagramHomeLabel: "Home screen", installDiagramInstallLabel: "Install",
     installInstructionsIOS: "Tap the Share button (the square with an arrow) at the bottom of Safari, then choose \"Add to Home Screen\".",
+    installInstructionsIOSChrome: "Tap Chrome's Share button or its ⋯ menu (position varies by phone), then choose \"Add to Home Screen\".",
     installInstructionsAndroid: "Tap Chrome's ⋮ menu, then choose \"Install app\" (or \"Add to Home screen\").",
     installInstructionsGeneric: "Look for \"Add to Home screen\" or \"Install app\" in your browser's menu.",
     contactButton: "Contact us", contactModalTitle: "Contact us",
@@ -3180,6 +3183,13 @@ export default function App() {
     typeof window !== "undefined" &&
     (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator?.standalone === true);
   const isIOSDevice = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+  // Sur iOS, TOUS les navigateurs (Chrome, Firefox, Edge...) tournent sur le même moteur que
+  // Safari (imposé par Apple) et ont donc la même restriction — mais pas la même interface, donc
+  // pas le même endroit où chercher "Ajouter à l'écran d'accueil". Cas réel remonté par
+  // l'utilisateur : sur iPhone + app Chrome, les instructions "façon Safari" (bouton Partager en
+  // bas) ne collent pas à l'interface réellement affichée. Chrome iOS s'identifie par "CriOS" dans
+  // le user-agent (le "Chrome/" habituel n'y figure pas sur iOS).
+  const isIOSChromeDevice = isIOSDevice && /CriOS/i.test(navigator.userAgent);
   useEffect(() => {
     const handler = () => setInstallPromptReady(!!window.__chefupInstallPrompt);
     window.addEventListener("chefup:install-available", handler);
@@ -5198,12 +5208,16 @@ export default function App() {
               <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("installModalTitle")}</h3>
             </div>
             <InstallDiagram
-              sourceIcon={isIOSDevice ? Share : MoreVertical}
-              sourceLabel={isIOSDevice ? t("installDiagramShareLabel") : t("installDiagramMenuLabel")}
+              sourceIcon={isIOSDevice && !isIOSChromeDevice ? Share : MoreVertical}
+              sourceLabel={isIOSDevice && !isIOSChromeDevice ? t("installDiagramShareLabel") : t("installDiagramMenuLabel")}
               targetLabel={isIOSDevice ? t("installDiagramHomeLabel") : t("installDiagramInstallLabel")}
             />
             <p className="text-white/70 text-sm mb-5">
-              {isIOSDevice ? t("installInstructionsIOS") : t("installInstructionsAndroid")}
+              {isIOSChromeDevice
+                ? t("installInstructionsIOSChrome")
+                : isIOSDevice
+                ? t("installInstructionsIOS")
+                : t("installInstructionsAndroid")}
             </p>
             {!isIOSDevice && <p className="text-white/40 text-xs mb-5">{t("installInstructionsGeneric")}</p>}
             <button
