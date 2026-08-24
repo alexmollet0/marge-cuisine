@@ -4634,9 +4634,16 @@ export default function App() {
 
   // Lance réellement l'analyse de la photo en attente (OCR + appel IA), une fois que
   // l'utilisateur a confirmé (éventuellement après l'avoir pivotée).
+  // ⚠️ `imageOverride` ne doit JAMAIS recevoir un événement de clic : brancher cette fonction
+  // directement sur un `onClick={confirmScanImage}` lui passerait l'événement React comme premier
+  // argument, donc une "image" sans base64 — la requête partait alors sans document et le serveur
+  // répondait "Document non reçu". Bug réel introduit puis corrigé le 2026-08-24 (déjà arrivé une
+  // fois dans ce fichier avec openAddWizard). D'où l'appel obligatoire en `() => confirmScanImage()`
+  // ET la vérification ci-dessous, qui ignore tout objet ne contenant pas une vraie image.
   const confirmScanImage = async (imageOverride = null) => {
-    const source = imageOverride || scanPendingImage;
-    if (!source) return;
+    const valid = (src) => src && typeof src.base64 === "string" && src.base64.length > 100;
+    const source = valid(imageOverride) ? imageOverride : scanPendingImage;
+    if (!valid(source)) return;
     const { base64, mediaType } = source;
     setScanning(true);
     setScanErr(null);
@@ -5994,7 +6001,7 @@ export default function App() {
                   </button>
                   <span className="text-[11px] text-white/40 flex-1">{t("scanRotateHint")}</span>
                   <button
-                    onClick={confirmScanImage}
+                    onClick={() => confirmScanImage()}
                     className="text-xs font-display uppercase tracking-wide px-4 py-2 rounded-full shrink-0"
                     style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                   >
