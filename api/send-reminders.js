@@ -7,8 +7,15 @@ import { getSupabaseAdmin, sendEmail } from "./_lib.js";
 
 const INACTIVITY_DAYS = 21; // 3 semaines sans scan
 const INACTIVITY_RENOTIFY_DAYS = 14; // ne relance pas avant ce délai après un 1er rappel
-const MARGIN_DIGEST_WEEKDAY = 1; // lundi (0=dimanche, UTC)
 const MARGIN_DIGEST_STALE_DAYS = 28; // relance même sans changement après ce délai (~1 mois)
+// Nombre de vérifications quotidiennes CONSÉCUTIVES sous l'objectif avant d'alerter (2026-08-24).
+// Avant ce correctif, un seul passage du cron (une fois par semaine, le lundi) suffisait à
+// déclencher l'email — un utilisateur qui baisse volontairement son prix quelques minutes (ex:
+// pour une démo TikTok) pouvait recevoir une alerte si ce court instant tombait pile sur l'heure
+// du cron. Exiger 2 lectures consécutives (à ~24h d'intervalle, le cron tourne 1x/jour) filtre
+// ce cas quasiment à coup sûr, tout en repérant un vrai problème plus vite qu'avant (avant : la
+// vérification elle-même n'avait lieu qu'un jour par semaine, jusqu'à 7 jours de délai).
+const MARGIN_CONFIRM_STREAK = 2;
 const TRIAL_DAYS = 7; // doit rester synchronisé avec TRIAL_DAYS dans src/Billing.jsx
 
 function daysBetween(from, to) {
@@ -93,15 +100,11 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "Non autorisé" });
   }
   const dryRun = req.query?.dryRun === "1" || req.query?.dryRun === "true";
-  // Permet de tester la logique du digest marge un autre jour que le lundi (protégé par le
-  // même secret que le reste de la route — jamais utilisé par le vrai cron automatique).
-  const forceMarginCheck = req.query?.forceMarginCheck === "1";
   // Idem pour tester l'email de fin d'essai sans attendre 7 vrais jours.
   const forceTrialCheck = req.query?.forceTrialCheck === "1";
 
   const admin = getSupabaseAdmin();
   const now = new Date();
-  const checkMarginToday = forceMarginCheck || now.getUTCDay() === MARGIN_DIGEST_WEEKDAY;
   const report = [];
 
   try {
@@ -164,9 +167,11 @@ export default async function handler(req, res) {
         }
       }
 
-      // --- Marge sous objectif (digest hebdomadaire, un seul jour fixe) ---
+      // --- Marge sous objectif (vérifiée chaque jour, mais seulement alertée après
+      // MARGIN_CONFIRM_STREAK lectures consécutives sous l'objectif — voir le commentaire sur la
+      // constante plus haut) ---
       let marginDebug = null;
-      if (checkMarginToday) {
+      {
         const recipes = kv.recipes || [];
         const ingredients = kv.ingredients || [];
         const ingredientsById = new Map(ingredients.map((i) => [i.id, i]));
@@ -180,11 +185,23 @@ export default async function handler(req, res) {
           target: r.targetMargin ?? minMargin,
         }));
         const belowTarget = allMargins.filter((r) => r.margin !== null && r.margin < r.target);
+
+        // Série de lectures consécutives sous l'objectif, par recette — remise à zéro dès qu'une
+        // recette repasse au-dessus (donc une seule série continue compte, pas un cumul global).
+        const prevStreak = notifState.marginStreak || {};
+        const newStreak = {};
+        for (const r of belowTarget) newStreak[r.id] = (prevStreak[r.id] || 0) + 1;
+        nextState.marginStreak = newStreak;
+
+        const confirmedBelow = belowTarget.filter((r) => newStreak[r.id] >= MARGIN_CONFIRM_STREAK);
         if (dryRun) {
-          marginDebug = { recipesCount: recipes.length, ingredientsCount: ingredients.length, minMargin, allMargins };
+          marginDebug = {
+            recipesCount: recipes.length, ingredientsCount: ingredients.length, minMargin, allMargins,
+            streaks: newStreak, confirmedCount: confirmedBelow.length,
+          };
         }
 
-        const belowIds = belowTarget.map((r) => r.id).sort();
+        const belowIds = confirmedBelow.map((r) => r.id).sort();
         const lastKnownIds = (notifState.marginLastKnownRecipeIds || []).slice().sort();
         const changed = JSON.stringify(belowIds) !== JSON.stringify(lastKnownIds);
         const daysSinceDigest = notifState.marginDigestLastSentAt
@@ -192,10 +209,10 @@ export default async function handler(req, res) {
           : Infinity;
 
         nextState.marginLastKnownRecipeIds = belowIds;
-        if (belowTarget.length > 0 && (changed || daysSinceDigest >= MARGIN_DIGEST_STALE_DAYS)) {
-          actions.push(`margin_digest: ${belowTarget.map((r) => `${r.name} (${Math.round(r.margin)}%)`).join(", ")}`);
+        if (confirmedBelow.length > 0 && (changed || daysSinceDigest >= MARGIN_DIGEST_STALE_DAYS)) {
+          actions.push(`margin_digest: ${confirmedBelow.map((r) => `${r.name} (${Math.round(r.margin)}%)`).join(", ")}`);
           if (!dryRun) {
-            const list = belowTarget.map((r) => `<li>${r.name} — ${Math.round(r.margin)}%</li>`).join("");
+            const list = confirmedBelow.map((r) => `<li>${r.name} — ${Math.round(r.margin)}%</li>`).join("");
             const body = `<p>${copy.marginIntro}</p><ul>${list}</ul>`;
             await sendEmail(email, copy.marginSubject, wrapEmailHtml(body, copy.cta, copy.settingsHint));
           }
@@ -211,7 +228,7 @@ export default async function handler(req, res) {
       }
 
       if (actions.length || (dryRun && (marginDebug || trialDebug))) {
-        report.push({ email, actions, daysSinceScan: Math.round(daysSinceScan * 10) / 10, checkMarginToday, marginDebug, trialDebug });
+        report.push({ email, actions, daysSinceScan: Math.round(daysSinceScan * 10) / 10, marginDebug, trialDebug });
       }
     }
 
