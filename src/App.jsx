@@ -757,6 +757,7 @@ export const TR = {
     scanRecommendedBadge: "Recommandé — plus précis",
     scanTipTitle: "💡 Astuce pour un scan optimal :",
     scanTipBody: "Pour une précision maximale, privilégie l'import du fichier PDF original de ton fournisseur (METRO, Transgourmet, etc.). Si tu prends une photo, pose la facture bien à plat sous une bonne lumière. Attention : le flou, les ombres, les pliures et les reflets altèrent la précision de l'IA.",
+    scanTipBodyIOS: "Facture reçue en PDF (par mail, etc.) ? Ouvre-la, mets ton téléphone à l'horizontale si le tableau est large pour bien voir la colonne des prix, puis fais une CAPTURE D'ÉCRAN (pas une photo à l'appareil) — c'est net et net vaut mieux que flou. Si tout ne rentre pas dans une seule capture, fais-en 2 (gauche/droite ou haut/bas). Importe ensuite la ou les captures avec le bouton \"Importer une photo\" ci-dessus : elles sont dans ta pellicule comme n'importe quelle photo.",
     scanColisUnit: "colis",
     marginExcellentMsg: "Marge excellente !", marginGoodMsg: "Belle marge, tu es au-dessus de ton objectif.",
     marginCloseMsg: "Juste en dessous de ta marge souhaitée, mais la marge reste bonne sur ce plat.",
@@ -1046,6 +1047,7 @@ export const TR = {
     scanRecommendedBadge: "Recomendado — más preciso",
     scanTipTitle: "💡 Consejo para un escaneo óptimo:",
     scanTipBody: "Para una precisión máxima, prioriza la importación del archivo PDF original de tu proveedor (Makro, Gros Mercat, etc.). Si haces una foto, coloca la factura bien plana bajo una buena luz. Atención: el desenfoque, las sombras, los pliegues y los reflejos reducen la precisión de la IA.",
+    scanTipBodyIOS: "¿Factura recibida en PDF (por correo, etc.)? Ábrela, pon el teléfono en horizontal si la tabla es ancha para ver bien la columna de precios, y haz una CAPTURA DE PANTALLA (no una foto con la cámara) — nítido siempre es mejor que borroso. Si no cabe todo en una sola captura, haz 2 (izquierda/derecha o arriba/abajo). Luego importa la(s) captura(s) con el botón \"Importar una foto\" de arriba: están en tu carrete como cualquier foto.",
     scanColisUnit: "paquete",
     marginExcellentMsg: "¡Margen excelente!", marginGoodMsg: "Buen margen, por encima de tu objetivo.",
     marginCloseMsg: "Justo por debajo de tu margen deseado, pero sigue siendo un buen plato.",
@@ -1335,6 +1337,7 @@ export const TR = {
     scanRecommendedBadge: "Recommended — more accurate",
     scanTipTitle: "💡 Tip for an optimal scan:",
     scanTipBody: "For maximum accuracy, prefer importing the original PDF file from your supplier (Bidfood, Brakes, etc.). If you take a photo, lay the invoice flat under good lighting. Careful: blur, shadows, creases and glare all reduce the AI's accuracy.",
+    scanTipBodyIOS: "Got the invoice as a PDF (by email, etc.)? Open it, turn your phone sideways if the table is wide so you can see the price column, then take a SCREENSHOT (not a camera photo) — sharp always beats blurry. If it doesn't all fit in one screenshot, take 2 (left/right or top/bottom). Then import the screenshot(s) with the \"Import a photo\" button above: they're in your camera roll like any photo.",
     scanColisUnit: "pack",
     marginExcellentMsg: "Excellent margin!", marginGoodMsg: "Good margin, you're above your target.",
     marginCloseMsg: "Just below your desired margin, but it's still a good margin on this dish.",
@@ -7553,7 +7556,12 @@ export default function App() {
 
             <div className="rounded-2xl p-4 mt-3 text-xs leading-relaxed border border-white/10" style={{ background: "#26221C" }}>
               <p className="text-white/70 font-semibold mb-1">{t("scanTipTitle")}</p>
-              <p className="text-white/45">{t("scanTipBody")}</p>
+              {/* Sur iOS, l'astuce ne peut plus dire "privilégie le PDF" (plus proposé du tout
+                  dans le sélecteur, voir fileInputLibraryRef) — remplacée par la vraie marche à
+                  suivre pour une facture reçue en PDF sur iPhone (2026-08-25) : la capture d'écran,
+                  pas une photo à l'appareil. Point soulevé par l'utilisateur, inquiet à raison
+                  qu'un tableau large (prix tout à droite) ne rentre pas dans une seule capture. */}
+              <p className="text-white/45">{isIOSDevice ? t("scanTipBodyIOS") : t("scanTipBody")}</p>
             </div>
           </div>
         )}
