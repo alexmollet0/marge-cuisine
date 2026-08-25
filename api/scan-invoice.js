@@ -230,18 +230,35 @@ Le champ "name" d'un item doit TOUJOURS correspondre à du texte que tu peux ré
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        // Relevé le 2026-08-25 (vérifié sur la doc officielle Anthropic, pas deviné) : Haiku 4.5
-        // supporte jusqu'à 64K tokens de sortie en synchrone — 8192 laissait très peu de marge
-        // pour une facture dense de 25-35 lignes (chaque ligne a ~10 champs), où le JSON généré
-        // peut approcher l'ancien plafond et se retrouver tronqué (JSON invalide → "réponse
-        // illisible"), symptôme concret observé par l'utilisateur ("hyper long ET ça n'a pas
-        // marché"). 16000 laisse une bonne marge sans rien changer pour les petites factures
-        // (qui n'approchaient déjà pas 8192).
+        // Passé de Haiku 4.5 à Sonnet 5 le 2026-08-25, décision explicite de l'utilisateur après
+        // qu'on ait trouvé un vrai écart documenté (doc officielle Anthropic, section "Resolution
+        // and token cost") : Haiku 4.5 est plafonné à 1568px de long côté / 1568 "jetons visuels"
+        // par image (palier "Standard"), alors que Sonnet 5 (comme tout modèle Claude 4.7+)
+        // profite du palier "High-resolution" : 2576px / 4784 jetons visuels — près de 3x plus de
+        // détail utilisable sur la même photo. Point crucial découvert en relisant l'historique de
+        // ce fichier : un test Sonnet 5 avait déjà été fait le 2026-08 et jugé "aucune amélioration
+        // par rapport à Haiku" — mais `compressImageFile` (src/App.jsx) limitait DÉJÀ chaque photo
+        // à 1568px AVANT l'envoi, quel que soit le modèle. Ce test comparait donc Sonnet 5 à Haiku
+        // en le privant justement de l'avantage qu'il est censé apporter — conclusion probablement
+        // invalide. `compressImageFile` a été remonté à 2576px en même temps que ce changement de
+        // modèle pour que Sonnet 5 puisse enfin en profiter réellement.
+        model: "claude-sonnet-5",
+        // Sonnet 5 supporte jusqu'à 128K tokens de sortie en synchrone (bien au-delà de ce dont on
+        // a besoin) — 16000 reste une marge large sans changement de comportement pour les petites
+        // factures.
         max_tokens: 16000,
-        // Extraction structurée et déterministe (pas de rédaction créative) : on réduit la
-        // variabilité d'une lecture à l'autre d'une même facture en fixant la température à 0.
-        temperature: 0,
+        // ⚠️ DEUX INCOMPATIBILITÉS DE SONNET 5 PAR RAPPORT À HAIKU, LES DEUX DÉJÀ RENCONTRÉES DANS
+        // CE PROJET (voir CLAUDE.md, test du 2026-08) — sans ces deux lignes, CHAQUE scan échouerait :
+        // 1. `temperature` n'est plus accepté par ce point d'accès sur Sonnet 5 (erreur "deprecated
+        //    for this model") — retiré. La détermination d'une lecture à l'autre n'est donc plus
+        //    garantie de la même façon qu'avant, tradeoff accepté en échange de la meilleure
+        //    résolution d'image.
+        // 2. Sonnet 5 réfléchit ("thinking") par défaut avant de répondre. Le test du 2026-08 avait
+        //    trouvé qu'un budget de réflexion pouvait être entièrement consommé SANS produire la
+        //    moindre réponse tant que ce n'est pas explicitement désactivé. On désactive donc la
+        //    réflexion : cette tâche est une extraction structurée, pas un raisonnement créatif, et
+        //    on a besoin de tout le budget de max_tokens pour le JSON de sortie, pas pour réfléchir.
+        thinking: { type: "disabled" },
         messages: [{ role: "user", content }],
       }),
     });

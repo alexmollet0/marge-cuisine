@@ -4205,7 +4205,12 @@ export default function App() {
   // tableau dense et tourné est nettement plus dur à lire correctement pour un modèle de vision
   // qu'un tableau droit, même si un humain peut toujours pencher la tête pour compenser.
   const compressImageFile = async (file) => {
-    const maxDim = 1568; // plafond effectif de résolution appliqué par Claude de toute façon
+    // 2576px (2026-08-25, remonté de 1568px) : plafond du palier "High-resolution" de Sonnet 5
+    // (voir api/scan-invoice.js, choix de modèle) — confirmé sur la doc officielle Anthropic. Ce
+    // chiffre doit rester synchronisé avec le modèle utilisé côté serveur : redescendre à 1568px
+    // si jamais le scanner de factures revient un jour sur un modèle "Standard" (Haiku), sinon on
+    // envoie inutilement plus de données pour un modèle qui les redécoupera de toute façon.
+    const maxDim = 2576;
     const drawToCanvas = (source, width, height) => {
       const canvas = document.createElement("canvas");
       canvas.width = width;
