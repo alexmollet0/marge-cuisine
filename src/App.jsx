@@ -2607,8 +2607,12 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
   // ce qui donnait l'impression fausse que les autres lignes n'avaient pas été comparées du
   // tout. Signal demandé explicite de l'utilisateur (2026-08) : un badge doit être présent sur
   // CHAQUE ligne ayant un prix de référence, même pour dire "0%".
+  // priceComparisonValid (2026-08-25) : jamais de pourcentage affiché quand l'unité a changé par
+  // rapport à l'ingrédient existant (kg vs pièce, etc.) — la comparaison n'aurait aucun sens et
+  // afficherait un pourcentage/sens trompeur (bug confirmé : "en hausse" affiché pour un prix en
+  // réalité en baisse, juste comparé dans deux unités différentes).
   const priceChangePct =
-    item.currentPrice !== null && item.currentPrice
+    item.currentPrice !== null && item.currentPrice && item.priceComparisonValid !== false
       ? Math.round((Math.abs((item.unitPriceHT || 0) - item.currentPrice) / item.currentPrice) * 100)
       : null;
 
@@ -4890,10 +4894,23 @@ export default function App() {
           matchedIng.unit !== finalUnit &&
           recipes.some((r) => r.lines.some((l) => l.ingredientId === matchedIng.id));
 
+        // [BUG confirmé et corrigé, 2026-08-25] Comparer currentPrice (dans l'ANCIENNE unité de
+        // l'ingrédient) à merged.unitPriceHT (dans la NOUVELLE unité tout juste calculée) n'a de
+        // sens que si les deux unités sont les mêmes — sinon c'est une comparaison entre pommes et
+        // oranges (ex: 9€/kg comparé à un prix recalculé "par pièce" pour un colis de 5kg à 45€ :
+        // aucune vraie hausse, juste deux unités différentes). `unitChangeAffectsRecipes`
+        // détectait déjà ce cas juste au-dessus mais son résultat n'était utilisé que pour
+        // avertir sur les recettes, jamais pour empêcher ce calcul de prix erroné — trouvé en
+        // relisant le code après qu'un test réel ait signalé "en hausse" pour un prix qui avait
+        // en fait baissé. Tant que l'unité diffère, on ne peut honnêtement rien affirmer sur le
+        // sens de la variation : ni hausse, ni baisse, ni grosse variation.
+        const sameUnitAsExisting = !matchedIng?.unit || !finalUnit || matchedIng.unit === finalUnit;
+
         // Grosse variation à confirmer explicitement — uniquement si on la compare à un
-        // VRAI prix déjà observé (jamais contre une simple estimation de départ non vérifiée).
+        // VRAI prix déjà observé (jamais contre une simple estimation de départ non vérifiée) ET
+        // dans la même unité (voir ci-dessus).
         const bigChange =
-          currentPrice !== null && currentPriceIsReal && merged.unitPriceHT > 0
+          currentPrice !== null && currentPriceIsReal && merged.unitPriceHT > 0 && sameUnitAsExisting
             ? Math.abs(merged.unitPriceHT - currentPrice) / currentPrice > 0.4
             : false;
 
@@ -4932,13 +4949,19 @@ export default function App() {
           priceUnusable,
           bigChange,
           unitChangeAffectsRecipes,
+          // Exposé explicitement (2026-08-25) pour que l'affichage (ScanItemCard) sache aussi
+          // masquer le badge de variation en % quand la comparaison n'a pas de sens — sinon un
+          // pourcentage pouvait s'afficher (et sembler fiable) sur deux unités différentes.
+          priceComparisonValid: sameUnitAsExisting,
           previousUnit: matchedIng?.unit || null,
           // Seuil aligné sur celui déjà utilisé par priceVariation() (fiche recette) : sous 1%,
           // c'est du bruit d'arrondi, pas une vraie variation. Avant ce correctif le seuil était
           // à 2%, ce qui masquait des hausses/baisses réelles mais modestes (ex: 9.40€ -> 9.60€,
           // ~2.1%, à la limite) — signalé par l'utilisateur comme "je ne vois jamais de variation".
-          priceUp: currentPrice !== null && merged.unitPriceHT > currentPrice * 1.01,
-          priceDown: currentPrice !== null && merged.unitPriceHT < currentPrice * 0.99,
+          // sameUnitAsExisting (voir plus haut) : jamais de sens de variation affirmé entre deux
+          // unités différentes, ce serait juste faux.
+          priceUp: currentPrice !== null && sameUnitAsExisting && merged.unitPriceHT > currentPrice * 1.01,
+          priceDown: currentPrice !== null && sameUnitAsExisting && merged.unitPriceHT < currentPrice * 0.99,
         };
       });
 
@@ -6476,7 +6499,9 @@ export default function App() {
                                       (pas seulement les vraies variations) : sinon l'absence de badge
                                       donne l'impression fausse qu'une ligne n'a pas été comparée du
                                       tout — même correctif que la carte compacte, même demande. */}
-                                  {current.item.currentPrice !== null && current.item.currentPriceIsReal && (
+                                  {/* priceComparisonValid (2026-08-25) : voir ScanItemCard, même
+                                      garde-fou contre une comparaison entre deux unités différentes. */}
+                                  {current.item.currentPrice !== null && current.item.currentPriceIsReal && current.item.priceComparisonValid !== false && (
                                     <div
                                       className="flex items-center gap-1 text-[11px] font-bold mt-1.5"
                                       style={{ color: current.item.bigChange ? TIER_COLORS.low : current.item.priceUp ? TIER_COLORS.mid : "#10B981" }}
