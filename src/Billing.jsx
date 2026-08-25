@@ -27,7 +27,16 @@ export default function SubscriptionGate({ children }) {
   const load = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
-    const left = daysLeft(session.user.created_at);
+    // trialStartOverride (2026-08-25) : posé depuis le tableau de bord admin (bouton "Réinitialiser
+    // l'essai") pour un compte dont l'essai a été gâché par un vrai bug de l'app, pas de sa faute.
+    // On retient la plus récente des deux dates comme point de départ — jamais la plus ancienne,
+    // pour ne jamais RACCOURCIR un essai par accident si ce champ contenait une date passée.
+    let effectiveStart = session.user.created_at;
+    try {
+      const { data: override } = await supabase.from("kv_store").select("value").eq("key", "trialStartOverride").maybeSingle();
+      if (override?.value && new Date(override.value) > new Date(effectiveStart)) effectiveStart = override.value;
+    } catch (e) {}
+    const left = daysLeft(effectiveStart);
     const { data: sub } = await supabase.from("subscriptions").select("status").maybeSingle();
     // "past_due" reste autorisé (grâce le temps que Stripe relance le paiement automatiquement)
     // — seuls canceled/unpaid/aucun abonnement bloquent une fois l'essai terminé.

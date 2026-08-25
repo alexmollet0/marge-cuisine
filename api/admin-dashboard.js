@@ -18,6 +18,39 @@ export default async function handler(req, res) {
   if (user.email !== ADMIN_EMAIL) return res.status(403).json({ error: "Accès réservé." });
 
   const supabaseAdmin = getSupabaseAdmin();
+
+  // Réinitialisation d'essai (2026-08-25), demandée par l'utilisateur après le cas de
+  // casavostra.ajaccio@gmail.com (essai gâché par une série de vrais bugs de scan, pas de sa
+  // faute) — évite d'avoir à repasser par le SQL Editor de Supabase à chaque fois que ça se
+  // reproduit. `created_at` (auth.users) n'est PAS modifiable via l'API Admin de Supabase, seul un
+  // accès SQL direct le permet — on ne touche donc jamais ce champ. À la place : un `kv_store`
+  // dédié (`trialStartOverride`, même table que `settings`/`recipes`/etc.) écrit directement pour
+  // le compte ciblé via le client service_role (qui contourne RLS, donc peut écrire dans la ligne
+  // de N'IMPORTE QUEL compte, pas seulement le sien) — `src/Billing.jsx` compare ensuite cette date
+  // à `created_at` et retient la plus récente des deux comme point de départ de l'essai.
+  if (req.method === "POST") {
+    const { action, email } = req.body || {};
+    if (action !== "reset_trial" || !email) {
+      return res.status(400).json({ error: "Requête invalide." });
+    }
+    try {
+      const { data: usersRes, error: usersErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+      if (usersErr) throw usersErr;
+      const target = (usersRes?.users || []).find((u) => u.email?.toLowerCase() === email.toLowerCase());
+      if (!target) return res.status(404).json({ error: "Compte introuvable." });
+      const { error: upsertErr } = await supabaseAdmin
+        .from("kv_store")
+        .upsert(
+          { user_id: target.id, key: "trialStartOverride", value: new Date().toISOString(), updated_at: new Date().toISOString() },
+          { onConflict: "user_id,key" }
+        );
+      if (upsertErr) throw upsertErr;
+      return res.status(200).json({ ok: true });
+    } catch (e) {
+      return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+    }
+  }
+
   const days = Math.max(7, Math.min(90, parseInt(req.query.days, 10) || 30));
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 

@@ -3036,6 +3036,35 @@ function AdminDashboard() {
   const [dashTab, setDashTab] = useState("comptes"); // "comptes" | "apercu"
   // Compte dont la chronologie est dépliée (2026-08-23) — un seul à la fois, comme un accordéon.
   const [expandedEmail, setExpandedEmail] = useState(null);
+  // Réinitialisation d'essai (2026-08-25) : "armed" = premier clic (bouton passe en rouge pour
+  // confirmer, se désarme tout seul après quelques secondes) plutôt qu'une vraie boîte de dialogue
+  // — évite un clic accidentel sans construire un modal pour une action interne admin-only.
+  const [resetTrialArmed, setResetTrialArmed] = useState(null); // email en attente de confirmation
+  const [resetTrialBusy, setResetTrialBusy] = useState(null); // email en cours de traitement
+  const [resetTrialDone, setResetTrialDone] = useState({}); // { email: true } une fois confirmé cette session
+  const resetTrial = async (email) => {
+    if (resetTrialArmed !== email) {
+      setResetTrialArmed(email);
+      setTimeout(() => setResetTrialArmed((cur) => (cur === email ? null : cur)), 4000);
+      return;
+    }
+    setResetTrialArmed(null);
+    setResetTrialBusy(email);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/admin-dashboard", {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "reset_trial", email }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "échec");
+      setResetTrialDone((d) => ({ ...d, [email]: true }));
+    } catch (e) {
+      alert("Erreur : " + (e.message || "échec de la réinitialisation."));
+    } finally {
+      setResetTrialBusy(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -3199,6 +3228,35 @@ function AdminDashboard() {
                   </button>
                   {isOpen && (
                     <div className="border-t border-white/10 px-3 pb-3 pt-2">
+                      {/* Réinitialisation d'essai (2026-08-25) : pour un compte dont l'essai a été
+                          gâché par un vrai bug de l'app (ex: casavostra.ajaccio@gmail.com, cas réel
+                          qui a motivé ce bouton) — remet le compteur à 7 jours pleins à partir de
+                          maintenant, sans jamais toucher created_at (non modifiable via l'API
+                          Supabase). Premier clic = armé (rouge, "Confirmer ?"), deuxième clic dans
+                          les 4s = exécute réellement. */}
+                      <div className="flex items-center justify-between gap-2 mb-3 pb-3 border-b border-white/10">
+                        <span className="text-white/40 text-[11px]">Essai gâché par un bug de l'app ?</span>
+                        {resetTrialDone[u.email] ? (
+                          <span className="text-[11px] font-medium" style={{ color: TIER_COLORS.high }}>✓ Essai réinitialisé (7 jours)</span>
+                        ) : (
+                          <button
+                            onClick={(ev) => { ev.stopPropagation(); resetTrial(u.email); }}
+                            disabled={resetTrialBusy === u.email}
+                            className="text-[11px] font-medium px-2.5 py-1 rounded-full disabled:opacity-50"
+                            style={
+                              resetTrialArmed === u.email
+                                ? { background: `${TIER_COLORS.low}25`, color: TIER_COLORS.low }
+                                : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }
+                            }
+                          >
+                            {resetTrialBusy === u.email
+                              ? "…"
+                              : resetTrialArmed === u.email
+                              ? "Confirmer ? (remet à J-7)"
+                              : "Réinitialiser l'essai"}
+                          </button>
+                        )}
+                      </div>
                       {timeline.length === 0 ? (
                         <div className="text-white/30 text-xs py-3 text-center">
                           Aucune action enregistrée pour ce compte pour l'instant.
