@@ -4545,6 +4545,12 @@ export default function App() {
 
     let finalUnit;
     let finalUnitPrice;
+    // Déclaré ici (avant la branche kg/L) car `priceInconsistent` lui-même n'est déclaré que plus
+    // bas dans cette fonction, pour le contrôle de la branche "colis" — les deux se combinent à la
+    // fin. Sans cette variable intermédiaire, une affectation dans la branche kg/L se ferait sur
+    // une variable pas encore déclarée (erreur) et serait de toute façon écrasée par la
+    // déclaration plus bas.
+    let kgLPriceMismatch = false;
     if (printedUnit === "kg" || printedUnit === "L") {
       // Le prix imprimé est déjà un prix au kilo/litre selon l'IA. Recoupement systématique quand
       // on a une contenance fiable trouvée nous-mêmes dans le texte (ex: "75 CL" dans le titre) :
@@ -4565,18 +4571,29 @@ export default function App() {
           // classification de l'IA était fausse, on la corrige nous-mêmes.
           finalUnit = printedUnit;
           finalUnitPrice = Math.round((printedPrice / deterministicContent) * 10000) / 10000;
-        } else {
-          // Ni l'une ni l'autre hypothèse ne colle au total imprimé : on ne force PAS de
-          // vérification ici, contrairement à une première version de ce correctif — cas réel
-          // trouvé en test (2026-08) où "NUGGETS VOLAILLE CUIT 22G" a fait extraire
-          // `deterministicContent` = 0,022kg à partir du "22G" (poids d'UN nugget, pas une
-          // contenance de colis), faisant échouer les deux hypothèses pour un prix qui était en
-          // fait déjà correct tel qu'imprimé (4,95€/kg). `deterministicContent` peut provenir d'un
-          // nombre qui n'a rien à voir avec le conditionnement (grammage d'un produit dans son
-          // nom) : sans confirmation positive (diffPerPiece < 0.05 ci-dessus), mieux vaut faire
-          // confiance à la classification kg/L de l'IA telle quelle, comme avant ce correctif.
+        } else if (diffNormalized <= 0.15) {
+          // Tout colle : le prix imprimé, déjà au kg/L selon l'IA, est cohérent avec le total.
           finalUnit = printedUnit;
           finalUnitPrice = printedPrice;
+        } else {
+          // [BUG confirmé, 2026-08-25] Ni l'une ni l'autre hypothèse ne colle au total imprimé.
+          // Une première version de ce correctif faisait alors confiance à l'IA EN SILENCE (cas
+          // NUGGETS, voir plus bas) — mais un test réel a montré que l'IA peut aussi, pour une
+          // ligne toute simple "5kg à 16€/kg = 80€", recalculer elle-même printedUnitPriceHT en
+          // divisant le total par la quantité (80÷5=16 devient à tort 3,20=16÷5, une deuxième
+          // division en trop) au lieu de recopier le chiffre déjà imprimé — silencieusement, sans
+          // qu'aucune des deux hypothèses testées ci-dessus ne le détecte, puisque deterministicContent
+          // (5, la quantité, correctement extraite) ne correspond ni à "déjà normalisé" ni à "par
+          // pièce" une fois combiné à un prix DÉJÀ FAUX. Un prix erroné qui ne colle à AUCUNE
+          // hypothèse plausible est exactement le signal qu'un humain doit vérifier — le faire
+          // confiance en silence dans ce cas précis a laissé passer un prix divisé par 5 sans la
+          // moindre alerte. Coût pour le cas NUGGETS (chiffre extrait sans rapport avec le
+          // conditionnement, ex: "22G" = poids d'un seul nugget) : cette ligne part maintenant en
+          // vérification au lieu d'être importée directement — un clic de plus, largement
+          // préférable à un prix faux importé sans avertissement.
+          finalUnit = printedUnit;
+          finalUnitPrice = printedPrice;
+          kgLPriceMismatch = true;
         }
       } else {
         finalUnit = printedUnit;
@@ -4626,7 +4643,9 @@ export default function App() {
         ? impliedCount
         : packageCount;
     const expectedTotal = countForCheck * packageContent * finalUnitPrice;
-    let priceInconsistent = false;
+    // Combine les deux garde-fous : celui de la branche "colis" (packageContent réellement utilisé
+    // pour calculer le prix) et celui de la branche "déjà au kg/L" ci-dessus (kgLPriceMismatch).
+    let priceInconsistent = kgLPriceMismatch;
     if (pricingDependsOnPackageContent && !pricingUnknown && printedTotal > 0 && expectedTotal > 0) {
       const diff = Math.abs(expectedTotal - printedTotal) / Math.max(printedTotal, 0.01);
       if (diff > 0.15) priceInconsistent = true;
