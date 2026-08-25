@@ -752,7 +752,8 @@ export const TR = {
     scanRecipeImpreciseWarning: (raw) => `Quantité imprécise sur la fiche ("${raw}") — indique le poids/volume réel`,
     scanRecipeCreateButton: "Créer la recette", scanRecipeRemoveLine: "Retirer cette ligne",
     scanTab: "Scanner", scanTabHint: "Importe le PDF de ta facture Métro, Promocash, Transgourmet (ou prends-la en photo) — l'IA s'occupe du reste.",
-    scanTakePhoto: "Prendre une photo", scanUploadFile: "Importer un fichier (PDF, photo...)",
+    scanTabHintIOS: "Prends ta facture en photo — l'IA s'occupe du reste. (Le PDF n'est pas encore disponible sur iPhone, un bug d'Apple empêche pour l'instant de le lire de façon fiable.)",
+    scanTakePhoto: "Prendre une photo", scanUploadFile: "Importer un fichier (PDF, photo...)", scanUploadFileIOS: "Importer une photo (galerie)",
     scanRecommendedBadge: "Recommandé — plus précis",
     scanTipTitle: "💡 Astuce pour un scan optimal :",
     scanTipBody: "Pour une précision maximale, privilégie l'import du fichier PDF original de ton fournisseur (METRO, Transgourmet, etc.). Si tu prends une photo, pose la facture bien à plat sous une bonne lumière. Attention : le flou, les ombres, les pliures et les reflets altèrent la précision de l'IA.",
@@ -1040,7 +1041,8 @@ export const TR = {
     scanRecipeImpreciseWarning: (raw) => `Cantidad imprecisa en la ficha ("${raw}") — indica el peso/volumen real`,
     scanRecipeCreateButton: "Crear la receta", scanRecipeRemoveLine: "Quitar esta línea",
     scanTab: "Escanear", scanTabHint: "Importa el PDF de tu factura de Makro, Gros Mercat o cualquier otro proveedor (o hazle una foto) — la IA se encarga del resto.",
-    scanTakePhoto: "Tomar una foto", scanUploadFile: "Importar un archivo (PDF, foto...)",
+    scanTabHintIOS: "Haz una foto de tu factura — la IA se encarga del resto. (El PDF todavía no está disponible en iPhone, un fallo de Apple impide por ahora leerlo de forma fiable.)",
+    scanTakePhoto: "Tomar una foto", scanUploadFile: "Importar un archivo (PDF, foto...)", scanUploadFileIOS: "Importar una foto (galería)",
     scanRecommendedBadge: "Recomendado — más preciso",
     scanTipTitle: "💡 Consejo para un escaneo óptimo:",
     scanTipBody: "Para una precisión máxima, prioriza la importación del archivo PDF original de tu proveedor (Makro, Gros Mercat, etc.). Si haces una foto, coloca la factura bien plana bajo una buena luz. Atención: el desenfoque, las sombras, los pliegues y los reflejos reducen la precisión de la IA.",
@@ -1328,7 +1330,8 @@ export const TR = {
     scanRecipeImpreciseWarning: (raw) => `Imprecise quantity on the sheet ("${raw}") — enter the real weight/volume`,
     scanRecipeCreateButton: "Create the recipe", scanRecipeRemoveLine: "Remove this line",
     scanTab: "Scanner", scanTabHint: "Import your invoice as a PDF from Bidfood, Brakes or any other supplier (or take a photo) — the AI takes care of the rest.",
-    scanTakePhoto: "Take a photo", scanUploadFile: "Import a file (PDF, photo...)",
+    scanTabHintIOS: "Take a photo of your invoice — the AI takes care of the rest. (PDF isn't available on iPhone yet, an Apple bug currently prevents reading it reliably.)",
+    scanTakePhoto: "Take a photo", scanUploadFile: "Import a file (PDF, photo...)", scanUploadFileIOS: "Import a photo (gallery)",
     scanRecommendedBadge: "Recommended — more accurate",
     scanTipTitle: "💡 Tip for an optimal scan:",
     scanTipBody: "For maximum accuracy, prefer importing the original PDF file from your supplier (Bidfood, Brakes, etc.). If you take a photo, lay the invoice flat under good lighting. Careful: blur, shadows, creases and glare all reduce the AI's accuracy.",
@@ -7488,7 +7491,17 @@ export default function App() {
         {activeTab === "scanner" && (
           <div className="max-w-md mx-auto pt-6">
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanFile} />
-            <input ref={fileInputLibraryRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleScanFile} />
+            {/* Pas de PDF proposé sur iOS (2026-08-25) : deux correctifs tentés le même soir pour
+                un vrai bug PDF.js sur d'anciennes versions d'iOS/Safari (fonction JS manquante,
+                pas encore de correctif fiable côté PDF.js lui-même) n'ont pas suffi — un test réel
+                a reproduit l'échec après le second correctif. Plutôt que de risquer une troisième
+                tentative à l'aveugle sur une bibliothèque qu'on ne peut pas tester localement, on
+                retire simplement le PDF du sélecteur sur iOS : le sélecteur de fichier natif ne
+                proposera alors que les photos, éliminant ce plantage à la source. La photo a reçu
+                énormément d'attention ce soir (résolution, modèle, délais) et reste pleinement
+                fiable. `file_pdf_ios_issue` reste un filet de sécurité si un PDF passait quand
+                même par un autre biais. */}
+            <input ref={fileInputLibraryRef} type="file" accept={isIOSDevice ? "image/*" : "image/*,application/pdf"} className="hidden" onChange={handleScanFile} />
             <div className="rounded-2xl p-8 flex flex-col items-center gap-3 text-center font-body border border-white/10" style={{ background: "#26221C" }}>
               <svg viewBox="0 0 120 120" width="104" height="104" className="mb-1">
                 <rect x="30" y="14" width="60" height="86" rx="4" fill="#F3EBDA" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
@@ -7506,7 +7519,10 @@ export default function App() {
                 </g>
               </svg>
               <h2 className="font-display text-white uppercase tracking-wide text-sm mt-1">{t("scanInvoice")}</h2>
-              <p className="text-white/40 text-xs leading-relaxed">{t("scanTabHint")}</p>
+              {/* Texte différent sur iOS (2026-08-25) : le texte par défaut vante explicitement le
+                  PDF, alors que le sélecteur de fichier ne le propose plus sur iPhone (voir
+                  fileInputLibraryRef ci-dessous) — le mentionner quand même aurait été trompeur. */}
+              <p className="text-white/40 text-xs leading-relaxed">{isIOSDevice ? t("scanTabHintIOS") : t("scanTabHint")}</p>
               {/* Import de fichier mis en avant (PDF natif ou photo depuis la galerie) plutôt que
                   la prise de photo directe — demande explicite de l'utilisateur, 2026-08, suite à
                   la campagne de test qui a confirmé le PDF natif comme la modalité la plus fiable
@@ -7525,7 +7541,7 @@ export default function App() {
                 className="mt-1.5 w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
                 style={{ background: "#3B82F6", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(59,130,246,0.4)" }}
               >
-                <Upload size={15} /> {t("scanUploadFile")}
+                <Upload size={15} /> {isIOSDevice ? t("scanUploadFileIOS") : t("scanUploadFile")}
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
