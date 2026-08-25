@@ -442,7 +442,8 @@ Valeur: v=DMARC1; p=none; rua=mailto:contactchefup.app@gmail.com
 
 **Attentes à gérer honnêtement, transmises à l'utilisateur** : même avec SPF+DKIM+DMARC tous corrects, un domaine tout jeune avec très peu de volume reste naturellement suspect pour Gmail au début — ça s'améliore avec le temps et de vraies ouvertures/interactions, ce n'est pas une garantie de résultat immédiat à 100%. Le DMARC reste le plus gros levier disponible actuellement.
 
-**⚠️ Non vérifié à ce jour** : que l'enregistrement DMARC a bien été ajouté par l'utilisateur, et qu'un nouveau test d'inscription arrive bien hors spam ensuite. À reprendre en priorité à la prochaine session si l'utilisateur ne confirme pas de lui-même.
+**✅ Enregistrement DMARC ajouté par l'utilisateur le 2026-08-25** (Vercel → Domains → getchefup.com → DNS Records), confirmé propagé par Claude via requête DNS publique juste après. Le domaine a maintenant SPF + DKIM + DMARC tous les trois corrects.
+**⚠️ Reste à confirmer** : que ça résout bien concrètement le problème (test réel avec une nouvelle inscription Gmail jamais utilisée pour Chefup, ou passage par mail-tester.com) — pas encore fait par l'utilisateur au moment de cette note. Une amélioration progressive est normale/attendue (domaine jeune, réputation qui se construit avec le temps), pas nécessairement un résultat parfait instantané.
 
 ### 🔴 SUPPORT CLIENT EN COURS (2026-08-24) : "je ne peux pas importer mes factures" — `casavostra.ajaccio@gmail.com`, premier vrai client
 
