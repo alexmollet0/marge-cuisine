@@ -30,7 +30,14 @@ export const config = { maxDuration: 60 };
 // générer a besoin d'un peu plus de marge pour ne pas se faire couper par NOTRE PROPRE délai avant
 // même d'avoir fini — reste 8s de marge dans le budget de la fonction (config.maxDuration = 60)
 // pour le reste du traitement (parsing, calculs de prix), largement suffisant.
-const UPSTREAM_TIMEOUT_MS = 52000;
+// Remonté à 55s le 2026-08-25 (test réel : une facture de ~90 lignes en une seule photo a
+// déclenché ce timeout) — mais c'est une rustine marginale, PAS la solution : à cette taille, le
+// JSON de sortie dépasse probablement déjà max_tokens, et le texte de chaque ligne devient minuscule
+// une fois toute la facture compressée sur une seule image. La vraie réponse pour un document aussi
+// long est de le scinder en plusieurs photos (voir scanSplitTip, src/App.jsx), pas d'attendre plus
+// longtemps un serveur qui de toute façon plafonne à 60s (config.maxDuration, déjà au maximum
+// raisonnable pour le plan Vercel de ce projet).
+const UPSTREAM_TIMEOUT_MS = 55000;
 
 // Codes d'erreur renvoyés au client. Volontairement grossiers et non techniques : le client les
 // traduit en message actionnable pour le restaurateur, sans jamais exposer le détail interne
