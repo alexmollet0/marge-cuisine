@@ -600,6 +600,9 @@ export const TR = {
     scanErrTitle_file_unreadable: "Fichier impossible à ouvrir",
     scanErrBody_file_unreadable: "Ce fichier n'a pas pu être lu comme une image ni comme un PDF. Certains formats de photo ne sont pas reconnus par le navigateur.",
     scanErrTips_file_unreadable: ["Reprends la facture en photo directement depuis Chefup", "Ou choisis la photo dans ta galerie plutôt que dans l'application Fichiers", "Un PDF envoyé par ton fournisseur fonctionne aussi très bien"],
+    scanErrTitle_file_password_protected: "PDF protégé par un mot de passe",
+    scanErrBody_file_password_protected: "Ce PDF demande un mot de passe pour être ouvert — Chefup ne peut pas l'analyser tant que la protection n'est pas retirée.",
+    scanErrTips_file_password_protected: ["Ouvre le PDF et enregistre-le/exporte-le à nouveau sans mot de passe, puis réessaie", "Ou prends simplement la facture en photo à la place", "Si tu ne sais pas retirer la protection, demande à ton fournisseur de t'envoyer une version sans mot de passe"],
     scanErrTitle_file_too_big: "Document trop lourd",
     scanErrBody_file_too_big: "Le fichier envoyé dépasse la taille acceptée.",
     scanErrTips_file_too_big: ["Prends la facture en photo depuis Chefup plutôt que d'envoyer un fichier très lourd", "Si c'est un PDF de plusieurs dizaines de pages, envoie seulement la page des produits"],
@@ -882,6 +885,9 @@ export const TR = {
     scanErrTitle_file_unreadable: "No se puede abrir el archivo",
     scanErrBody_file_unreadable: "Este archivo no se pudo leer como imagen ni como PDF. El navegador no reconoce algunos formatos de foto.",
     scanErrTips_file_unreadable: ["Vuelve a fotografiar la factura directamente desde Chefup", "O elige la foto en tu galería en vez de en la aplicación Archivos", "Un PDF enviado por tu proveedor también funciona muy bien"],
+    scanErrTitle_file_password_protected: "PDF protegido con contraseña",
+    scanErrBody_file_password_protected: "Este PDF pide una contraseña para abrirse — Chefup no puede analizarlo mientras la protección no se retire.",
+    scanErrTips_file_password_protected: ["Abre el PDF y guárdalo/expórtalo de nuevo sin contraseña, luego reintenta", "O simplemente fotografía la factura en su lugar", "Si no sabes quitar la protección, pide a tu proveedor una versión sin contraseña"],
     scanErrTitle_file_too_big: "Documento demasiado pesado",
     scanErrBody_file_too_big: "El archivo enviado supera el tamaño admitido.",
     scanErrTips_file_too_big: ["Fotografía la factura desde Chefup en vez de enviar un archivo muy pesado", "Si es un PDF de decenas de páginas, envía solo la página de los productos"],
@@ -1164,6 +1170,9 @@ export const TR = {
     scanErrTitle_file_unreadable: "File could not be opened",
     scanErrBody_file_unreadable: "This file could not be read as an image or a PDF. Some photo formats are not recognized by the browser.",
     scanErrTips_file_unreadable: ["Photograph the invoice again directly from Chefup", "Or pick the photo from your gallery rather than from the Files app", "A PDF sent by your supplier also works very well"],
+    scanErrTitle_file_password_protected: "Password-protected PDF",
+    scanErrBody_file_password_protected: "This PDF needs a password to open — Chefup can't analyze it until the protection is removed.",
+    scanErrTips_file_password_protected: ["Open the PDF and save/export it again without a password, then try again", "Or simply take a photo of the invoice instead", "If you don't know how to remove the protection, ask your supplier for a version without a password"],
     scanErrTitle_file_too_big: "Document too heavy",
     scanErrBody_file_too_big: "The file you sent is larger than what we accept.",
     scanErrTips_file_too_big: ["Photograph the invoice from Chefup instead of sending a very heavy file", "If it is a PDF with dozens of pages, send only the products page"],
@@ -2928,7 +2937,7 @@ const ACTIVITY_ICON = {
 };
 // Codes d'échec de scan connus. Toute valeur hors de cette liste retombe sur "unknown" côté
 // affichage, pour ne jamais montrer une clé de traduction brute au restaurateur.
-const SCAN_ERR_CODES = ["offline", "ai_timeout", "ai_busy", "ai_unavailable", "ai_unreadable", "file_unreadable", "file_too_big", "bad_request", "auth_expired", "auth_required"];
+const SCAN_ERR_CODES = ["offline", "ai_timeout", "ai_busy", "ai_unavailable", "ai_unreadable", "file_unreadable", "file_password_protected", "file_too_big", "bad_request", "auth_expired", "auth_required"];
 // Les mêmes codes traduits en clair pour le tableau de bord admin (usage interne, français).
 const SCAN_FAIL_REASONS = {
   offline: "connexion perdue côté client",
@@ -2937,6 +2946,7 @@ const SCAN_FAIL_REASONS = {
   ai_unavailable: "service d'IA indisponible (à vérifier côté Vercel)",
   ai_unreadable: "réponse de l'IA illisible",
   file_unreadable: "fichier illisible par le navigateur",
+  file_password_protected: "PDF protégé par un mot de passe",
   file_too_big: "document trop volumineux",
   bad_request: "requête sans document",
   auth_expired: "session expirée (même après renouvellement automatique)",
@@ -2952,6 +2962,10 @@ function activityDetail(e) {
     if (m.online === false) bits.push("appareil hors ligne");
     if (m.mode) bits.push(m.mode === "pdf_text" ? "PDF texte" : "photo");
     if (m.fileType) bits.push(m.fileType);
+    // Message technique brut (2026-08-25) : jusqu'ici perdu pour file_unreadable/unknown, laissant
+    // "PDF illisible" sans aucun indice exploitable. Jamais du contenu de facture — juste le texte
+    // d'une exception JS (ex: nom de la classe d'erreur pdfjs, message réseau...).
+    if (m.errorMessage) bits.push(`"${m.errorMessage}"`);
     return bits.join(" · ");
   }
   if (e.type === "scan_invoice" || e.type === "scan_recipe") {
@@ -4616,8 +4630,11 @@ export default function App() {
       } catch (err) {
         // Fichier que le navigateur n'arrive pas à ouvrir comme une image : format exotique
         // (HEIC brut sorti de l'app Fichiers d'un iPhone), fichier tronqué, image corrompue.
+        // Le vrai message de l'erreur est capturé dans `meta` (jamais affiché au client, juste
+        // visible dans le tableau de bord admin) — avant le 2026-08-25 il était perdu, laissant
+        // "PDF illisible" ou "image illisible" sans aucun moyen de savoir pourquoi concrètement.
         setScanErr({ code: "file_unreadable" });
-        logScanFailure("file_unreadable", { fileType: file.type || "?" });
+        logScanFailure("file_unreadable", { fileType: file.type || "?", errorMessage: String(err?.message || err).slice(0, 200) });
       } finally {
         setScanning(false);
         setScanStep(null);
@@ -4639,8 +4656,18 @@ export default function App() {
       }
       await runScanPipeline(payload);
     } catch (err) {
-      setScanErr({ code: "file_unreadable" });
-      logScanFailure("file_unreadable", { fileType: "pdf" });
+      // PDF protégé par un mot de passe (pdfjs lève un PasswordException dédié) : cause précise,
+      // réparable par le restaurateur lui-même (retirer la protection avant d'exporter, ou envoyer
+      // une photo à la place) — mérite un message différent d'un PDF simplement corrompu.
+      const isPasswordProtected = err?.name === "PasswordException";
+      setScanErr({ code: isPasswordProtected ? "file_password_protected" : "file_unreadable" });
+      logScanFailure(isPasswordProtected ? "file_password_protected" : "file_unreadable", {
+        fileType: "pdf",
+        // Diagnostic complet gardé (2026-08-25) : jusqu'ici cette info était totalement perdue,
+        // laissant "PDF illisible" sans aucun indice exploitable pour une prochaine occurrence.
+        errorMessage: String(err?.message || err).slice(0, 200),
+        errorName: err?.name || null,
+      });
       setScanning(false);
       setScanStep(null);
     }
@@ -4687,7 +4714,7 @@ export default function App() {
       await runScanPipeline({ image: base64, mediaType, ocrText, lang });
     } catch (err) {
       setScanErr({ code: "unknown" });
-      logScanFailure("unknown", {});
+      logScanFailure("unknown", { errorMessage: String(err?.message || err).slice(0, 200) });
       setScanning(false);
       setScanStep(null);
     }
