@@ -4330,7 +4330,21 @@ export default function App() {
   // chargement de l'app que pour qui scanne effectivement un PDF.
   const readPdfFile = async (file) => {
     const pdfjsLib = await import("pdfjs-dist");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+    // Bug réel et documenté de PDF.js sur iOS/WebKit (recherché le 2026-08-25, confirmé par un
+    // rapport officiel mozilla/pdf.js non résolu) : le worker MINIFIÉ contient quelque part un
+    // nombre suivi immédiatement d'un appel de méthode sans espace (ex: motif proche de
+    // "5.toFixed()") — ambigu mais valide en JS, la plupart des moteurs le tolèrent, mais le
+    // moteur JavaScriptCore de Safari/WebKit le rejette avec "No identifiers allowed directly
+    // after numeric literal", empêchant TOUT PDF (même un PDF numérique parfaitement valide) de
+    // s'ouvrir sur un iPhone/iPad. La version NON minifiée du même fichier n'a pas ce motif
+    // ambigu (le code n'est pas compacté) — on l'utilise uniquement sur iOS (fichier ~1MB plus
+    // lourd, sans intérêt à imposer ce coût aux autres appareils qui n'ont pas ce bug).
+    // Les deux chemins sont écrits en toutes lettres (jamais un chemin construit dynamiquement) :
+    // Vite doit voir une chaîne littérale complète dans `new URL(...)` pour savoir inclure le
+    // fichier dans le build — un chemin assemblé au moment de l'exécution ne serait pas détecté.
+    const pdfWorkerUrlMin = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+    const pdfWorkerUrlFull = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).toString();
+    pdfjsLib.GlobalWorkerOptions.workerSrc = isIOSDevice ? pdfWorkerUrlFull : pdfWorkerUrlMin;
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
