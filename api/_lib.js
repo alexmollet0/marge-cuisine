@@ -73,6 +73,20 @@ export async function checkUserSoft(req) {
 // `replyTo` (optionnel, 2026-08-24) : adresse où atterrissent les réponses, distincte de `from`
 // (qui reste "hello@getchefup.com" pour la marque) — utile tant que cette adresse n'a pas de
 // vraie boîte de réception configurée (voir CLAUDE.md, section EN COURS).
+// Habillage HTML commun à tous les emails automatiques (bordure de marque, CTA, mention en bas de
+// page) — partagé par api/send-reminders.js et api/admin-dashboard.js (2026-08-25, mail de
+// déblocage) pour ne pas dupliquer ce gabarit à chaque nouvel usage.
+export function wrapEmailHtml(bodyHtml, ctaLabel, settingsHint) {
+  return `<div style="font-family:Arial,sans-serif;background:#F3EBDA;padding:24px;">
+    <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:16px;padding:28px;">
+      <div style="font-family:Arial,sans-serif;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;font-size:12px;color:#6D28D9;margin-bottom:16px;">Chefup</div>
+      <div style="color:#2B2620;font-size:14px;line-height:1.6;">${bodyHtml}</div>
+      <a href="https://getchefup.com" style="display:inline-block;margin-top:20px;padding:10px 20px;border-radius:999px;background:linear-gradient(90deg,#8B5CF6,#22D3EE);color:#fff;text-decoration:none;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">${ctaLabel}</a>
+      ${settingsHint ? `<p style="color:#2B2620;opacity:0.4;font-size:11px;margin-top:24px;">${settingsHint}</p>` : ""}
+    </div>
+  </div>`;
+}
+
 export async function sendEmail(to, subject, html, attachments, scheduledAt, replyTo) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY manquant côté serveur.");

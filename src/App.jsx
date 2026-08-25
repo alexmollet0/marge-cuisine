@@ -3042,6 +3042,35 @@ function AdminDashboard() {
   const [resetTrialArmed, setResetTrialArmed] = useState(null); // email en attente de confirmation
   const [resetTrialBusy, setResetTrialBusy] = useState(null); // email en cours de traitement
   const [resetTrialDone, setResetTrialDone] = useState({}); // { email: true } une fois confirmé cette session
+  // Mail de déblocage groupé (2026-08-25) : même pattern "armé puis confirmé" que resetTrial,
+  // mais pour un seul envoi global (tous les comptes jamais confirmés d'un coup), pas par compte.
+  const [unlockEmailArmed, setUnlockEmailArmed] = useState(false);
+  const [unlockEmailBusy, setUnlockEmailBusy] = useState(false);
+  const [unlockEmailResult, setUnlockEmailResult] = useState(null); // { sentCount, total }
+  const sendUnlockEmails = async () => {
+    if (!unlockEmailArmed) {
+      setUnlockEmailArmed(true);
+      setTimeout(() => setUnlockEmailArmed(false), 4000);
+      return;
+    }
+    setUnlockEmailArmed(false);
+    setUnlockEmailBusy(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/admin-dashboard", {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "send_unlock_emails" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "échec");
+      setUnlockEmailResult({ sentCount: data.sentCount, total: data.total });
+    } catch (e) {
+      alert("Erreur : " + (e.message || "échec de l'envoi."));
+    } finally {
+      setUnlockEmailBusy(false);
+    }
+  };
   const resetTrial = async (email) => {
     if (resetTrialArmed !== email) {
       setResetTrialArmed(email);
@@ -3307,6 +3336,38 @@ function AdminDashboard() {
               <option value={90}>90 jours</option>
             </select>
           </div>
+
+          {/* Mail de déblocage groupé (2026-08-25) : pour les comptes déjà inscrits mais jamais
+              confirmés, qui ne savent probablement pas qu'ils peuvent maintenant se connecter sans
+              confirmer leur email — voir CLAUDE.md, "Visibilité de la confirmation d'email". Envoi
+              volontairement manuel/ponctuel (pas automatique), à la demande de l'utilisateur. */}
+          {(kpis.unconfirmedEmails > 0 || unlockEmailResult) && (
+            <div
+              className="rounded-xl p-3 mb-4 flex items-center justify-between gap-3 flex-wrap"
+              style={{ background: "#26221C", border: `1px solid ${TIER_COLORS.low}40` }}
+            >
+              <div className="flex items-center gap-2 text-white/70 text-xs">
+                <MailWarning size={14} style={{ color: TIER_COLORS.low }} />
+                {unlockEmailResult
+                  ? `Mail envoyé à ${unlockEmailResult.sentCount} compte${unlockEmailResult.sentCount > 1 ? "s" : ""} (sur ${unlockEmailResult.total} non confirmés — les autres l'avaient déjà reçu).`
+                  : `${kpis.unconfirmedEmails} compte${kpis.unconfirmedEmails > 1 ? "s" : ""} n'ont jamais confirmé leur email — ils ne savent probablement pas qu'ils peuvent se connecter sans confirmer.`}
+              </div>
+              {!unlockEmailResult && (
+                <button
+                  onClick={sendUnlockEmails}
+                  disabled={unlockEmailBusy}
+                  className="text-[11px] font-medium px-3 py-1.5 rounded-full disabled:opacity-50 shrink-0"
+                  style={
+                    unlockEmailArmed
+                      ? { background: `${TIER_COLORS.low}25`, color: TIER_COLORS.low }
+                      : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }
+                  }
+                >
+                  {unlockEmailBusy ? "Envoi en cours…" : unlockEmailArmed ? "Confirmer l'envoi ?" : "Envoyer le mail de déblocage"}
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
             {kpiCards.map((c) => (

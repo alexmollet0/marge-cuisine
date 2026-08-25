@@ -9,7 +9,7 @@
 // CRON_SECRET — différent modèle d'auth, voir plus bas). Programme (ne envoie pas tout de suite)
 // un email d'accueil humain via Resend (`scheduled_at`), à une heure choisie selon le fuseau
 // horaire du navigateur de l'utilisateur — voir `computeWelcomeSendAt`.
-import { getSupabaseAdmin, sendEmail, requireUser } from "./_lib.js";
+import { getSupabaseAdmin, sendEmail, requireUser, wrapEmailHtml } from "./_lib.js";
 
 // Comptes à ne jamais inscrire à l'email d'accueil automatique (2026-08-24) — actuellement un
 // seul cas : cliente déjà accompagnée personnellement suite à un problème de scan signalé via le
@@ -153,17 +153,6 @@ const EMAIL_COPY = {
     settingsHint: "You can turn off these reminders anytime in Chefup → Settings.",
   },
 };
-
-function wrapEmailHtml(bodyHtml, ctaLabel, settingsHint) {
-  return `<div style="font-family:Arial,sans-serif;background:#F3EBDA;padding:24px;">
-    <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:16px;padding:28px;">
-      <div style="font-family:Arial,sans-serif;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;font-size:12px;color:#6D28D9;margin-bottom:16px;">Chefup</div>
-      <div style="color:#2B2620;font-size:14px;line-height:1.6;">${bodyHtml}</div>
-      <a href="https://getchefup.com" style="display:inline-block;margin-top:20px;padding:10px 20px;border-radius:999px;background:linear-gradient(90deg,#8B5CF6,#22D3EE);color:#fff;text-decoration:none;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">${ctaLabel}</a>
-      <p style="color:#2B2620;opacity:0.4;font-size:11px;margin-top:24px;">${settingsHint}</p>
-    </div>
-  </div>`;
-}
 
 // Programme le mail d'accueil pour UN compte (déclenché par le client à la première connexion,
 // voir src/Auth.jsx) — authentifié par le token de session de ce compte, pas par CRON_SECRET.
