@@ -67,9 +67,9 @@ export default async function handler(req, res) {
     return fail(res, 503, "ai_unavailable", "ANTHROPIC_API_KEY manquante sur Vercel");
   }
 
-  const { image, mediaType, text, ocrText, lang } = req.body || {};
-  if (!image && !text) {
-    return fail(res, 400, "bad_request", "payload sans image ni texte");
+  const { image, mediaType, text, ocrText, lang, pdfBase64 } = req.body || {};
+  if (!image && !text && !pdfBase64) {
+    return fail(res, 400, "bad_request", "payload sans image, texte ni PDF");
   }
 
   // Serrure sur l'endpoint (2026-08-24) : jusqu'ici n'importe qui sur internet pouvait envoyer des
@@ -88,7 +88,7 @@ export default async function handler(req, res) {
   }
 
   const prompt = `Tu es un assistant spécialisé dans la lecture de factures et bons de livraison fournisseurs pour la restauration.
-Analyse le document fourni (image de facture, éventuellement accompagnée d'une transcription OCR indépendante, ou texte numérique déjà extrait d'un PDF) et réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de balises markdown), au format exact :
+Analyse le document fourni (fichier PDF natif, image de facture éventuellement accompagnée d'une transcription OCR indépendante, ou texte numérique déjà extrait d'un PDF) et réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de balises markdown), au format exact :
 
 {
   "supplier": "nom du fournisseur ou null",
@@ -202,7 +202,19 @@ Le champ "name" d'un item doit TOUJOURS correspondre à du texte que tu peux ré
   // corriger elle-même sans lui faire aveuglément confiance (l'image reste la référence en cas de
   // désaccord, précisé explicitement ci-dessous).
   const content = [];
-  if (image) {
+  if (pdfBase64) {
+    // Envoi du PDF BRUT directement à Claude (2026-08-25), qui le lit nativement (texte ET pages
+    // scannées, jusqu'à 600 pages, aucune limite pratique pour une facture) — remplace l'ancienne
+    // approche qui demandait au NAVIGATEUR de parser le PDF lui-même (pdfjs-dist) avant l'envoi.
+    // Ce changement élimine à la racine un vrai bug non résolu de cette bibliothèque sur certaines
+    // anciennes versions d'iOS/Safari (deux tentatives de correctif côté client ont échoué le même
+    // soir, voir l'historique de ce fichier) : en ne faisant plus JAMAIS tourner de parseur PDF
+    // dans le navigateur, ce bug ne peut simplement plus se produire, sur aucun appareil. Bénéfice
+    // supplémentaire, pas juste un contournement : un PDF scanné multi-pages n'était auparavant lu
+    // que sur SA PREMIÈRE PAGE (limite de l'ancien pipeline côté client) — Claude peut maintenant
+    // lire le document dans son ensemble.
+    content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } });
+  } else if (image) {
     content.push({ type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: image } });
     if (ocrText && ocrText.trim().length > 20) {
       content.push({

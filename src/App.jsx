@@ -4328,53 +4328,45 @@ export default function App() {
       img.src = `data:${mediaType};base64,${base64}`;
     });
 
-  // Lit un PDF : si c'est une vraie facture numérique (texte natif, pas un scan), on récupère ce
-  // texte directement — plus fiable que n'importe quelle lecture visuelle, puisqu'il n'y a rien à
-  // "lire", juste du texte déjà exact. Sinon (PDF composé uniquement d'une image scannée, texte
-  // natif absent ou quasi vide), on retombe sur le pipeline photo existant en rendant la première
-  // page — une seule page à la fois, comme pour une photo (déjà décidé : jamais fusionner plusieurs
-  // pages en un seul scan). Import dynamique de pdfjs-dist : grosse librairie, ne doit peser sur le
-  // chargement de l'app que pour qui scanne effectivement un PDF.
-  const readPdfFile = async (file) => {
-    const pdfjsLib = await import("pdfjs-dist");
-    // Bug réel et documenté de PDF.js sur iOS/WebKit (recherché le 2026-08-25, confirmé par un
-    // rapport officiel mozilla/pdf.js non résolu) : le worker MINIFIÉ contient quelque part un
-    // nombre suivi immédiatement d'un appel de méthode sans espace (ex: motif proche de
-    // "5.toFixed()") — ambigu mais valide en JS, la plupart des moteurs le tolèrent, mais le
-    // moteur JavaScriptCore de Safari/WebKit le rejette avec "No identifiers allowed directly
-    // after numeric literal", empêchant TOUT PDF (même un PDF numérique parfaitement valide) de
-    // s'ouvrir sur un iPhone/iPad. La version NON minifiée du même fichier n'a pas ce motif
-    // ambigu (le code n'est pas compacté) — on l'utilise uniquement sur iOS (fichier ~1MB plus
-    // lourd, sans intérêt à imposer ce coût aux autres appareils qui n'ont pas ce bug).
-    // Les deux chemins sont écrits en toutes lettres (jamais un chemin construit dynamiquement) :
-    // Vite doit voir une chaîne littérale complète dans `new URL(...)` pour savoir inclure le
-    // fichier dans le build — un chemin assemblé au moment de l'exécution ne serait pas détecté.
-    const pdfWorkerUrlMin = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-    const pdfWorkerUrlFull = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).toString();
-    pdfjsLib.GlobalWorkerOptions.workerSrc = isIOSDevice ? pdfWorkerUrlFull : pdfWorkerUrlMin;
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-    // Plafond de taille : le serveur ne garde de toute façon que les 12000 premiers caractères,
-    // et un PDF de plusieurs dizaines de pages pouvait produire une requête si volumineuse qu'elle
-    // était refusée par la plateforme avant même d'arriver (erreur incompréhensible côté client).
-    const MAX_PDF_CHARS = 20000;
-    let fullText = "";
-    for (let i = 1; i <= pdf.numPages && fullText.length < MAX_PDF_CHARS; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      fullText += content.items.map((it) => it.str).join(" ") + "\n";
+  // Convertit un ArrayBuffer en base64 par blocs (2026-08-25) : `btoa(String.fromCharCode(...bytes))`
+  // avec l'opérateur spread peut dépasser la limite d'arguments d'une fonction sur un gros fichier
+  // (des dizaines de milliers d'octets d'un coup) — motif classique et sûr pour éviter ça.
+  const arrayBufferToBase64 = (buffer) => {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
     }
-    if (fullText.trim().length > 40) return { text: fullText.trim().slice(0, MAX_PDF_CHARS) };
+    return btoa(binary);
+  };
 
-    const page = await pdf.getPage(1);
-    const viewport = page.getViewport({ scale: 2 });
-    const canvas = document.createElement("canvas");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-    return { base64: dataUrl.split(",")[1], mediaType: "image/jpeg" };
+  // Plafond de taille avant envoi : Vercel refuse tout net une requête au-delà de 4,5 Mo (limite
+  // fixe de la plateforme, non modifiable — vérifié sur la doc officielle le 2026-08-25), et le
+  // base64 gonfle la taille réelle d'environ 33%. 3 Mo de PDF brut → environ 4 Mo encodé, en
+  // laissant de la marge pour le reste du JSON envoyé — largement suffisant pour une facture de
+  // plusieurs pages (les factures réelles testées jusqu'ici pesaient quelques centaines de Ko).
+  const MAX_PDF_BYTES = 3 * 1024 * 1024;
+
+  // Lit un PDF (2026-08-25, réécrit en profondeur) : envoie désormais le fichier BRUT à Claude, qui
+  // sait lire un PDF nativement (texte ET pages scannées, jusqu'à 600 pages) — plus aucun parsing
+  // ni rendu de PDF dans le navigateur. Remplace l'ancienne approche (pdfjs-dist, lecture de texte
+  // ou rendu de la première page en image) qui reposait sur un vrai bug non résolu de cette
+  // bibliothèque sur certaines anciennes versions d'iOS/Safari — deux tentatives de correctif côté
+  // client ont échoué le même soir (voir l'historique de ce fichier) avant qu'on réalise qu'il
+  // valait mieux éliminer le problème à la racine plutôt que continuer à le contourner. Bénéfice
+  // supplémentaire, pas juste un contournement : un PDF scanné multi-pages n'était auparavant lu
+  // que sur sa première page (limite de l'ancien pipeline) ; Claude peut désormais lire le document
+  // dans son ensemble. Elle ne dépend donc plus du tout d'`isIOSDevice` — un PDF se comporte
+  // maintenant EXACTEMENT pareil sur n'importe quel appareil.
+  const readPdfFile = async (file) => {
+    if (file.size > MAX_PDF_BYTES) {
+      const err = new Error("pdf_too_big");
+      err.code = "file_too_big";
+      throw err;
+    }
+    const arrayBuffer = await file.arrayBuffer();
+    return { pdfBase64: arrayBufferToBase64(arrayBuffer) };
   };
 
   // OCR indépendant (moteur classique, pas une IA) fait en plus de la lecture par l'IA de vision :
@@ -4675,37 +4667,19 @@ export default function App() {
     setScanning(true);
     setScanStep("prepare");
     try {
-      const pdfResult = await readPdfFile(file);
-      let payload;
-      if (pdfResult.text) {
-        payload = { text: pdfResult.text, lang };
-      } else {
-        setScanStep("ocr");
-        const ocrText = await runOcr(pdfResult.base64);
-        payload = { image: pdfResult.base64, mediaType: pdfResult.mediaType, ocrText, lang };
-        setScanImagePreview(`data:${pdfResult.mediaType};base64,${pdfResult.base64}`);
-      }
-      await runScanPipeline(payload);
+      const { pdfBase64 } = await readPdfFile(file);
+      await runScanPipeline({ pdfBase64, lang });
     } catch (err) {
-      // PDF protégé par un mot de passe (pdfjs lève un PasswordException dédié) : cause précise,
-      // réparable par le restaurateur lui-même (retirer la protection avant d'exporter, ou envoyer
-      // une photo à la place) — mérite un message différent d'un PDF simplement corrompu.
-      const isPasswordProtected = err?.name === "PasswordException";
-      // Bug connu, réel et non résolu de PDF.js sur iOS (recherché le 2026-08-25, pas deviné) :
-      // le worker (fichier .mjs) échoue à s'initialiser sur le moteur WebKit, avec une erreur du
-      // type "Setting up fake worker failed: ...". C'est un bug du moteur WebKit lui-même, donc
-      // TOUS les navigateurs sur iPhone/iPad sont concernés de la même façon (Chrome iOS, Safari,
-      // Edge iOS... utilisent tous WebKit sous le capot par obligation d'Apple) — changer de
-      // navigateur sur iPhone ne réglerait rien, contrairement à une intuition naturelle. Comme ce
-      // problème touche l'initialisation même du lecteur PDF, TOUT PDF échoue sur un iPhone
-      // concerné, même un PDF numérique parfaitement valide (pas seulement les PDF scannés/image).
-      const isLikelyIOSPdfBug = !isPasswordProtected && isIOSDevice;
-      const code = isPasswordProtected ? "file_password_protected" : isLikelyIOSPdfBug ? "file_pdf_ios_issue" : "file_unreadable";
+      // `file_too_big` posé explicitement par readPdfFile (fichier au-delà de 3 Mo) ; tout le
+      // reste reste générique — plus de distinction iOS/mot de passe nécessaire depuis que le PDF
+      // n'est plus jamais parsé dans le navigateur (2026-08-25), donc plus jamais sujet aux bugs
+      // spécifiques d'une bibliothèque de lecture PDF client (PasswordException, bug WebKit...).
+      // Le vrai message technique reste gardé pour diagnostic, au cas où un souci différent (fichier
+      // vraiment corrompu, lecture réseau...) apparaisse un jour.
+      const code = err?.code === "file_too_big" ? "file_too_big" : "file_unreadable";
       setScanErr({ code });
       logScanFailure(code, {
         fileType: "pdf",
-        // Diagnostic complet gardé (2026-08-25) : jusqu'ici cette info était totalement perdue,
-        // laissant "PDF illisible" sans aucun indice exploitable pour une prochaine occurrence.
         errorMessage: String(err?.message || err).slice(0, 200),
         errorName: err?.name || null,
       });
@@ -5033,7 +5007,7 @@ export default function App() {
         err.scanCode ||
         (err.name === "AbortError" ? "ai_timeout" : !navigator.onLine || err.name === "TypeError" ? "offline" : "unknown");
       setScanErr({ code, status: err.httpStatus || null });
-      logScanFailure(code, { httpStatus: err.httpStatus || null, mode: payload.text ? "pdf_text" : "image" });
+      logScanFailure(code, { httpStatus: err.httpStatus || null, mode: payload.pdfBase64 ? "pdf" : payload.text ? "pdf_text" : "image" });
     } finally {
       clearTimeout(timeoutId);
       setScanning(false);
@@ -7494,17 +7468,12 @@ export default function App() {
         {activeTab === "scanner" && (
           <div className="max-w-md mx-auto pt-6">
             <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanFile} />
-            {/* Pas de PDF proposé sur iOS (2026-08-25) : deux correctifs tentés le même soir pour
-                un vrai bug PDF.js sur d'anciennes versions d'iOS/Safari (fonction JS manquante,
-                pas encore de correctif fiable côté PDF.js lui-même) n'ont pas suffi — un test réel
-                a reproduit l'échec après le second correctif. Plutôt que de risquer une troisième
-                tentative à l'aveugle sur une bibliothèque qu'on ne peut pas tester localement, on
-                retire simplement le PDF du sélecteur sur iOS : le sélecteur de fichier natif ne
-                proposera alors que les photos, éliminant ce plantage à la source. La photo a reçu
-                énormément d'attention ce soir (résolution, modèle, délais) et reste pleinement
-                fiable. `file_pdf_ios_issue` reste un filet de sécurité si un PDF passait quand
-                même par un autre biais. */}
-            <input ref={fileInputLibraryRef} type="file" accept={isIOSDevice ? "image/*" : "image/*,application/pdf"} className="hidden" onChange={handleScanFile} />
+            {/* PDF de nouveau proposé sur tous les appareils, y compris iOS (2026-08-25) : le
+                blocage temporaire posé plus tôt dans la soirée (voir git log) n'est plus
+                nécessaire depuis que le PDF est envoyé brut à Claude au lieu d'être parsé dans le
+                navigateur — le bug WebKit qui justifiait ce blocage ne peut simplement plus se
+                produire, plus besoin de distinguer les appareils. */}
+            <input ref={fileInputLibraryRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleScanFile} />
             <div className="rounded-2xl p-8 flex flex-col items-center gap-3 text-center font-body border border-white/10" style={{ background: "#26221C" }}>
               <svg viewBox="0 0 120 120" width="104" height="104" className="mb-1">
                 <rect x="30" y="14" width="60" height="86" rx="4" fill="#F3EBDA" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
@@ -7522,10 +7491,7 @@ export default function App() {
                 </g>
               </svg>
               <h2 className="font-display text-white uppercase tracking-wide text-sm mt-1">{t("scanInvoice")}</h2>
-              {/* Texte différent sur iOS (2026-08-25) : le texte par défaut vante explicitement le
-                  PDF, alors que le sélecteur de fichier ne le propose plus sur iPhone (voir
-                  fileInputLibraryRef ci-dessous) — le mentionner quand même aurait été trompeur. */}
-              <p className="text-white/40 text-xs leading-relaxed">{isIOSDevice ? t("scanTabHintIOS") : t("scanTabHint")}</p>
+              <p className="text-white/40 text-xs leading-relaxed">{t("scanTabHint")}</p>
               {/* Import de fichier mis en avant (PDF natif ou photo depuis la galerie) plutôt que
                   la prise de photo directe — demande explicite de l'utilisateur, 2026-08, suite à
                   la campagne de test qui a confirmé le PDF natif comme la modalité la plus fiable
@@ -7544,7 +7510,7 @@ export default function App() {
                 className="mt-1.5 w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
                 style={{ background: "#3B82F6", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(59,130,246,0.4)" }}
               >
-                <Upload size={15} /> {isIOSDevice ? t("scanUploadFileIOS") : t("scanUploadFile")}
+                <Upload size={15} /> {t("scanUploadFile")}
               </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -7556,12 +7522,7 @@ export default function App() {
 
             <div className="rounded-2xl p-4 mt-3 text-xs leading-relaxed border border-white/10" style={{ background: "#26221C" }}>
               <p className="text-white/70 font-semibold mb-1">{t("scanTipTitle")}</p>
-              {/* Sur iOS, l'astuce ne peut plus dire "privilégie le PDF" (plus proposé du tout
-                  dans le sélecteur, voir fileInputLibraryRef) — remplacée par la vraie marche à
-                  suivre pour une facture reçue en PDF sur iPhone (2026-08-25) : la capture d'écran,
-                  pas une photo à l'appareil. Point soulevé par l'utilisateur, inquiet à raison
-                  qu'un tableau large (prix tout à droite) ne rentre pas dans une seule capture. */}
-              <p className="text-white/45">{isIOSDevice ? t("scanTipBodyIOS") : t("scanTipBody")}</p>
+              <p className="text-white/45">{t("scanTipBody")}</p>
             </div>
           </div>
         )}
