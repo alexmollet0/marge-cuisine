@@ -421,6 +421,29 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environ
 
 ## EN COURS
 
+### 🔴 URGENT — Mails de confirmation d'inscription qui partent en spam (2026-08-25), au moins 3 inscriptions perdues le jour même
+
+Constaté par l'utilisateur : 3 comptes créés le même jour (dont celui de son frère) sans aucune action ensuite dans l'app — le frère a confirmé que le mail de confirmation d'inscription était arrivé dans les spams Gmail. Perte réelle de clients potentiels.
+
+**Diagnostic fait par Claude (audit DNS public, sans accès aux dashboards Vercel/Resend/Supabase)** via l'API DNS-over-HTTPS de Google (`dns.google/resolve`) :
+- ✅ **SPF** présent et correct : `send.getchefup.com` → `v=spf1 include:amazonses.com ~all` (+ `MX 10 feedback-smtp.eu-west-1.amazonses.com`, c'est la config standard Resend/Amazon SES pour le sous-domaine technique de bounce).
+- ✅ **DKIM** présent et correct : `resend._domainkey.getchefup.com` (TXT, clé publique RSA) — signe bien avec le domaine racine `getchefup.com`, aligné avec l'adresse d'expéditeur visible `hello@getchefup.com`.
+- ❌ **DMARC : ABSENT, aucun enregistrement `_dmarc.getchefup.com`** (vérifié à la fois en TXT racine et sous `send.`). C'est la pièce manquante la plus probable : Gmail/Yahoo pénalisent fortement l'absence de DMARC depuis leurs nouvelles règles anti-spam (2024), en particulier pour un domaine d'envoi tout jeune comme `getchefup.com` (quelques semaines d'existence, très peu de volume envoyé jusqu'ici).
+
+**Action corrective transmise à l'utilisateur (2026-08-25), à faire lui-même dans Vercel (Settings → Domains → getchefup.com → DNS Records)** — Claude n'a ni accès ni droit d'écriture sur cette configuration DNS externe :
+```
+Type  : TXT
+Nom   : _dmarc
+Valeur: v=DMARC1; p=none; rua=mailto:contactchefup.app@gmail.com
+```
+`p=none` = mode surveillance uniquement, aucun risque de bloquer un email légitime, satisfait juste l'exigence de présence d'une politique DMARC. Rapports d'agrégation envoyés vers `contactchefup.app@gmail.com` (boîte déjà surveillée par l'utilisateur), pas vers `hello@getchefup.com` qui n'a **toujours pas de vraie boîte de réception** (voir plus bas, action déjà en attente depuis 2026-08).
+
+**Outil de vérification donné à l'utilisateur** : mail-tester.com (gratuit, sans inscription) pour un diagnostic complet en conditions réelles une fois le DMARC ajouté.
+
+**Attentes à gérer honnêtement, transmises à l'utilisateur** : même avec SPF+DKIM+DMARC tous corrects, un domaine tout jeune avec très peu de volume reste naturellement suspect pour Gmail au début — ça s'améliore avec le temps et de vraies ouvertures/interactions, ce n'est pas une garantie de résultat immédiat à 100%. Le DMARC reste le plus gros levier disponible actuellement.
+
+**⚠️ Non vérifié à ce jour** : que l'enregistrement DMARC a bien été ajouté par l'utilisateur, et qu'un nouveau test d'inscription arrive bien hors spam ensuite. À reprendre en priorité à la prochaine session si l'utilisateur ne confirme pas de lui-même.
+
 ### 🔴 SUPPORT CLIENT EN COURS (2026-08-24) : "je ne peux pas importer mes factures" — `casavostra.ajaccio@gmail.com`, premier vrai client
 
 Premier vrai client (essai en cours) a signalé via le formulaire de contact ne pas réussir à importer ses factures. Diagnostic fait cette session :
@@ -433,6 +456,7 @@ Premier vrai client (essai en cours) a signalé via le formulaire de contact ne 
 - **Suite le 2026-08-24 : audit complet du scan demandé par l'utilisateur** (voir l'entrée détaillée en fin de « Fonctionnalités déjà en place »). Plusieurs causes plausibles de ce blocage ont été trouvées et corrigées sans avoir besoin de la réponse de la cliente — les plus probables pour son cas : **l'OCR sans limite de temps** (téléchargement de 3 langues depuis un CDN externe avant chaque analyse, pouvant ne jamais aboutir sur une connexion mobile), **l'absence de délai maximum sur la fonction serveur** (facture longue → fonction tuée par Vercel → réponse HTML → message technique incompréhensible côté client), et **le tap sur le fond noir qui fermait la fenêtre pendant l'analyse** (résultat perdu, aucune erreur affichée). Aucune n'est confirmée comme LA cause de son cas précis, faute de sa réponse.
 - **Le trou de diagnostic est comblé** : les échecs de scan sont désormais journalisés (`scan_failed`) et visibles dans le tableau de bord admin avec leur cause. **Si le problème se reproduit chez elle ou chez quelqu'un d'autre, l'onglet « Comptes » du tableau de bord donnera directement la cause** — plus besoin de deviner.
 - **Prochaine étape** : dès que la cliente répond (ou envoie une capture), reprendre le diagnostic à partir de sa réponse précise. Regarder AUSSI son flux d'activité admin : si elle réessaie après le déploiement, l'échec éventuel y apparaîtra avec son code.
+- **Nouvel épisode (2026-08-25)** : après le correctif du bug `confirmScanImage` (voir plus haut, "Fichier F"), la cliente a réessayé et reçu cette fois **« Fichier impossible à ouvrir »** (`file_unreadable`). Confirmé avec l'utilisateur que ce code est déclenché AVANT tout envoi au serveur (`compressImageFile` échoue à décoder la photo côté navigateur) — totalement indépendant du bug de la veille (qui aurait donné `bad_request`/« Document non reçu ») et indépendant de la panne d'assistance de Claude qui a retardé le correctif précédent. Cause la plus probable : format de photo non reconnu par son téléphone (ex: HEIC brut) ou fichier abîmé. **Réponse suggérée à envoyer** : rassurer que c'est corrigé côté app, demander de reprendre la photo directement depuis le bouton appareil photo de Chefup (ou depuis la Galerie plutôt que l'app Fichiers), ou d'envoyer le PDF fournisseur si disponible. **À vérifier** : le tableau de bord admin (onglet Comptes → son compte) doit montrer une ligne "Scan ÉCHOUÉ" avec `fileType` en détail — utile pour confirmer le format exact en cause si elle réessaie encore.
 
 **✅ Table `scan_events` confirmée en place** — testée par Claude le 2026-08-18 (`GET /api/scan-events?secret=...&days=1` a renvoyé un vrai résumé avec des scans réels), donc déjà créée à un moment non documenté entre le 2026-08-05 et aujourd'hui. Plus une "action requise" — les deux journaux statistiques (scanner et landing page) sont opérationnels.
 
