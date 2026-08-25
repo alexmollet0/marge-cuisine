@@ -50,9 +50,16 @@ const UPSTREAM_TIMEOUT_MS = 55000;
 // - bad_request    : requête invalide (aucun document reçu)
 // - auth_required  : appel sans aucune preuve de compte (typiquement un script, pas un client)
 // - auth_expired   : jeton présent mais refusé — l'app le renouvelle et renvoie automatiquement
-const fail = (res, status, code, logLabel, logDetail) => {
+// `upstreamStatus` (2026-08-25) : le VRAI code HTTP renvoyé par Anthropic (ex: 400 = notre
+// requête est mal formée, 529 = leur service est surchargé), jamais le texte du message —
+// seulement un nombre, aucune fuite d'information sensible. Sans ça, un 400 (bug de notre côté,
+// ex: un champ mal formé) et un vrai 529 (panne chez Anthropic, rien à faire) étaient tous les
+// deux aplatis en un même "502 ai_unavailable" générique, rendant impossible de distinguer "il
+// faut corriger le code" de "il faut juste réessayer plus tard". Visible uniquement dans le flux
+// d'activité du tableau de bord admin (jamais affiché au client final).
+const fail = (res, status, code, logLabel, logDetail, upstreamStatus) => {
   if (logLabel) console.error(`[scan-invoice] ${logLabel}`, typeof logDetail === "string" ? logDetail.slice(0, 800) : logDetail);
-  return res.status(status).json({ code });
+  return res.status(status).json({ code, ...(upstreamStatus ? { upstreamStatus } : {}) });
 };
 
 // Fonction serveur Vercel (jamais exécutée dans le navigateur : la clé API
@@ -289,7 +296,7 @@ Le champ "name" d'un item doit TOUJOURS correspondre à du texte que tu peux ré
       const detail = await response.text().catch(() => "");
       // 429 = trop de requêtes, 529 = surcharge temporaire du fournisseur : réessayer aide vraiment.
       const busy = response.status === 429 || response.status === 529 || response.status === 503;
-      return fail(res, busy ? 503 : 502, busy ? "ai_busy" : "ai_unavailable", `HTTP ${response.status}`, detail);
+      return fail(res, busy ? 503 : 502, busy ? "ai_busy" : "ai_unavailable", `HTTP ${response.status}`, detail, response.status);
     }
 
     const data = await response.json();

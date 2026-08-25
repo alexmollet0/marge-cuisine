@@ -2958,6 +2958,7 @@ const ACTIVITY_ICON = {
 // affichage, pour ne jamais montrer une clé de traduction brute au restaurateur.
 const SCAN_ERR_CODES = ["offline", "ai_timeout", "ai_busy", "ai_unavailable", "ai_unreadable", "file_unreadable", "file_password_protected", "file_pdf_ios_issue", "file_too_big", "bad_request", "auth_expired", "auth_required"];
 // Les mêmes codes traduits en clair pour le tableau de bord admin (usage interne, français).
+const MODE_LABELS = { pdf: "PDF (natif)", pdf_text: "PDF texte", image: "photo" };
 const SCAN_FAIL_REASONS = {
   offline: "connexion perdue côté client",
   ai_timeout: "délai dépassé (document trop long / réseau lent)",
@@ -2979,9 +2980,16 @@ function activityDetail(e) {
   if (e.type === "scan_failed") {
     const bits = [SCAN_FAIL_REASONS[m.code] || m.code || "cause inconnue"];
     if (m.httpStatus) bits.push(`HTTP ${m.httpStatus}`);
+    // upstreamStatus (2026-08-25) : le vrai code renvoyé par Anthropic, distinct du code HTTP
+    // normalisé ci-dessus — un 400 ici veut dire "notre requête est mal formée" (bug de code),
+    // un 5xx veut dire "leur service est indisponible" (rien à faire de notre côté).
+    if (m.upstreamStatus) bits.push(`Anthropic ${m.upstreamStatus}`);
     if (m.online === false) bits.push("appareil hors ligne");
     if (m.device) bits.push(m.device);
-    if (m.mode) bits.push(m.mode === "pdf_text" ? "PDF texte" : "photo");
+    // MODE_LABELS couvre "pdf" (nouveau, envoi natif) en plus des anciens "pdf_text"/"image" —
+    // avant ce correctif, tout mode inconnu (dont "pdf") retombait à tort sur "photo" (bug trouvé
+    // en test réel, 2026-08-25 : un échec PDF affichait "photo" dans le tableau de bord).
+    if (m.mode) bits.push(MODE_LABELS[m.mode] || m.mode);
     if (m.fileType) bits.push(m.fileType);
     // Message technique brut (2026-08-25) : jusqu'ici perdu pour file_unreadable/unknown, laissant
     // "PDF illisible" sans aucun indice exploitable. Jamais du contenu de facture — juste le texte
@@ -4832,6 +4840,10 @@ export default function App() {
         const err = new Error(code);
         err.scanCode = code;
         err.httpStatus = res.status;
+        // Code HTTP réel renvoyé par Anthropic (voir api/scan-invoice.js) — distingue "notre
+        // requête est mal formée" (400) de "leur service est indisponible" (5xx), invisible sinon
+        // derrière le code générique ai_unavailable/502.
+        err.upstreamStatus = data.upstreamStatus || null;
         throw err;
       }
       // Date du dernier scan réussi, utilisée uniquement par le rappel d'inactivité par email
@@ -5030,7 +5042,11 @@ export default function App() {
         err.scanCode ||
         (err.name === "AbortError" ? "ai_timeout" : !navigator.onLine || err.name === "TypeError" ? "offline" : "unknown");
       setScanErr({ code, status: err.httpStatus || null });
-      logScanFailure(code, { httpStatus: err.httpStatus || null, mode: payload.pdfBase64 ? "pdf" : payload.text ? "pdf_text" : "image" });
+      logScanFailure(code, {
+        httpStatus: err.httpStatus || null,
+        upstreamStatus: err.upstreamStatus || null,
+        mode: payload.pdfBase64 ? "pdf" : payload.text ? "pdf_text" : "image",
+      });
     } finally {
       clearTimeout(timeoutId);
       setScanning(false);
