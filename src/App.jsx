@@ -2970,6 +2970,7 @@ function activityDetail(e) {
     const bits = [SCAN_FAIL_REASONS[m.code] || m.code || "cause inconnue"];
     if (m.httpStatus) bits.push(`HTTP ${m.httpStatus}`);
     if (m.online === false) bits.push("appareil hors ligne");
+    if (m.device) bits.push(m.device);
     if (m.mode) bits.push(m.mode === "pdf_text" ? "PDF texte" : "photo");
     if (m.fileType) bits.push(m.fileType);
     // Message technique brut (2026-08-25) : jusqu'ici perdu pour file_unreadable/unknown, laissant
@@ -4776,7 +4777,11 @@ export default function App() {
         await fetch("/api/scan-events", {
           method: "POST",
           headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ type: "scan_failed", meta: { scanner: "invoice", code, online: navigator.onLine, ...meta } }),
+          // `device` ajouté le 2026-08-25 : un vrai trou jusqu'ici — un échec PDF pouvait être
+          // attribué à un bug iOS (voir file_pdf_ios_issue) sans jamais savoir avec certitude si
+          // l'appareil concerné était réellement un iPhone. Jamais de contenu de facture, juste le
+          // user-agent du navigateur (donnée déjà publique côté client, pas une info sensible).
+          body: JSON.stringify({ type: "scan_failed", meta: { scanner: "invoice", code, online: navigator.onLine, device: isIOSDevice ? (isIOSChromeDevice ? "iOS Chrome" : "iOS") : "autre", ...meta } }),
         });
       } catch (e) {}
     })();
