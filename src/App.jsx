@@ -47,6 +47,7 @@ import {
   ArrowRight,
   RefreshCw,
   MailWarning,
+  Info,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -571,7 +572,8 @@ export const TR = {
     scanError: "Erreur pendant l'analyse", scanRetry: "Réessayer",
     // ---- Échecs de scan (2026-08-24) : jamais de détail technique, toujours une cause
     // compréhensible + des actions concrètes. Codes gérés : voir SCAN_ERR_CODES dans le composant.
-    scanningPatience: "Ça peut prendre jusqu'à une minute sur une facture chargée — reste sur cet écran.",
+    scanningPatience: "Ça peut prendre 1 à 2 minutes sur une facture longue ou dense — reste sur cet écran, ne le ferme pas.",
+    scanSplitTip: "Facture de plus de 15 lignes ? Pour un résultat plus fiable, prends 2 photos (moitié haute puis moitié basse) plutôt qu'une seule.",
     scanStep_prepare: "Préparation du document…",
     scanStep_ocr: "Lecture du texte…",
     scanStep_ai: "Analyse des lignes…",
@@ -852,7 +854,8 @@ export const TR = {
     contactError: "Error al enviar, inténtalo de nuevo.",
     scanInvoice: "Escanear una factura", scanning: "Analizando la factura…",
     scanError: "Error durante el análisis", scanRetry: "Reintentar",
-    scanningPatience: "Puede tardar hasta un minuto en una factura larga — quédate en esta pantalla.",
+    scanningPatience: "Puede tardar 1-2 minutos en una factura larga o densa — quédate en esta pantalla, no la cierres.",
+    scanSplitTip: "¿Factura de más de 15 líneas? Para un resultado más fiable, haz 2 fotos (mitad de arriba y luego de abajo) en vez de una sola.",
     scanStep_prepare: "Preparando el documento…",
     scanStep_ocr: "Leyendo el texto…",
     scanStep_ai: "Analizando las líneas…",
@@ -1133,7 +1136,8 @@ export const TR = {
     contactError: "Error sending the message, try again.",
     scanInvoice: "Scan an invoice", scanning: "Analyzing the invoice…",
     scanError: "Error during analysis", scanRetry: "Retry",
-    scanningPatience: "This can take up to a minute on a long invoice — stay on this screen.",
+    scanningPatience: "This can take 1-2 minutes on a long or dense invoice — stay on this screen, don't close it.",
+    scanSplitTip: "Invoice with more than 15 lines? For a more reliable result, take 2 photos (top half, then bottom half) instead of one.",
     scanStep_prepare: "Preparing the document…",
     scanStep_ocr: "Reading the text…",
     scanStep_ai: "Analyzing the lines…",
@@ -4720,8 +4724,12 @@ export default function App() {
     // Délai maximum côté navigateur. Sans ça, une connexion qui se coupe en pleine requête (cas
     // très courant en cuisine : wifi capricieux, passage en 4G) laissait la roue tourner
     // indéfiniment, sans erreur, sans issue — l'utilisateur ne pouvait que fermer et recommencer.
+    // 90s (remonté de 75s le 2026-08-25, en même temps que le délai serveur ci-dessus) : doit
+    // toujours rester au-dessus du budget serveur (60s) + une marge réseau, sinon le navigateur
+    // couperait AVANT que le serveur ait fini, transformant une réponse qui allait arriver en un
+    // abandon inutile.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 75000);
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
     try {
       setScanStep("ai");
       // Preuve de compte jointe à la requête (2026-08-24) : l'endpoint refuse désormais les appels
@@ -6027,6 +6035,15 @@ export default function App() {
                   >
                     {t("scanAnalyzeButton")}
                   </button>
+                </div>
+                {/* Conseil "diviser en 2" (2026-08-25) : reflète directement ce qui a débloqué un
+                    cas réel dense/flou testé par l'utilisateur (coupé en 2 photos haut/bas +
+                    recadré = ça a marché, alors que la photo entière échouait). Toujours visible
+                    ici, avant même de lancer l'analyse — un vrai client ne lira jamais ce conseil
+                    s'il n'apparaît que dans un écran d'erreur après un premier échec. */}
+                <div className="px-2.5 pb-2.5 -mt-1 flex items-start gap-1.5 text-[10px] text-white/35">
+                  <Info size={11} className="shrink-0 mt-0.5" />
+                  <span>{t("scanSplitTip")}</span>
                 </div>
               </div>
             )}

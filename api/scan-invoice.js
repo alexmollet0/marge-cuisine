@@ -25,8 +25,12 @@ CODES PAYS D'ORIGINE FRÉQUENTS sur une facture de fruits/légumes (à ne jamais
 export const config = { maxDuration: 60 };
 
 // On coupe l'appel à l'IA un peu avant la limite de la fonction, pour avoir le temps de renvoyer
-// un JSON d'erreur propre plutôt que de se faire tuer par la plateforme.
-const UPSTREAM_TIMEOUT_MS = 45000;
+// un JSON d'erreur propre plutôt que de se faire tuer par la plateforme. Remonté de 45s à 52s le
+// 2026-08-25 en même temps que max_tokens (16000, voir plus bas) : une réponse plus longue à
+// générer a besoin d'un peu plus de marge pour ne pas se faire couper par NOTRE PROPRE délai avant
+// même d'avoir fini — reste 8s de marge dans le budget de la fonction (config.maxDuration = 60)
+// pour le reste du traitement (parsing, calculs de prix), largement suffisant.
+const UPSTREAM_TIMEOUT_MS = 52000;
 
 // Codes d'erreur renvoyés au client. Volontairement grossiers et non techniques : le client les
 // traduit en message actionnable pour le restaurateur, sans jamais exposer le détail interne
@@ -227,9 +231,14 @@ Le champ "name" d'un item doit TOUJOURS correspondre à du texte que tu peux ré
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        // Une facture longue (15-20 lignes) génère un JSON plus volumineux qu'une petite facture
-        // de test — relevé pendant un benchmark que la marge par défaut devenait juste limite.
-        max_tokens: 8192,
+        // Relevé le 2026-08-25 (vérifié sur la doc officielle Anthropic, pas deviné) : Haiku 4.5
+        // supporte jusqu'à 64K tokens de sortie en synchrone — 8192 laissait très peu de marge
+        // pour une facture dense de 25-35 lignes (chaque ligne a ~10 champs), où le JSON généré
+        // peut approcher l'ancien plafond et se retrouver tronqué (JSON invalide → "réponse
+        // illisible"), symptôme concret observé par l'utilisateur ("hyper long ET ça n'a pas
+        // marché"). 16000 laisse une bonne marge sans rien changer pour les petites factures
+        // (qui n'approchaient déjà pas 8192).
+        max_tokens: 16000,
         // Extraction structurée et déterministe (pas de rédaction créative) : on réduit la
         // variabilité d'une lecture à l'autre d'une même facture en fixant la température à 0.
         temperature: 0,
