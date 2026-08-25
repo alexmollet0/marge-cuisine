@@ -603,6 +603,9 @@ export const TR = {
     scanErrTitle_file_password_protected: "PDF protégé par un mot de passe",
     scanErrBody_file_password_protected: "Ce PDF demande un mot de passe pour être ouvert — Chefup ne peut pas l'analyser tant que la protection n'est pas retirée.",
     scanErrTips_file_password_protected: ["Ouvre le PDF et enregistre-le/exporte-le à nouveau sans mot de passe, puis réessaie", "Ou prends simplement la facture en photo à la place", "Si tu ne sais pas retirer la protection, demande à ton fournisseur de t'envoyer une version sans mot de passe"],
+    scanErrTitle_file_pdf_ios_issue: "Souci de lecture PDF sur iPhone",
+    scanErrBody_file_pdf_ios_issue: "Les iPhone ont un bug connu pour lire certains PDF depuis une app web — ça touche tous les navigateurs de l'iPhone (Safari, Chrome...), pas qu'un seul en particulier.",
+    scanErrTips_file_pdf_ios_issue: ["Prends la facture en photo à la place : ça fonctionne très bien et évite complètement ce souci", "Changer de navigateur sur iPhone ne réglera rien, ils ont tous le même souci", "Sur ordinateur ou Android, ce PDF fonctionnerait probablement sans problème"],
     scanErrTitle_file_too_big: "Document trop lourd",
     scanErrBody_file_too_big: "Le fichier envoyé dépasse la taille acceptée.",
     scanErrTips_file_too_big: ["Prends la facture en photo depuis Chefup plutôt que d'envoyer un fichier très lourd", "Si c'est un PDF de plusieurs dizaines de pages, envoie seulement la page des produits"],
@@ -888,6 +891,9 @@ export const TR = {
     scanErrTitle_file_password_protected: "PDF protegido con contraseña",
     scanErrBody_file_password_protected: "Este PDF pide una contraseña para abrirse — Chefup no puede analizarlo mientras la protección no se retire.",
     scanErrTips_file_password_protected: ["Abre el PDF y guárdalo/expórtalo de nuevo sin contraseña, luego reintenta", "O simplemente fotografía la factura en su lugar", "Si no sabes quitar la protección, pide a tu proveedor una versión sin contraseña"],
+    scanErrTitle_file_pdf_ios_issue: "Problema al leer el PDF en iPhone",
+    scanErrBody_file_pdf_ios_issue: "Los iPhone tienen un problema conocido para leer ciertos PDF desde una app web — afecta a todos los navegadores del iPhone (Safari, Chrome...), no a uno en particular.",
+    scanErrTips_file_pdf_ios_issue: ["Fotografía la factura en su lugar: funciona muy bien y evita este problema por completo", "Cambiar de navegador en el iPhone no solucionará nada, todos tienen el mismo problema", "En un ordenador o Android, este PDF probablemente funcionaría sin problema"],
     scanErrTitle_file_too_big: "Documento demasiado pesado",
     scanErrBody_file_too_big: "El archivo enviado supera el tamaño admitido.",
     scanErrTips_file_too_big: ["Fotografía la factura desde Chefup en vez de enviar un archivo muy pesado", "Si es un PDF de decenas de páginas, envía solo la página de los productos"],
@@ -1173,6 +1179,9 @@ export const TR = {
     scanErrTitle_file_password_protected: "Password-protected PDF",
     scanErrBody_file_password_protected: "This PDF needs a password to open — Chefup can't analyze it until the protection is removed.",
     scanErrTips_file_password_protected: ["Open the PDF and save/export it again without a password, then try again", "Or simply take a photo of the invoice instead", "If you don't know how to remove the protection, ask your supplier for a version without a password"],
+    scanErrTitle_file_pdf_ios_issue: "PDF reading issue on iPhone",
+    scanErrBody_file_pdf_ios_issue: "iPhones have a known bug reading certain PDFs from a web app — it affects every browser on the iPhone (Safari, Chrome...), not just one in particular.",
+    scanErrTips_file_pdf_ios_issue: ["Take a photo of the invoice instead: it works very well and avoids this issue entirely", "Switching browsers on iPhone won't fix it, they all share the same issue", "On a computer or Android, this PDF would likely work fine"],
     scanErrTitle_file_too_big: "Document too heavy",
     scanErrBody_file_too_big: "The file you sent is larger than what we accept.",
     scanErrTips_file_too_big: ["Photograph the invoice from Chefup instead of sending a very heavy file", "If it is a PDF with dozens of pages, send only the products page"],
@@ -2937,7 +2946,7 @@ const ACTIVITY_ICON = {
 };
 // Codes d'échec de scan connus. Toute valeur hors de cette liste retombe sur "unknown" côté
 // affichage, pour ne jamais montrer une clé de traduction brute au restaurateur.
-const SCAN_ERR_CODES = ["offline", "ai_timeout", "ai_busy", "ai_unavailable", "ai_unreadable", "file_unreadable", "file_password_protected", "file_too_big", "bad_request", "auth_expired", "auth_required"];
+const SCAN_ERR_CODES = ["offline", "ai_timeout", "ai_busy", "ai_unavailable", "ai_unreadable", "file_unreadable", "file_password_protected", "file_pdf_ios_issue", "file_too_big", "bad_request", "auth_expired", "auth_required"];
 // Les mêmes codes traduits en clair pour le tableau de bord admin (usage interne, français).
 const SCAN_FAIL_REASONS = {
   offline: "connexion perdue côté client",
@@ -2947,6 +2956,7 @@ const SCAN_FAIL_REASONS = {
   ai_unreadable: "réponse de l'IA illisible",
   file_unreadable: "fichier illisible par le navigateur",
   file_password_protected: "PDF protégé par un mot de passe",
+  file_pdf_ios_issue: "bug connu iOS/WebKit avec les PDF (probable, pas certain)",
   file_too_big: "document trop volumineux",
   bad_request: "requête sans document",
   auth_expired: "session expirée (même après renouvellement automatique)",
@@ -4660,8 +4670,18 @@ export default function App() {
       // réparable par le restaurateur lui-même (retirer la protection avant d'exporter, ou envoyer
       // une photo à la place) — mérite un message différent d'un PDF simplement corrompu.
       const isPasswordProtected = err?.name === "PasswordException";
-      setScanErr({ code: isPasswordProtected ? "file_password_protected" : "file_unreadable" });
-      logScanFailure(isPasswordProtected ? "file_password_protected" : "file_unreadable", {
+      // Bug connu, réel et non résolu de PDF.js sur iOS (recherché le 2026-08-25, pas deviné) :
+      // le worker (fichier .mjs) échoue à s'initialiser sur le moteur WebKit, avec une erreur du
+      // type "Setting up fake worker failed: ...". C'est un bug du moteur WebKit lui-même, donc
+      // TOUS les navigateurs sur iPhone/iPad sont concernés de la même façon (Chrome iOS, Safari,
+      // Edge iOS... utilisent tous WebKit sous le capot par obligation d'Apple) — changer de
+      // navigateur sur iPhone ne réglerait rien, contrairement à une intuition naturelle. Comme ce
+      // problème touche l'initialisation même du lecteur PDF, TOUT PDF échoue sur un iPhone
+      // concerné, même un PDF numérique parfaitement valide (pas seulement les PDF scannés/image).
+      const isLikelyIOSPdfBug = !isPasswordProtected && isIOSDevice;
+      const code = isPasswordProtected ? "file_password_protected" : isLikelyIOSPdfBug ? "file_pdf_ios_issue" : "file_unreadable";
+      setScanErr({ code });
+      logScanFailure(code, {
         fileType: "pdf",
         // Diagnostic complet gardé (2026-08-25) : jusqu'ici cette info était totalement perdue,
         // laissant "PDF illisible" sans aucun indice exploitable pour une prochaine occurrence.
