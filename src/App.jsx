@@ -46,6 +46,7 @@ import {
   MoreVertical,
   ArrowRight,
   RefreshCw,
+  MailWarning,
 } from "lucide-react";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -766,12 +767,14 @@ export const TR = {
     authEmailPlaceholder: "toi@exemple.com", authPasswordPlaceholder: "6 caractères minimum", authConfirmPasswordPlaceholder: "Retape le même mot de passe",
     authLoginButton: "Se connecter", authSignupButton: "Créer mon compte", authForgotButton: "Envoyer le lien de réinitialisation", authResetButton: "Valider le nouveau mot de passe",
     authForgotLink: "Mot de passe oublié ?", authSwitchToSignup: "Pas encore de compte ? Créer un compte", authSwitchToLogin: "Déjà un compte ? Se connecter", authBackToLogin: "Retour à la connexion",
-    authSignupSuccessInfo: "Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse, puis connecte-toi.",
+    authSignupSuccessInfo: "Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse (regarde aussi tes spams/courriers indésirables), puis connecte-toi.",
     authForgotSuccessInfo: "Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.",
     authMagicLinkButton: "Recevoir un lien de connexion par email", authMagicLinkInfo: "Un lien de connexion vient d'être envoyé par email — clique dessus pour te connecter directement, sans mot de passe.",
     authOrDivider: "ou",
     authErrorInvalidCredentials: "Email ou mot de passe incorrect.", authErrorAlreadyRegistered: "Un compte existe déjà avec cet email.",
-    authErrorEmailNotConfirmed: "Confirme d'abord ton adresse email (vérifie ta boîte mail) avant de te connecter.",
+    authErrorEmailNotConfirmed: "Confirme d'abord ton adresse email avant de te connecter — le lien est parti par mail, pense à vérifier aussi tes spams/courriers indésirables.",
+    authResendConfirmationButton: "Renvoyer le mail de confirmation",
+    authResendConfirmationSent: "Mail renvoyé ! Vérifie ta boîte de réception ET tes spams.",
     authErrorPasswordTooShort: "Le mot de passe doit contenir au moins 6 caractères.", authErrorInvalidEmail: "Adresse email invalide.",
     authErrorGeneric: "Une erreur est survenue. Réessaie.", authErrorPasswordMismatch: "Les deux mots de passe ne correspondent pas.",
     authTagline: "Calcule tes marges en toute simplicité", authSignupFreeNote: "7 jours d'essai gratuit, aucune carte bancaire requise.",
@@ -1045,12 +1048,14 @@ export const TR = {
     authEmailPlaceholder: "tu@ejemplo.com", authPasswordPlaceholder: "6 caracteres mínimo", authConfirmPasswordPlaceholder: "Escribe otra vez la misma contraseña",
     authLoginButton: "Iniciar sesión", authSignupButton: "Crear mi cuenta", authForgotButton: "Enviar el enlace de restablecimiento", authResetButton: "Confirmar la nueva contraseña",
     authForgotLink: "¿Contraseña olvidada?", authSwitchToSignup: "¿Aún no tienes cuenta? Crear una cuenta", authSwitchToLogin: "¿Ya tienes cuenta? Iniciar sesión", authBackToLogin: "Volver al inicio de sesión",
-    authSignupSuccessInfo: "¡Cuenta creada! Revisa tu correo para confirmar tu dirección y luego inicia sesión.",
+    authSignupSuccessInfo: "¡Cuenta creada! Revisa tu correo para confirmar tu dirección (mira también tu carpeta de spam), luego inicia sesión.",
     authForgotSuccessInfo: "Si existe una cuenta con este email, se acaba de enviar un enlace de restablecimiento.",
     authMagicLinkButton: "Recibir un enlace de acceso por email", authMagicLinkInfo: "Se acaba de enviar un enlace de acceso por email — haz clic para conectarte directamente, sin contraseña.",
     authOrDivider: "o",
     authErrorInvalidCredentials: "Email o contraseña incorrectos.", authErrorAlreadyRegistered: "Ya existe una cuenta con este email.",
-    authErrorEmailNotConfirmed: "Confirma primero tu dirección de email (revisa tu correo) antes de iniciar sesión.",
+    authErrorEmailNotConfirmed: "Confirma primero tu dirección de email antes de iniciar sesión — el enlace se envió por correo, revisa también tu carpeta de spam.",
+    authResendConfirmationButton: "Reenviar el correo de confirmación",
+    authResendConfirmationSent: "¡Correo reenviado! Revisa tu bandeja de entrada Y tu carpeta de spam.",
     authErrorPasswordTooShort: "La contraseña debe tener al menos 6 caracteres.", authErrorInvalidEmail: "Dirección de email inválida.",
     authErrorGeneric: "Ha ocurrido un error. Inténtalo de nuevo.", authErrorPasswordMismatch: "Las dos contraseñas no coinciden.",
     authTagline: "Calcula tus márgenes con toda sencillez", authSignupFreeNote: "7 días de prueba gratuita, sin necesidad de tarjeta bancaria.",
@@ -1324,12 +1329,14 @@ export const TR = {
     authEmailPlaceholder: "you@example.com", authPasswordPlaceholder: "6 characters minimum", authConfirmPasswordPlaceholder: "Type the same password again",
     authLoginButton: "Log in", authSignupButton: "Create my account", authForgotButton: "Send reset link", authResetButton: "Confirm new password",
     authForgotLink: "Forgot password?", authSwitchToSignup: "No account yet? Create one", authSwitchToLogin: "Already have an account? Log in", authBackToLogin: "Back to login",
-    authSignupSuccessInfo: "Account created! Check your inbox to confirm your address, then log in.",
+    authSignupSuccessInfo: "Account created! Check your inbox to confirm your address (also check your spam/junk folder), then log in.",
     authForgotSuccessInfo: "If an account exists with this email, a reset link was just sent.",
     authMagicLinkButton: "Get a one-click login link by email", authMagicLinkInfo: "A login link was just sent by email — click it to log in directly, no password needed.",
     authOrDivider: "or",
     authErrorInvalidCredentials: "Incorrect email or password.", authErrorAlreadyRegistered: "An account already exists with this email.",
-    authErrorEmailNotConfirmed: "Confirm your email address first (check your inbox) before logging in.",
+    authErrorEmailNotConfirmed: "Confirm your email address first before logging in — the link was sent by email, remember to check your spam/junk folder too.",
+    authResendConfirmationButton: "Resend the confirmation email",
+    authResendConfirmationSent: "Email resent! Check your inbox AND your spam folder.",
     authErrorPasswordTooShort: "Password must be at least 6 characters.", authErrorInvalidEmail: "Invalid email address.",
     authErrorGeneric: "Something went wrong. Please try again.", authErrorPasswordMismatch: "The two passwords don't match.",
     authTagline: "Calculate your margins with ease", authSignupFreeNote: "7-day free trial, no credit card required.",
@@ -3045,6 +3052,7 @@ function AdminDashboard() {
     { label: "Abonnés actifs", value: kpis.activeSubs },
     { label: "Annulés", value: kpis.canceled },
     { label: "Essais expirés", value: kpis.expiredNoSub },
+    { label: "Emails non confirmés", value: kpis.unconfirmedEmails },
   ];
 
   const TabButton = ({ id, label }) => (
@@ -3115,6 +3123,18 @@ function AdminDashboard() {
                         >
                           {u.status}
                         </span>
+                        {/* Email jamais confirmé (2026-08-25) : signal le plus important après un
+                            incident de mails partis en spam — ce compte est peut-être bloqué à la
+                            porte d'entrée sans jamais avoir pu utiliser l'app une seule fois. */}
+                        {!u.emailConfirmed && (
+                          <span
+                            className="text-[10px] px-2 py-0.5 rounded-full font-medium flex items-center gap-1"
+                            style={{ background: `${TIER_COLORS.low}25`, color: TIER_COLORS.low }}
+                            title="N'a jamais cliqué le lien de confirmation reçu par email — vérifie qu'il n'est pas resté bloqué dans ses spams"
+                          >
+                            <MailWarning size={10} /> Email non confirmé
+                          </span>
+                        )}
                         <span className="text-white/40 text-[11px]">
                           {isLive ? "en ligne" : `vu ${relativeTimeFr(lastAt)}`}
                         </span>

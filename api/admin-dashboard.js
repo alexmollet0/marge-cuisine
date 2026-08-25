@@ -83,7 +83,13 @@ export default async function handler(req, res) {
         else if (trialDaysLeft > 0) status = `Essai (J-${trialDaysLeft})`;
         else if (sub && sub.status === "canceled") status = "Annulé";
         else status = "Essai expiré";
-        return { email: u.email, createdAt: u.created_at, status };
+        // Confirmation d'email (2026-08-25) : `email_confirmed_at` reste null tant que le compte
+        // n'a pas cliqué le lien de confirmation reçu par mail — c'est exactement ce qui a coincé
+        // 3 inscriptions le 2026-08-25 (mail parti en spam, jamais confirmé, jamais pu se
+        // connecter). Utile à voir même une fois la confirmation obligatoire désactivée côté
+        // Supabase : ça reste le seul moyen de savoir si l'adresse d'un compte est vraiment
+        // joignable (utile pour les alertes email, les reçus, ou le recontacter).
+        return { email: u.email, createdAt: u.created_at, status, emailConfirmed: !!(u.email_confirmed_at || u.confirmed_at) };
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -93,6 +99,7 @@ export default async function handler(req, res) {
       activeSubs: usersOut.filter((u) => u.status === "Abonné actif" || u.status === "Paiement en retard").length,
       canceled: usersOut.filter((u) => u.status === "Annulé").length,
       expiredNoSub: usersOut.filter((u) => u.status === "Essai expiré").length,
+      unconfirmedEmails: usersOut.filter((u) => !u.emailConfirmed).length,
       views: landingRows.filter((r) => r.event_type === "view").length,
       startClicks: landingRows.filter((r) => r.event_type === "start_click").length,
       scans: scanRows.length,

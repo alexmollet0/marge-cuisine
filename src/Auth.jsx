@@ -127,6 +127,7 @@ export default function AuthGate({ children }) {
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resendBusy, setResendBusy] = useState(false);
 
   const t = (key) => TR[authLang]?.[key] ?? TR.fr[key] ?? key;
 
@@ -184,6 +185,28 @@ export default function AuthGate({ children }) {
       setErr(authErrorKey(e2.message));
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Renvoie le mail de confirmation d'inscription (2026-08-25) : proposé directement sous l'erreur
+  // "email not confirmed" pour qu'un utilisateur qui n'a pas trouvé le premier mail (souvent parti
+  // en spam) puisse en redemander un sans nous écrire — l'app lui rappelle aussi de vérifier ses
+  // spams cette fois, ce n'était pas mentionné sur le tout premier mail.
+  async function resendConfirmation() {
+    if (!email) {
+      setErr("authErrorInvalidEmail");
+      return;
+    }
+    setResendBusy(true);
+    setErr("");
+    try {
+      const { error } = await supabase.auth.resend({ type: "signup", email });
+      if (error) throw error;
+      setInfo("authResendConfirmationSent");
+    } catch (e2) {
+      setErr(authErrorKey(e2.message));
+    } finally {
+      setResendBusy(false);
     }
   }
 
@@ -348,6 +371,17 @@ export default function AuthGate({ children }) {
           {err && (
             <div className="mb-4 text-xs rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">
               {t(err)}
+              {err === "authErrorEmailNotConfirmed" && (
+                <button
+                  type="button"
+                  onClick={resendConfirmation}
+                  disabled={resendBusy}
+                  className="mt-2 w-full text-center underline text-red-300 hover:text-red-200 disabled:opacity-60 flex items-center justify-center gap-1.5"
+                >
+                  {resendBusy && <Loader2 size={12} className="animate-spin" />}
+                  {t("authResendConfirmationButton")}
+                </button>
+              )}
             </div>
           )}
           {info && (
