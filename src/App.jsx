@@ -3485,43 +3485,64 @@ function AdminDashboard() {
               une fois sur cet appareil — d'où le rappel affiché juste en dessous. */}
           {bySource.length > 0 && (
             <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#26221C" }}>
-              <div className="text-white/50 text-[10px] uppercase tracking-wide mb-3">Provenance des visites</div>
-              <div className="space-y-2">
-                {bySource.map((s) => {
-                  const taux = s.views > 0 ? Math.round((s.startClicks / s.views) * 100) : 0;
-                  const estCampagne = s.source !== "direct";
-                  return (
-                    <div key={s.source} className="flex items-center gap-3">
-                      <span
-                        className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
-                        style={
-                          estCampagne
-                            ? { background: `${BRAND_SOLID}25`, color: BRAND_SOLID }
-                            : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.55)" }
-                        }
-                      >
-                        {s.source}
-                      </span>
-                      <span className="text-white text-sm font-display">{s.views}</span>
-                      <span className="text-white/35 text-[11px]">visite{s.views > 1 ? "s" : ""}</span>
-                      <div className="flex-1" />
-                      <span className="text-white/70 text-[11px]">
-                        {s.startClicks} clic{s.startClicks > 1 ? "s" : ""} « essai »
-                      </span>
-                      <span
-                        className="text-[11px] font-bold w-10 text-right"
-                        style={{ color: taux > 0 ? TIER_COLORS.high : "rgba(255,255,255,0.3)" }}
-                      >
-                        {taux}%
-                      </span>
-                    </div>
-                  );
-                })}
+              <div className="text-white/50 text-[10px] uppercase tracking-wide mb-3">Provenance — bilan complet</div>
+              {/* Tableau plutôt qu'une liste : avec 5 chiffres par ligne, l'alignement en colonnes
+                  est le seul moyen de comparer deux sources d'un coup d'œil. `overflow-x-auto` pour
+                  que ça reste lisible sur un téléphone sans jamais faire déborder la page. */}
+              <div className="overflow-x-auto -mx-1 px-1">
+                <table className="w-full text-[11px] whitespace-nowrap">
+                  <thead>
+                    <tr className="text-white/35 text-[10px] uppercase tracking-wide">
+                      <th className="text-left font-normal pb-2">Source</th>
+                      <th className="text-right font-normal pb-2 pl-3">Visites</th>
+                      <th className="text-right font-normal pb-2 pl-3">Clics</th>
+                      <th className="text-right font-normal pb-2 pl-3">Comptes</th>
+                      <th className="text-right font-normal pb-2 pl-3">→ Compte</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bySource.map((s) => {
+                      // Le taux qui compte vraiment : sur 100 visiteurs amenés par cette source,
+                      // combien sont allés jusqu'à créer un compte. C'est lui qui dit si une
+                      // campagne payante est rentable, pas le nombre de visites brut.
+                      const tauxCompte = s.views > 0 ? Math.round((s.accounts / s.views) * 100) : 0;
+                      const estCampagne = s.source !== "direct";
+                      return (
+                        <tr key={s.source} className="border-t border-white/5">
+                          <td className="py-2">
+                            <span
+                              className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                              style={
+                                estCampagne
+                                  ? { background: `${BRAND_SOLID}25`, color: BRAND_SOLID }
+                                  : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.55)" }
+                              }
+                            >
+                              {s.source}
+                            </span>
+                          </td>
+                          <td className="text-right text-white pl-3">{s.views}</td>
+                          <td className="text-right text-white/70 pl-3">{s.startClicks}</td>
+                          <td className="text-right text-white pl-3 font-semibold">{s.accounts}</td>
+                          <td
+                            className="text-right pl-3 font-bold"
+                            style={{ color: tauxCompte > 0 ? TIER_COLORS.high : "rgba(255,255,255,0.3)" }}
+                          >
+                            {tauxCompte}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
               <p className="text-white/30 text-[10px] mt-3 leading-relaxed">
-                « direct » = sans paramètre de campagne : trafic naturel, liens partagés, et tes propres visites si
-                tu n'as pas ouvert le site une fois avec <span className="text-white/50">?notrack=1</span> sur cet
-                appareil. Le pourcentage est le taux de clic sur « Commencer ».
+                « Clics » = clics sur « Commencer ». « → Compte » = part des visiteurs de cette source qui sont allés
+                jusqu'à créer un compte : c'est le chiffre qui dit si une campagne rapporte.
+                <br />
+                « direct » = sans paramètre de campagne : trafic naturel, liens partagés, et tes propres visites tant
+                que tu n'as pas ouvert le site une fois avec <span className="text-white/50">?notrack=1</span> sur cet
+                appareil. Les comptes créés avant la mise en place du suivi y sont aussi rattachés.
               </p>
             </div>
           )}

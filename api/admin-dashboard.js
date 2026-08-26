@@ -221,12 +221,26 @@ export default async function handler(req, res) {
     // "direct" — c'est aussi là qu'atterrissent les visites du fondateur lui-même s'il n'a pas
     // ouvert le site avec `?notrack=1` au moins une fois sur cet appareil.
     const sourceMap = {};
+    const touchSource = (key) => {
+      if (!sourceMap[key]) sourceMap[key] = { source: key, views: 0, startClicks: 0, loginClicks: 0, accounts: 0 };
+      return sourceMap[key];
+    };
     for (const r of landingRows) {
-      const key = r.source || "direct";
-      if (!sourceMap[key]) sourceMap[key] = { source: key, views: 0, startClicks: 0, loginClicks: 0 };
-      if (r.event_type === "view") sourceMap[key].views++;
-      if (r.event_type === "start_click") sourceMap[key].startClicks++;
-      if (r.event_type === "login_click") sourceMap[key].loginClicks++;
+      const s = touchSource(r.source || "direct");
+      if (r.event_type === "view") s.views++;
+      if (r.event_type === "start_click") s.startClicks++;
+      if (r.event_type === "login_click") s.loginClicks++;
+    }
+    // Comptes créés, rattachés à la campagne qui les a amenés (2026-08-26). La provenance est
+    // recopiée dans les métadonnées du compte au moment de l'inscription (voir src/Auth.jsx) :
+    // c'est le seul lien possible entre une visite anonyme et une inscription. Les comptes créés
+    // AVANT ce mécanisme n'ont pas de source et tombent donc dans "direct" — ne pas s'étonner d'y
+    // voir tout l'historique au début.
+    const sinceMs = new Date(since).getTime();
+    for (const u of authUsers) {
+      if (isInternalEmail(u.email)) continue;
+      if (new Date(u.created_at).getTime() < sinceMs) continue;
+      touchSource(u.user_metadata?.signup_source || "direct").accounts++;
     }
     const bySource = Object.values(sourceMap).sort((a, b) => b.views - a.views);
 

@@ -168,7 +168,24 @@ export default function AuthGate({ children }) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        // Provenance de campagne rattachée au compte (2026-08-26) : les événements de la landing
+        // (`landing_events`) sont anonymes par conception, donc rien ne permettait de relier une
+        // INSCRIPTION à la campagne qui l'a amenée — on savait combien de gens venaient de TikTok,
+        // pas combien créaient un compte. On recopie donc ici la source mémorisée par la landing
+        // (sessionStorage, voir src/Landing.jsx) dans les métadonnées du compte, lues ensuite par
+        // api/admin-dashboard.js. Aucune table ni requête supplémentaire.
+        // Ces métadonnées sont modifiables par l'utilisateur lui-même : c'est acceptable pour une
+        // statistique d'acquisition (au pire quelqu'un fausse sa propre ligne), ce ne serait pas
+        // acceptable pour une décision d'accès — d'où le choix de ne JAMAIS s'en servir ailleurs.
+        let signupSource = null;
+        try {
+          signupSource = sessionStorage.getItem("chefup:src");
+        } catch (e) {}
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          ...(signupSource ? { options: { data: { signup_source: signupSource.slice(0, 40) } } } : {}),
+        });
         if (error) throw error;
         if (!data.session) {
           setInfo("authSignupSuccessInfo");
