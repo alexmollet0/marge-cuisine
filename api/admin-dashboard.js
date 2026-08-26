@@ -7,7 +7,7 @@
 // ⚠️ Ce projet est au plafond du plan Hobby Vercel (12 fonctions serverless par déploiement,
 // _lib.js exclu) avec ce fichier. Avant d'ajouter un nouvel endpoint : fusionner avec un fichier
 // existant proche, voir la note dans CLAUDE.md ("Fichiers clés").
-import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml } from "./_lib.js";
+import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml, isInternalEmail } from "./_lib.js";
 
 const ADMIN_EMAIL = "alexmollet0@gmail.com";
 const TRIAL_DAYS = 7;
@@ -17,9 +17,8 @@ const TRIAL_DAYS = 7;
 // comptes de test gonflaient le total d'inscrits/essais. Ils sont donc exclus de TOUS les KPI et du
 // graphique journalier, mais restent visibles dans l'onglet Comptes (avec un badge "interne") :
 // l'objectif est d'avoir des statistiques honnêtes, pas de se cacher des comptes.
-// Pour en ajouter un plus tard : une ligne de plus dans ce tableau, rien d'autre à toucher.
-const INTERNAL_EMAILS = ["alexmollet0@gmail.com", "contact.ttra@gmail.com"];
-const isInternalEmail = (email) => !!email && INTERNAL_EMAILS.includes(email.toLowerCase());
+// La liste elle-même vit dans api/_lib.js (INTERNAL_EMAILS) : elle sert aussi à ne pas consommer
+// de place dans l'offre de lancement. C'est là-bas, et uniquement là-bas, qu'on en ajoute un.
 
 // Mail de déblocage (2026-08-25) : envoi groupé, déclenché manuellement par l'utilisateur depuis le
 // tableau de bord, pour les comptes déjà inscrits mais qui n'ont jamais confirmé leur email — donc

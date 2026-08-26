@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Loader2, Check } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
-import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
+import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING } from "./App.jsx";
 
 const TRIAL_DAYS = 7;
 const AUTH_LANG_KEY = "chefup:authLang";
@@ -41,7 +41,19 @@ export default function SubscriptionGate({ children }) {
     // "past_due" reste autorisé (grâce le temps que Stripe relance le paiement automatiquement)
     // — seuls canceled/unpaid/aucun abonnement bloquent une fois l'essai terminé.
     const active = !!sub && ["active", "trialing", "past_due"].includes(sub.status);
-    setStatus({ active, inTrial: left > 0, trialDaysLeft: left });
+
+    // Offre de lancement (2026-08-26) : seul le serveur peut dire si ce compte détient encore une
+    // des 50 places (ça dépend des autres comptes, jamais visible côté client). Best-effort — si
+    // l'appel échoue, l'app se comporte exactement comme avant l'offre, sans jamais bloquer.
+    let founder = false;
+    try {
+      const res = await fetch("/api/create-checkout-session", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) founder = !!(await res.json()).founder;
+    } catch (e) {}
+
+    setStatus({ active, inTrial: left > 0, trialDaysLeft: left, founder });
   }, []);
 
   useEffect(() => {
@@ -94,8 +106,22 @@ export default function SubscriptionGate({ children }) {
             <Logo size={30} />
             <h1 className="font-display text-white text-lg tracking-wide uppercase">Chefup</h1>
           </div>
-          <h2 className="text-white font-display uppercase text-sm tracking-wide mb-3">{t("billingPaywallTitle")}</h2>
-          <p className="text-white/60 text-sm mb-4">{t("billingPaywallBody")}</p>
+          {/* Un compte qui détient encore une place fondateur voit l'offre plutôt que le message
+              de fin d'essai générique — c'est le dernier moment où elle peut encore être prise.
+              Une fois la place perdue (essai expiré, places épuisées), on retombe sur le tarif
+              normal sans jamais promettre un prix qui ne s'appliquerait plus. */}
+          <h2 className="text-white font-display uppercase text-sm tracking-wide mb-3">
+            {status.founder ? t("launchPaywallTitle")(PRICING.founding) : t("billingPaywallTitle")}
+          </h2>
+          <p className="text-white/60 text-sm mb-2">
+            {t("billingPaywallBody")(status.founder ? PRICING.founding : PRICING.standard)}
+          </p>
+          {status.founder && (
+            <p className="text-xs font-semibold mb-4" style={{ color: BRAND_SOLID }}>
+              {t("launchLifetimeLock")}
+            </p>
+          )}
+          {!status.founder && <div className="mb-2" />}
           <p className="text-white/40 text-xs italic mb-5">{t("billingFounderStory")}</p>
           <ul className="text-left text-white/80 text-sm space-y-2 mb-5">
             {[t("billingBenefit1"), t("billingBenefit2"), t("billingBenefit3")].map((benefit, i) => (
@@ -131,7 +157,11 @@ export default function SubscriptionGate({ children }) {
     <>
       {!status.active && status.inTrial && (
         <div className="print:hidden text-center text-[11px] py-1.5 px-3 text-white font-semibold" style={{ background: BRAND_GRADIENT }}>
-          {t("billingTrialBanner")(status.trialDaysLeft)}
+          {/* Pendant l'essai, un fondateur voit ce qu'il a à PERDRE (son tarif à vie) plutôt qu'un
+              simple décompte de jours : c'est la même échéance, mais avec un enjeu. */}
+          {status.founder
+            ? t("launchTrialBanner")(status.trialDaysLeft, PRICING.founding)
+            : t("billingTrialBanner")(status.trialDaysLeft)}
         </div>
       )}
       {children}

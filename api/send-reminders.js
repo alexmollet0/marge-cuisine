@@ -9,7 +9,11 @@
 // CRON_SECRET — différent modèle d'auth, voir plus bas). Programme (ne envoie pas tout de suite)
 // un email d'accueil humain via Resend (`scheduled_at`), à une heure choisie selon le fuseau
 // horaire du navigateur de l'utilisateur — voir `computeWelcomeSendAt`.
-import { getSupabaseAdmin, sendEmail, requireUser, wrapEmailHtml } from "./_lib.js";
+import { getSupabaseAdmin, sendEmail, requireUser, wrapEmailHtml, getFoundingState } from "./_lib.js";
+
+// Tarif fondateur affiché dans la relance de fin d'essai — doit rester synchronisé avec PRICING
+// dans src/App.jsx et avec le prix Stripe STRIPE_FOUNDING_PRICE_ID.
+const FOUNDING_PRICE = 29;
 
 // Comptes à ne jamais inscrire à l'email d'accueil automatique (2026-08-24) — actuellement un
 // seul cas : cliente déjà accompagnée personnellement suite à un problème de scan signalé via le
@@ -104,6 +108,15 @@ const EMAIL_COPY = {
     marginOutro:
       "Souvent, ça se corrige vite : un prix de vente à ajuster de quelques centimes, ou un fournisseur qui a discrètement augmenté ses tarifs sans que tu l'aies remarqué. Deux minutes dans Chefup pour vérifier peuvent suffire à les faire repasser dans le vert.",
     marginCta: "Vérifier mes marges",
+    trialEndingSubject: "Ton essai se termine dans 2 jours",
+    trialEndingBody: (founder, price) =>
+      founder
+        ? `<p>Il te reste 2 jours d'essai gratuit sur Chefup.</p>
+           <p>Comme tu fais partie des 50 premiers inscrits, ta place au <strong>tarif fondateur ${price}€/mois</strong> t'est réservée — et ce tarif reste le tien tant que ton abonnement reste actif, même quand le prix augmentera. Elle est confirmée dès que tu t'abonnes, avant la fin de ton essai.</p>
+           <p>Passé ce délai, la place repart pour quelqu'un d'autre.</p>`
+        : `<p>Il te reste 2 jours d'essai gratuit sur Chefup.</p>
+           <p>Si tes recettes et tes marges commencent à prendre forme, c'est le moment de t'abonner pour ne pas perdre le fil. Rien ne sera supprimé, mais l'accès se met en pause à la fin de l'essai.</p>`,
+    trialEndingCta: "Garder mon accès",
     trialEndedSubject: "Ton essai gratuit est terminé",
     trialEndedBody:
       `<p>Ton essai gratuit de 7 jours sur Chefup est terminé. Abonne-toi pour continuer à garder un œil sur tes marges, ton garde-manger et tes fiches recettes — rien n'a été perdu, tout t'attend.</p>`,
@@ -126,6 +139,15 @@ const EMAIL_COPY = {
     marginOutro:
       "Muchas veces se arregla rápido: un precio de venta a ajustar unos céntimos, o un proveedor que ha subido precios sin que te dieras cuenta. Dos minutos en Chefup para revisarlo pueden bastar para volver al verde.",
     marginCta: "Revisar mis márgenes",
+    trialEndingSubject: "Tu prueba termina en 2 días",
+    trialEndingBody: (founder, price) =>
+      founder
+        ? `<p>Te quedan 2 días de prueba gratuita en Chefup.</p>
+           <p>Como estás entre los 50 primeros registrados, tu plaza al <strong>precio fundador ${price}€/mes</strong> está reservada — y ese precio sigue siendo tuyo mientras tu suscripción siga activa, incluso cuando el precio suba. Se confirma en cuanto te suscribes, antes de que acabe tu prueba.</p>
+           <p>Después, la plaza pasa a otra persona.</p>`
+        : `<p>Te quedan 2 días de prueba gratuita en Chefup.</p>
+           <p>Si tus recetas y tus márgenes empiezan a tomar forma, es el momento de suscribirte para no perder el hilo. No se borrará nada, pero el acceso se pausa al final de la prueba.</p>`,
+    trialEndingCta: "Mantener mi acceso",
     trialEndedSubject: "Tu prueba gratuita ha terminado",
     trialEndedBody:
       `<p>Tu prueba gratuita de 7 días en Chefup ha terminado. Suscríbete para seguir controlando tus márgenes, tu almacén y tus fichas de recetas — no se ha perdido nada, todo te espera.</p>`,
@@ -148,6 +170,15 @@ const EMAIL_COPY = {
     marginOutro:
       "It's often a quick fix: a selling price to nudge by a few cents, or a supplier who quietly raised their prices without you noticing. Two minutes in Chefup to check can be enough to get them back in the green.",
     marginCta: "Check my margins",
+    trialEndingSubject: "Your trial ends in 2 days",
+    trialEndingBody: (founder, price) =>
+      founder
+        ? `<p>You have 2 days left of your free Chefup trial.</p>
+           <p>Since you are among the first 50 sign-ups, your spot at the <strong>founder price of €${price}/month</strong> is reserved — and that price stays yours as long as your subscription stays active, even when the price goes up. It is confirmed as soon as you subscribe, before your trial ends.</p>
+           <p>After that, the spot goes to someone else.</p>`
+        : `<p>You have 2 days left of your free Chefup trial.</p>
+           <p>If your recipes and margins are starting to take shape, now is the time to subscribe so you do not lose track. Nothing gets deleted, but access pauses when the trial ends.</p>`,
+    trialEndingCta: "Keep my access",
     trialEndedSubject: "Your free trial has ended",
     trialEndedBody:
       `<p>Your 7-day free trial on Chefup has ended. Subscribe to keep an eye on your margins, pantry and recipe sheets — nothing was lost, it's all waiting for you.</p>`,
@@ -235,6 +266,16 @@ export default async function handler(req, res) {
     const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({ perPage: 1000 });
     if (usersError) throw usersError;
 
+    // Qui détient encore une place fondateur — calculé une seule fois pour toute la passe du cron
+    // plutôt qu'une fois par compte. Best-effort : sans lui, la relance part dans sa version
+    // générique plutôt que de ne pas partir du tout.
+    let foundingHolders = new Set();
+    try {
+      foundingHolders = (await getFoundingState(admin)).holders;
+    } catch (e) {
+      console.error("[send-reminders] etat de l'offre de lancement indisponible", e);
+    }
+
     for (const user of usersData.users) {
       const email = user.email;
       if (!email) continue;
@@ -273,8 +314,37 @@ export default async function handler(req, res) {
         nextState.lastInactivityReminderAt = now.toISOString();
       }
 
-      // --- Essai gratuit terminé sans abonnement (un seul envoi, jamais répété) ---
+      // --- Relance AVANT la fin de l'essai (2026-08-26, un seul envoi) ---
+      // Il n'existait jusqu'ici qu'un mail envoyé APRÈS l'expiration — trop tard pour convertir
+      // quoi que ce soit. Avec l'offre de lancement (place fondateur perdue à la fin de l'essai),
+      // cette relance à J-2 est le seul moment où la date limite a encore un sens pour le compte.
+      // Fenêtre volontairement large (le cron ne passe qu'une fois par jour, un créneau étroit
+      // raterait des comptes selon l'heure d'inscription) mais bornée par trialEndingEmailSentAt.
       const daysSinceSignup = daysBetween(new Date(user.created_at), now);
+      if (
+        !notifState.trialEndingEmailSentAt &&
+        !notifState.trialEndedEmailSentAt &&
+        daysSinceSignup >= TRIAL_DAYS - 2 &&
+        daysSinceSignup < TRIAL_DAYS
+      ) {
+        const { data: sub } = await admin.from("subscriptions").select("status").eq("user_id", user.id).maybeSingle();
+        const isActive = !!sub && ["active", "trialing", "past_due"].includes(sub.status);
+        if (!isActive) {
+          // Jamais promettre le tarif fondateur si le prix n'existe pas encore côté Stripe.
+          const isFounder = foundingHolders.has(user.id) && !!process.env.STRIPE_FOUNDING_PRICE_ID;
+          actions.push(isFounder ? "trial_ending_reminder_founder" : "trial_ending_reminder");
+          if (!dryRun) {
+            await sendEmail(
+              email,
+              copy.trialEndingSubject,
+              wrapEmailHtml(copy.trialEndingBody(isFounder, FOUNDING_PRICE), copy.trialEndingCta, copy.settingsHint)
+            );
+          }
+          nextState.trialEndingEmailSentAt = now.toISOString();
+        }
+      }
+
+      // --- Essai gratuit terminé sans abonnement (un seul envoi, jamais répété) ---
       let trialDebug = null;
       if ((forceTrialCheck || daysSinceSignup >= TRIAL_DAYS) && !notifState.trialEndedEmailSentAt) {
         const { data: sub } = await admin.from("subscriptions").select("status").eq("user_id", user.id).maybeSingle();

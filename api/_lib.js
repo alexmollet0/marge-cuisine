@@ -101,3 +101,75 @@ export async function sendEmail(to, subject, html, attachments, scheduledAt, rep
   });
   if (!res.ok) throw new Error(`Resend a refusé l'envoi (${res.status}) : ${await res.text()}`);
 }
+
+// ---------------------------------------------------------------------------
+// Offre de lancement "tarif fondateur" (2026-08-26)
+// ---------------------------------------------------------------------------
+// Les 50 premiers restaurants gardent 29€/mois à vie au lieu du tarif normal.
+// Règles décidées avec l'utilisateur, à ne pas modifier sans lui :
+//  - une place est RÉSERVÉE dès l'inscription, tant que l'essai gratuit court ;
+//  - elle est CONFIRMÉE (et verrouillée à vie côté Stripe) si le compte s'abonne
+//    avant la fin de son essai ;
+//  - un essai qui expire sans abonnement LIBÈRE la place, qui repart dans le pool.
+// Conséquence : le nombre de places restantes se recalcule à chaque appel plutôt que
+// d'être stocké — un compteur figé se serait forcément désynchronisé de la réalité.
+export const FOUNDING_SPOTS = 50;
+// ⚠️ doit rester synchronisé avec TRIAL_DAYS dans src/Billing.jsx et api/send-reminders.js
+export const TRIAL_DAYS = 7;
+
+// Nos propres comptes ne consomment jamais de place et ne comptent dans aucune statistique.
+// C'est LA liste de référence du projet (api/admin-dashboard.js l'importe aussi) : pour en
+// ajouter un, c'est ici et nulle part ailleurs.
+export const INTERNAL_EMAILS = ["alexmollet0@gmail.com", "contact.ttra@gmail.com"];
+export const isInternalEmail = (email) => !!email && INTERNAL_EMAILS.includes(email.toLowerCase());
+
+const ACTIVE_SUB_STATUSES = ["active", "trialing", "past_due"];
+
+// Calcule qui détient réellement une place fondateur, en parcourant les comptes par date
+// d'inscription croissante (le premier arrivé est le premier servi) et en s'arrêtant à 50.
+// Renvoie aussi le nombre de places restantes, affiché publiquement sur la landing.
+export async function getFoundingState(supabaseAdmin) {
+  const [usersRes, subsRes, kvRes] = await Promise.all([
+    supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
+    supabaseAdmin.from("subscriptions").select("user_id, status"),
+    supabaseAdmin.from("kv_store").select("user_id, key, value").in("key", ["foundingMember", "trialStartOverride"]),
+  ]);
+
+  const subStatus = new Map((subsRes.data || []).map((s) => [s.user_id, s.status]));
+  const foundingFlag = new Set();
+  const trialOverride = new Map();
+  for (const row of kvRes.data || []) {
+    if (row.key === "foundingMember") {
+      foundingFlag.add(row.user_id);
+    } else {
+      try {
+        trialOverride.set(row.user_id, JSON.parse(row.value));
+      } catch (e) {
+        trialOverride.set(row.user_id, row.value);
+      }
+    }
+  }
+
+  const users = (usersRes.data?.users || [])
+    .filter((u) => u.email && !isInternalEmail(u.email))
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  const holders = new Set();
+  for (const u of users) {
+    const subscribed = ACTIVE_SUB_STATUSES.includes(subStatus.get(u.id));
+    // Même règle de départ d'essai que src/Billing.jsx : on retient la plus RÉCENTE des deux
+    // dates, jamais la plus ancienne, pour ne jamais raccourcir un essai par accident.
+    let start = u.created_at;
+    const override = trialOverride.get(u.id);
+    if (override && new Date(override) > new Date(start)) start = override;
+    const inTrial = Date.now() < new Date(start).getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000;
+
+    // Abonné au tarif fondateur : place détenue définitivement. Abonné au tarif normal :
+    // ne consomme aucune place. Ni l'un ni l'autre : la place n'est retenue que pendant l'essai.
+    const holds = subscribed ? foundingFlag.has(u.id) : inTrial;
+    if (holds) holders.add(u.id);
+    if (holders.size >= FOUNDING_SPOTS) break;
+  }
+
+  return { total: FOUNDING_SPOTS, holders, remaining: Math.max(0, FOUNDING_SPOTS - holders.size) };
+}

@@ -548,10 +548,23 @@ export const TR = {
     emailRemindersLabel: "Recevoir les rappels par email",
     emailRemindersHint: "Un rappel si tu n'as rien scanné depuis un moment, ou si une recette passe sous ta marge cible.",
     billingTrialBanner: (n) => n > 1 ? `Essai gratuit : ${n} jours restants` : n === 1 ? "Essai gratuit : dernier jour" : "Essai gratuit : se termine aujourd'hui",
-    billingPaywallTitle: "Ton essai gratuit est terminé", billingPaywallBody: "Abonne-toi pour continuer à utiliser Chefup — 39€/mois, résiliable à tout moment.",
+    billingPaywallTitle: "Ton essai gratuit est terminé", billingPaywallBody: (p) => `Abonne-toi pour continuer à utiliser Chefup — ${p}€/mois, résiliable à tout moment.`,
     billingFounderStory: "Chefup est né d'une vraie expérience en restauration — recalculer ses marges à la main à chaque hausse de prix fournisseur, ça rend fou.",
     billingBenefit1: "Scan de facture automatique par IA", billingBenefit2: "Marge recalculée à l'instant à chaque changement de prix", billingBenefit3: "Alerte dès qu'un plat descend sous ta marge cible",
     billingPaywallReminder: "Tes recettes et leurs marges déjà calculées t'attendent — ne perds pas ce que tu as construit.",
+    // Offre de lancement (2026-08-26) — 50 places, tarif bloqué à vie. Voir api/_lib.js.
+    launchBadge: "Offre de lancement",
+    launchSpotsLeft: (n) => (n > 1 ? `Plus que ${n} places sur 50` : n === 1 ? "Dernière place sur 50" : "Les 50 places sont prises"),
+    launchFounderPrice: (f, s) => `${f}€/mois à vie au lieu de ${s}€`,
+    launchLifetimeLock: "Ce tarif reste le tien tant que ton abonnement reste actif, même quand le prix augmentera.",
+    launchCondition: "Ta place est réservée dès ton inscription et confirmée si tu t'abonnes avant la fin de tes 7 jours d'essai.",
+    launchTrialBanner: (n, f) =>
+      n > 1
+        ? `Tarif fondateur ${f}€/mois à vie : encore ${n} jours pour le garder`
+        : n === 1
+        ? `Tarif fondateur ${f}€/mois à vie : dernier jour pour le garder`
+        : `Tarif fondateur ${f}€/mois à vie : ça se termine aujourd'hui`,
+    launchPaywallTitle: (f) => `Garde ton tarif fondateur : ${f}€/mois à vie`,
     billingSubscribeButton: "S'abonner maintenant", billingSecureNote: "Paiement sécurisé par Stripe.", billingCheckoutError: "Impossible d'ouvrir la page de paiement, réessaie dans un instant.",
     billingManageSubscription: "Abonnement", billingPortalError: "Impossible d'ouvrir la page d'abonnement, réessaie dans un instant.",
     myAccount: "Mon compte",
@@ -841,10 +854,22 @@ export const TR = {
     emailRemindersLabel: "Recibir recordatorios por email",
     emailRemindersHint: "Un aviso si hace tiempo que no escaneas nada, o si una receta baja de tu margen objetivo.",
     billingTrialBanner: (n) => n > 1 ? `Prueba gratuita: quedan ${n} días` : n === 1 ? "Prueba gratuita: último día" : "Prueba gratuita: termina hoy",
-    billingPaywallTitle: "Tu prueba gratuita ha terminado", billingPaywallBody: "Suscríbete para seguir usando Chefup — 39€/mes, cancelable en cualquier momento.",
+    billingPaywallTitle: "Tu prueba gratuita ha terminado", billingPaywallBody: (p) => `Suscríbete para seguir usando Chefup — ${p}€/mes, cancelable en cualquier momento.`,
     billingFounderStory: "Chefup nació de una experiencia real en restauración — recalcular tus márgenes a mano cada vez que sube un proveedor puede volverte loco.",
     billingBenefit1: "Escaneo automático de facturas por IA", billingBenefit2: "Margen recalculado al instante con cada cambio de precio", billingBenefit3: "Alerta en cuanto un plato baja de tu margen objetivo",
     billingPaywallReminder: "Tus recetas y sus márgenes ya calculados te esperan — no pierdas lo que has construido.",
+    launchBadge: "Oferta de lanzamiento",
+    launchSpotsLeft: (n) => (n > 1 ? `Solo quedan ${n} plazas de 50` : n === 1 ? "Última plaza de 50" : "Las 50 plazas están ocupadas"),
+    launchFounderPrice: (f, s) => `${f}€/mes de por vida en lugar de ${s}€`,
+    launchLifetimeLock: "Este precio sigue siendo tuyo mientras tu suscripción siga activa, incluso cuando el precio suba.",
+    launchCondition: "Tu plaza se reserva al registrarte y se confirma si te suscribes antes de que acaben tus 7 días de prueba.",
+    launchTrialBanner: (n, f) =>
+      n > 1
+        ? `Precio fundador ${f}€/mes de por vida: te quedan ${n} días para conservarlo`
+        : n === 1
+        ? `Precio fundador ${f}€/mes de por vida: último día para conservarlo`
+        : `Precio fundador ${f}€/mes de por vida: termina hoy`,
+    launchPaywallTitle: (f) => `Conserva tu precio fundador: ${f}€/mes de por vida`,
     billingSubscribeButton: "Suscribirme ahora", billingSecureNote: "Pago seguro con Stripe.", billingCheckoutError: "No se pudo abrir la página de pago, inténtalo de nuevo en un momento.",
     billingManageSubscription: "Suscripción", billingPortalError: "No se pudo abrir la página de suscripción, inténtalo de nuevo en un momento.",
     myAccount: "Mi cuenta",
@@ -1132,10 +1157,22 @@ export const TR = {
     emailRemindersLabel: "Receive email reminders",
     emailRemindersHint: "A nudge if you haven't scanned anything in a while, or if a recipe drops below your target margin.",
     billingTrialBanner: (n) => n > 1 ? `Free trial: ${n} days left` : n === 1 ? "Free trial: last day" : "Free trial: ends today",
-    billingPaywallTitle: "Your free trial has ended", billingPaywallBody: "Subscribe to keep using Chefup — €39/month, cancel anytime.",
+    billingPaywallTitle: "Your free trial has ended", billingPaywallBody: (p) => `Subscribe to keep using Chefup — €${p}/month, cancel anytime.`,
     billingFounderStory: "Chefup was born out of real restaurant experience — recalculating margins by hand every time a supplier raises prices will drive you mad.",
     billingBenefit1: "Automatic AI invoice scanning", billingBenefit2: "Margin recalculated instantly with every price change", billingBenefit3: "Alert as soon as a dish drops below your target margin",
     billingPaywallReminder: "Your recipes and their already-calculated margins are waiting — don't lose what you've built.",
+    launchBadge: "Launch offer",
+    launchSpotsLeft: (n) => (n > 1 ? `Only ${n} spots left out of 50` : n === 1 ? "Last spot out of 50" : "All 50 spots are taken"),
+    launchFounderPrice: (f, s) => `€${f}/month for life instead of €${s}`,
+    launchLifetimeLock: "This price stays yours as long as your subscription stays active, even when the price goes up.",
+    launchCondition: "Your spot is reserved when you sign up and confirmed if you subscribe before your 7-day trial ends.",
+    launchTrialBanner: (n, f) =>
+      n > 1
+        ? `Founder price €${f}/month for life: ${n} days left to keep it`
+        : n === 1
+        ? `Founder price €${f}/month for life: last day to keep it`
+        : `Founder price €${f}/month for life: ends today`,
+    launchPaywallTitle: (f) => `Keep your founder price: €${f}/month for life`,
     billingSubscribeButton: "Subscribe now", billingSecureNote: "Secure payment by Stripe.", billingCheckoutError: "Couldn't open the payment page, try again in a moment.",
     billingManageSubscription: "Subscription", billingPortalError: "Couldn't open the subscription page, try again in a moment.",
     myAccount: "My account",
@@ -1728,6 +1765,13 @@ const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 // TIER_COLORS/les indicateurs de statut (confiant/importé/prix en baisse = vert, à surveiller
 // = orange, problème = rouge) qui restent inchangés — seul le chrome interactif générique
 // (boutons, focus, sélection, onglets) passe à cette nouvelle couleur.
+// Tarifs affichés (2026-08-26). Point unique de vérité pour tout ce qui est MONTRÉ à l'utilisateur
+// (landing, écran de fin d'essai, emails) — ce qui est réellement facturé vient toujours de Stripe
+// via STRIPE_PRICE_ID / STRIPE_FOUNDING_PRICE_ID sur Vercel. Les deux doivent rester cohérents :
+// changer un prix ici sans créer le prix correspondant dans Stripe afficherait un montant faux.
+// `founding` = offre de lancement, 50 places, verrouillé à vie (voir api/_lib.js, FOUNDING_SPOTS).
+export const PRICING = { standard: 49, founding: 29 };
+
 export const BRAND_SOLID = "#8B5CF6";
 const BRAND_SOLID_PAPER = "#6D28D9";
 export const BRAND_GRADIENT = "linear-gradient(135deg, #7C3AED 0%, #22D3EE 100%)";

@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Receipt, Percent, Printer, Package, QrCode, Camera } from "lucide-react";
-import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
+import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING } from "./App.jsx";
 
 // Même vert que TIER_COLORS.high (src/App.jsx, marge "haute") — dupliqué ici plutôt qu'exporté
 // pour ne pas élargir la surface exportée d'App.jsx pour une seule couleur déjà stable.
@@ -39,12 +39,33 @@ function isTrackingDisabled() {
   }
 }
 
+// Provenance de la visite (2026-08-26) : `?src=tiktok` dans le lien d'une campagne. Mémorisée
+// pour la session (sessionStorage, pas localStorage) parce que le clic sur "Commencer" arrive
+// souvent après une navigation qui a perdu le paramètre — mais elle ne doit pas coller à
+// l'appareil pour toujours, sinon une visite organique du mois suivant serait encore comptée
+// comme venant de la campagne.
+const SRC_KEY = "chefup:src";
+
+function campaignSource() {
+  if (typeof window === "undefined") return null;
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get("src");
+    if (fromUrl) {
+      sessionStorage.setItem(SRC_KEY, fromUrl);
+      return fromUrl;
+    }
+    return sessionStorage.getItem(SRC_KEY);
+  } catch (e) {
+    return new URLSearchParams(window.location.search).get("src");
+  }
+}
+
 function logLandingEvent(event) {
   if (isTrackingDisabled()) return;
   fetch("/api/landing", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ event }),
+    body: JSON.stringify({ event, source: campaignSource() }),
   }).catch(() => {});
 }
 
@@ -76,9 +97,26 @@ const STEPS = [
 // le mode signup/login.
 export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
   const t = (key) => TR[lang]?.[key] ?? TR.fr[key] ?? key;
+  // L'anglais place le symbole avant le montant (€29), le français et l'espagnol après (29€).
+  const money = (v) => (lang === "en" ? `€${v}` : `${v}€`);
+  // Offre de lancement. Volontairement CACHÉE par défaut : elle ne s'affiche que si le serveur
+  // confirme explicitement qu'elle est active (`enabled`), c'est-à-dire que le prix fondateur
+  // existe bien côté Stripe. Sans cette prudence, un simple appel raté afficherait 29€ à un
+  // visiteur qui serait en réalité prélevé au tarif normal. `spots` à null = offre active mais
+  // compteur indisponible : on affiche l'offre sans le chiffre. `spots` à 0 = places épuisées,
+  // l'offre disparaît et le tarif normal reprend sa place — jamais de rareté qui ne serait plus vraie.
+  const [offer, setOffer] = useState(null);
+  const spots = offer ? offer.remaining : null;
+  const launchOfferOpen = !!offer && (spots === null || spots > 0);
 
   useEffect(() => {
     logLandingEvent("view");
+    fetch("/api/landing?spots=1")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.enabled) setOffer({ remaining: typeof d.remaining === "number" ? d.remaining : null });
+      })
+      .catch(() => {});
   }, []);
 
   function handleStart() {
@@ -99,6 +137,29 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           <h1 className="font-display text-white text-xl tracking-wide uppercase">Chefup</h1>
         </div>
         {LangSwitcher}
+
+        {/* Bandeau d'offre de lancement (2026-08-26), tout en haut : c'est la première chose que
+            voit un visiteur venu d'une publicité, et le compteur de places est ce qui donne une
+            raison d'agir maintenant plutôt que "plus tard". Le chiffre est réel (recalculé côté
+            serveur, voir api/_lib.js) — pas un faux compte à rebours. */}
+        {launchOfferOpen && (
+          <div className="max-w-xl mx-auto mt-6 text-center">
+            <div
+              className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full px-4 py-1.5 border"
+              style={{ borderColor: `${BRAND_SOLID}66`, background: `${BRAND_SOLID}1A` }}
+            >
+              <span className="font-display uppercase text-[10px] tracking-wide" style={{ color: BRAND_SOLID }}>
+                {t("launchBadge")}
+              </span>
+              <span className="text-white/85 text-xs font-semibold">
+                {t("launchFounderPrice")(PRICING.founding, PRICING.standard)}
+              </span>
+              {typeof spots === "number" && (
+                <span className="text-white/50 text-xs">· {t("launchSpotsLeft")(spots)}</span>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="text-center max-w-xl mx-auto mt-6 mb-10">
           <h2 className="font-display text-white text-2xl sm:text-3xl tracking-wide leading-snug mb-4">
@@ -201,11 +262,34 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           style={{ background: "#26221C", borderColor: BRAND_SOLID }}
         >
           <h3 className="font-display uppercase text-white text-sm tracking-wide mb-3">{t("landingPricingTitle")}</h3>
-          <div className="flex items-end justify-center gap-1 mb-1">
-            <span className="text-white font-display text-4xl">39€</span>
+          {launchOfferOpen && (
+            <div
+              className="inline-block rounded-full px-3 py-1 mb-2 font-display uppercase text-[10px] tracking-wide"
+              style={{ background: `${BRAND_SOLID}22`, color: BRAND_SOLID }}
+            >
+              {t("launchBadge")}
+              {typeof spots === "number" ? ` · ${t("launchSpotsLeft")(spots)}` : ""}
+            </div>
+          )}
+          <div className="flex items-end justify-center gap-1.5 mb-1">
+            {/* Le tarif normal reste affiché à côté du tarif fondateur : c'est le prix réellement
+                facturé à tout compte hors des 50 places, pas un prix barré fictif. */}
+            {launchOfferOpen && (
+              <span className="text-white/35 text-lg line-through mb-1">{money(PRICING.standard)}</span>
+            )}
+            <span className="text-white font-display text-4xl">
+              {money(launchOfferOpen ? PRICING.founding : PRICING.standard)}
+            </span>
             <span className="text-white/50 text-sm mb-1">{t("landingPricingPerMonth")}</span>
           </div>
-          <p className="text-emerald-400/90 text-xs font-semibold mb-5">{t("landingPricingTrial")}</p>
+          {launchOfferOpen && (
+            <p className="text-xs font-semibold mb-1" style={{ color: BRAND_SOLID }}>
+              {t("launchLifetimeLock")}
+            </p>
+          )}
+          <p className="text-emerald-400/90 text-xs font-semibold mb-1">{t("landingPricingTrial")}</p>
+          {launchOfferOpen && <p className="text-white/40 text-[11px] mb-4">{t("launchCondition")}</p>}
+          {!launchOfferOpen && <div className="mb-4" />}
 
           <ul className="text-left space-y-2 mb-6">
             {PRICING_FEATURE_KEYS.map((key) => (
