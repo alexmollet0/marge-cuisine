@@ -3207,7 +3207,7 @@ function AdminDashboard() {
     return <p className="text-white/50 text-sm text-center py-10">Impossible de charger le tableau de bord.</p>;
   }
 
-  const { kpis, dailySeries, users, activityFeed = [] } = state.data;
+  const { kpis, dailySeries, users, activityFeed = [], bySource = [] } = state.data;
 
   // Dernière activité connue par compte (pour trier + savoir qui est "en ligne" maintenant) —
   // repli sur la date d'inscription pour un compte sans aucun événement encore enregistré.
@@ -3476,6 +3476,55 @@ function AdminDashboard() {
               </div>
             ))}
           </div>
+
+          {/* Provenance des visites (2026-08-26) : LA vue à regarder dès qu'on paie de la publicité.
+              Sans elle, impossible de distinguer les visiteurs venus d'une campagne du trafic
+              naturel — donc impossible de savoir si l'argent dépensé rapporte quoi que ce soit.
+              "direct" regroupe tout ce qui arrive sans `?src=` : trafic naturel, liens partagés,
+              MAIS AUSSI ses propres visites s'il n'a pas ouvert le site avec `?notrack=1` au moins
+              une fois sur cet appareil — d'où le rappel affiché juste en dessous. */}
+          {bySource.length > 0 && (
+            <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#26221C" }}>
+              <div className="text-white/50 text-[10px] uppercase tracking-wide mb-3">Provenance des visites</div>
+              <div className="space-y-2">
+                {bySource.map((s) => {
+                  const taux = s.views > 0 ? Math.round((s.startClicks / s.views) * 100) : 0;
+                  const estCampagne = s.source !== "direct";
+                  return (
+                    <div key={s.source} className="flex items-center gap-3">
+                      <span
+                        className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                        style={
+                          estCampagne
+                            ? { background: `${BRAND_SOLID}25`, color: BRAND_SOLID }
+                            : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.55)" }
+                        }
+                      >
+                        {s.source}
+                      </span>
+                      <span className="text-white text-sm font-display">{s.views}</span>
+                      <span className="text-white/35 text-[11px]">visite{s.views > 1 ? "s" : ""}</span>
+                      <div className="flex-1" />
+                      <span className="text-white/70 text-[11px]">
+                        {s.startClicks} clic{s.startClicks > 1 ? "s" : ""} « essai »
+                      </span>
+                      <span
+                        className="text-[11px] font-bold w-10 text-right"
+                        style={{ color: taux > 0 ? TIER_COLORS.high : "rgba(255,255,255,0.3)" }}
+                      >
+                        {taux}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-white/30 text-[10px] mt-3 leading-relaxed">
+                « direct » = sans paramètre de campagne : trafic naturel, liens partagés, et tes propres visites si
+                tu n'as pas ouvert le site une fois avec <span className="text-white/50">?notrack=1</span> sur cet
+                appareil. Le pourcentage est le taux de clic sur « Commencer ».
+              </p>
+            </div>
+          )}
 
           <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#26221C" }}>
             <div className="text-white/50 text-[10px] uppercase tracking-wide mb-2">Visites par jour</div>

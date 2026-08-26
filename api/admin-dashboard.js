@@ -146,7 +146,11 @@ export default async function handler(req, res) {
 
   try {
     const [landingRes, scanRes, subRes, usersRes, activityRes] = await Promise.all([
-      supabaseAdmin.from("landing_events").select("event_type, created_at").gte("created_at", since),
+      // `source` (2026-08-26) : provenance de la visite (`?src=tiktok` dans le lien d'une campagne).
+      // Colonne ajoutée à la main dans Supabase — si elle manque encore sur un projet non migré, la
+      // requête échoue et on retombe plus bas sur la version sans elle plutôt que de casser tout le
+      // tableau de bord pour une seule colonne.
+      supabaseAdmin.from("landing_events").select("event_type, source, created_at").gte("created_at", since),
       // `user_id` sélectionné en plus (2026-08-26) uniquement pour pouvoir écarter les scans de nos
       // propres comptes des statistiques — voir INTERNAL_EMAILS.
       supabaseAdmin.from("scan_events").select("user_id, created_at").gte("created_at", since),
@@ -159,7 +163,11 @@ export default async function handler(req, res) {
       // du dashboard.
       supabaseAdmin.from("activity_events").select("*").order("created_at", { ascending: false }).limit(200),
     ]);
-    if (landingRes.error) throw landingRes.error;
+    if (landingRes.error) {
+      const retry = await supabaseAdmin.from("landing_events").select("event_type, created_at").gte("created_at", since);
+      if (retry.error) throw landingRes.error;
+      landingRes.data = retry.data;
+    }
     if (scanRes.error) throw scanRes.error;
     if (subRes.error) throw subRes.error;
     if (usersRes.error) throw usersRes.error;
@@ -207,6 +215,21 @@ export default async function handler(req, res) {
     });
     const dailySeries = Object.values(dailyMap);
 
+    // Funnel par provenance (2026-08-26) : c'est le seul moyen de savoir si une campagne payante
+    // rapporte vraiment, ou si les inscriptions viennent en fait du trafic naturel. Les visites
+    // sans `?src=` (et toutes celles enregistrées avant l'ajout de la colonne) tombent dans
+    // "direct" — c'est aussi là qu'atterrissent les visites du fondateur lui-même s'il n'a pas
+    // ouvert le site avec `?notrack=1` au moins une fois sur cet appareil.
+    const sourceMap = {};
+    for (const r of landingRows) {
+      const key = r.source || "direct";
+      if (!sourceMap[key]) sourceMap[key] = { source: key, views: 0, startClicks: 0, loginClicks: 0 };
+      if (r.event_type === "view") sourceMap[key].views++;
+      if (r.event_type === "start_click") sourceMap[key].startClicks++;
+      if (r.event_type === "login_click") sourceMap[key].loginClicks++;
+    }
+    const bySource = Object.values(sourceMap).sort((a, b) => b.views - a.views);
+
     const usersOut = authUsers
       .map((u) => {
         const sub = subByUser.get(u.id);
@@ -249,7 +272,7 @@ export default async function handler(req, res) {
       scans: scanRows.length,
     };
 
-    return res.status(200).json({ periodDays: days, kpis, dailySeries, users: usersOut, activityFeed });
+    return res.status(200).json({ periodDays: days, kpis, dailySeries, bySource, users: usersOut, activityFeed });
   } catch (e) {
     return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
   }
