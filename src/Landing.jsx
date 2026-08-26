@@ -12,8 +12,35 @@ const MARGIN_HIGH_COLOR = "#10B981";
 // statistiques — utile aussi pour Claude, qui vérifie régulièrement le site après un déploiement.
 // Mettre ce lien en favori (`https://getchefup.com/?notrack=1`) sur chaque appareil utilisé pour
 // se contrôler soi-même.
+// Amélioration 2026-08-26 : `?notrack=1` ne valait que pour LA visite en cours, donc il fallait
+// penser à passer par le lien en favori à chaque fois — en pratique, une visite sur deux comptait
+// quand même et gonflait les chiffres. Le choix est désormais mémorisé durablement sur l'appareil :
+// une seule ouverture de `getchefup.com/?notrack=1` suffit, ensuite toutes les visites depuis ce
+// téléphone/ordinateur sont ignorées, quelle que soit l'URL utilisée. `?notrack=0` fait marche
+// arrière si besoin (par exemple pour tester que le comptage fonctionne toujours).
+const NOTRACK_KEY = "chefup:notrack";
+
+function isTrackingDisabled() {
+  if (typeof window === "undefined") return false;
+  try {
+    const param = new URLSearchParams(window.location.search).get("notrack");
+    if (param === "1") {
+      localStorage.setItem(NOTRACK_KEY, "1");
+      return true;
+    }
+    if (param === "0") {
+      localStorage.removeItem(NOTRACK_KEY);
+      return false;
+    }
+    return localStorage.getItem(NOTRACK_KEY) === "1";
+  } catch (e) {
+    // Navigation privée / stockage bloqué : on retombe simplement sur le comportement d'avant.
+    return new URLSearchParams(window.location.search).get("notrack") === "1";
+  }
+}
+
 function logLandingEvent(event) {
-  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("notrack") === "1") return;
+  if (isTrackingDisabled()) return;
   fetch("/api/landing", {
     method: "POST",
     headers: { "content-type": "application/json" },

@@ -12,6 +12,15 @@ import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml } from "./_lib.
 const ADMIN_EMAIL = "alexmollet0@gmail.com";
 const TRIAL_DAYS = 7;
 
+// Comptes internes (2026-08-26, demandé par l'utilisateur) : nos propres comptes faussaient les
+// chiffres de l'onglet Aperçu — un scan de test comptait exactement comme un scan client, et les
+// comptes de test gonflaient le total d'inscrits/essais. Ils sont donc exclus de TOUS les KPI et du
+// graphique journalier, mais restent visibles dans l'onglet Comptes (avec un badge "interne") :
+// l'objectif est d'avoir des statistiques honnêtes, pas de se cacher des comptes.
+// Pour en ajouter un plus tard : une ligne de plus dans ce tableau, rien d'autre à toucher.
+const INTERNAL_EMAILS = ["alexmollet0@gmail.com", "contact.ttra@gmail.com"];
+const isInternalEmail = (email) => !!email && INTERNAL_EMAILS.includes(email.toLowerCase());
+
 // Mail de déblocage (2026-08-25) : envoi groupé, déclenché manuellement par l'utilisateur depuis le
 // tableau de bord, pour les comptes déjà inscrits mais qui n'ont jamais confirmé leur email — donc
 // jamais informés que la confirmation n'est plus obligatoire pour se connecter (voir CLAUDE.md,
@@ -139,7 +148,9 @@ export default async function handler(req, res) {
   try {
     const [landingRes, scanRes, subRes, usersRes, activityRes] = await Promise.all([
       supabaseAdmin.from("landing_events").select("event_type, created_at").gte("created_at", since),
-      supabaseAdmin.from("scan_events").select("created_at").gte("created_at", since),
+      // `user_id` sélectionné en plus (2026-08-26) uniquement pour pouvoir écarter les scans de nos
+      // propres comptes des statistiques — voir INTERNAL_EMAILS.
+      supabaseAdmin.from("scan_events").select("user_id, created_at").gte("created_at", since),
       supabaseAdmin.from("subscriptions").select("user_id, status"),
       supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
       // Flux d'activité par compte (2026-08-23) : connexions, recettes créées, scans + leur résultat
@@ -155,17 +166,27 @@ export default async function handler(req, res) {
     if (usersRes.error) throw usersRes.error;
 
     const landingRows = landingRes.data || [];
-    const scanRows = scanRes.data || [];
     const subByUser = new Map((subRes.data || []).map((s) => [s.user_id, s]));
     const authUsers = usersRes.data?.users || [];
     const emailById = new Map(authUsers.map((u) => [u.id, u.email]));
-    const activityFeed = (activityRes.error ? [] : activityRes.data || []).map((e) => ({
-      id: e.id,
-      type: e.type,
-      createdAt: e.created_at,
-      email: emailById.get(e.user_id) || "?",
-      meta: e.meta || {},
-    }));
+    const internalUserIds = new Set(authUsers.filter((u) => isInternalEmail(u.email)).map((u) => u.id));
+    // Scans réellement clients : nos propres scans de test ne doivent plus compter (le graphique et
+    // le KPI "scans" affichaient jusqu'ici surtout notre propre activité de mise au point).
+    const scanRows = (scanRes.data || []).filter((r) => !internalUserIds.has(r.user_id));
+    const activityFeed = (activityRes.error ? [] : activityRes.data || []).map((e) => {
+      const email = emailById.get(e.user_id) || "?";
+      return {
+        id: e.id,
+        type: e.type,
+        createdAt: e.created_at,
+        email,
+        // Le flux vit dans l'onglet Comptes, pas dans l'Aperçu : on garde nos propres actions
+        // visibles (utile pour vérifier qu'un correctif marche), simplement identifiées comme
+        // internes pour ne jamais les confondre avec de l'activité client.
+        internal: isInternalEmail(email),
+        meta: e.meta || {},
+      };
+    });
 
     // Série journalière (visites + scans) sur la période demandée, jours sans donnée inclus à 0
     // pour ne jamais donner l'impression trompeuse d'un trou dans les données.
@@ -204,17 +225,26 @@ export default async function handler(req, res) {
         // connecter). Utile à voir même une fois la confirmation obligatoire désactivée côté
         // Supabase : ça reste le seul moyen de savoir si l'adresse d'un compte est vraiment
         // joignable (utile pour les alertes email, les reçus, ou le recontacter).
-        return { email: u.email, createdAt: u.created_at, status, emailConfirmed: !!(u.email_confirmed_at || u.confirmed_at) };
+        return {
+          email: u.email,
+          createdAt: u.created_at,
+          status,
+          emailConfirmed: !!(u.email_confirmed_at || u.confirmed_at),
+          // Exclu des KPI ci-dessous, mais toujours listé dans l'onglet Comptes (badge "interne").
+          internal: isInternalEmail(u.email),
+        };
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+    // Tous les KPI de l'onglet Aperçu se calculent sur les seuls comptes réellement clients.
+    const clientUsers = usersOut.filter((u) => !u.internal);
     const kpis = {
-      totalUsers: usersOut.length,
-      activeTrials: usersOut.filter((u) => u.status.startsWith("Essai (")).length,
-      activeSubs: usersOut.filter((u) => u.status === "Abonné actif" || u.status === "Paiement en retard").length,
-      canceled: usersOut.filter((u) => u.status === "Annulé").length,
-      expiredNoSub: usersOut.filter((u) => u.status === "Essai expiré").length,
-      unconfirmedEmails: usersOut.filter((u) => !u.emailConfirmed).length,
+      totalUsers: clientUsers.length,
+      activeTrials: clientUsers.filter((u) => u.status.startsWith("Essai (")).length,
+      activeSubs: clientUsers.filter((u) => u.status === "Abonné actif" || u.status === "Paiement en retard").length,
+      canceled: clientUsers.filter((u) => u.status === "Annulé").length,
+      expiredNoSub: clientUsers.filter((u) => u.status === "Essai expiré").length,
+      unconfirmedEmails: clientUsers.filter((u) => !u.emailConfirmed).length,
       views: landingRows.filter((r) => r.event_type === "view").length,
       startClicks: landingRows.filter((r) => r.event_type === "start_click").length,
       scans: scanRows.length,

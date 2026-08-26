@@ -638,6 +638,7 @@ export const TR = {
     scanUnitChangeWarning: (oldU, newU) => `Cet ingrédient est utilisé dans au moins une recette en "${oldU}" — passer à "${newU}" changerait le sens des quantités déjà saisies. Vérifie ces recettes après import.`,
     scanConfirmUncertain: "Confirmer malgré le doute",
     scanPriceDoubtLabel: "Vérifie ce prix avant d'importer",
+    scanBigChangeNote: "Écart de prix important par rapport à ton dernier prix — jette un œil avant d'importer.",
     scanManyUpWarning: "Plusieurs prix semblent en forte hausse par rapport à tes prix connus — vérifie que le document est bien net avant d'importer.",
     scanLowConfidenceBanner: "Photo un peu floue : vérifie bien les lignes en orange avant d'importer.",
     scanReviewSection: "À vérifier avant d'importer", scanSafeSection: "Aucune alerte détectée",
@@ -928,6 +929,7 @@ export const TR = {
     scanUnitChangeWarning: (oldU, newU) => `Este ingrediente se usa en al menos una receta en "${oldU}" — cambiar a "${newU}" cambiaría el sentido de las cantidades ya introducidas. Revisa esas recetas después de importar.`,
     scanConfirmUncertain: "Confirmar a pesar de la duda",
     scanPriceDoubtLabel: "Comprueba este precio antes de importar",
+    scanBigChangeNote: "Diferencia de precio importante respecto a tu último precio — échale un vistazo antes de importar.",
     scanManyUpWarning: "Varios precios parecen estar muy al alza respecto a tus precios conocidos — verifica que el documento esté bien nítido antes de importar.",
     scanLowConfidenceBanner: "Foto un poco borrosa: revisa bien las líneas en naranja antes de importar.",
     scanReviewSection: "A verificar antes de importar", scanSafeSection: "Sin alertas detectadas",
@@ -1218,6 +1220,7 @@ export const TR = {
     scanUnitChangeWarning: (oldU, newU) => `This ingredient is used in at least one recipe in "${oldU}" — switching to "${newU}" would change the meaning of quantities already entered. Check those recipes after importing.`,
     scanConfirmUncertain: "Confirm despite the uncertainty",
     scanPriceDoubtLabel: "Check this price before importing",
+    scanBigChangeNote: "Big price gap compared to your last price — take a look before importing.",
     scanManyUpWarning: "Several prices seem sharply up compared to your known prices — check that the document is sharp before importing.",
     scanLowConfidenceBanner: "Photo a bit blurry: check the orange lines carefully before importing.",
     scanReviewSection: "To check before importing", scanSafeSection: "No alerts detected",
@@ -1780,6 +1783,19 @@ const DESIGN_LABEL_KEYS = {
 // Retire uniquement le code/référence interne en début de ligne (ex: "F11893 ") pour un
 // aperçu du texte facture lisible au premier coup d'œil, sans toucher au texte brut complet
 // (rawLabel) qui reste intact pour la mémoire des rapprochements et la vérification exacte.
+// [BUG confirmé et corrigé, 2026-08-26] Rendu visuel d'une variation de prix scannée, centralisé
+// ici parce que les 3 endroits qui l'affichaient (carte compacte, panneau "Modifier", pile de
+// vérification) avaient chacun leur copie de la règle — et les 3 avaient le même bug : la couleur
+// ET la flèche étaient pilotées par `bigChange` (= écart de plus de 40%, vrai dans les DEUX sens),
+// donc une grosse BAISSE s'affichait en rouge avec une flèche vers le haut, juste à côté du texte
+// "Prix en baisse" (cas réel signalé sur l'huile d'olive). Règle unique désormais : c'est le SENS
+// qui décide de la couleur et de la flèche, jamais l'ampleur. `bigChange` ne fait plus que
+// foncer le rouge d'une hausse déjà signalée — une baisse reste toujours verte, flèche vers le bas.
+const priceChangeVisual = (item) => ({
+  up: !!item.priceUp,
+  color: item.priceUp ? (item.bigChange ? TIER_COLORS.low : TIER_COLORS.mid) : "#10B981",
+});
+
 const lightRawLabel = (raw) => {
   const s = (raw || "").trim();
   if (!s) return "";
@@ -2680,13 +2696,13 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
               change la couleur (orange, ou rouge si bigChange) — tout le reste (baisse ou prix
               stable) reste vert avec la flèche vers le bas, y compris à 0% : demande explicite de
               l'utilisateur, "pas augmenté" doit toujours rassurer visuellement de la même façon. */}
-          {item.currentPrice !== null && item.currentPriceIsReal && (
+          {item.currentPrice !== null && item.currentPriceIsReal && priceChangePct !== null && (
             <span
               className="flex items-center gap-0.5 text-[10px] font-bold shrink-0"
-              style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : "#10B981" }}
+              style={{ color: priceChangeVisual(item).color }}
               title={`${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`}
             >
-              {item.priceUp || item.bigChange ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+              {priceChangeVisual(item).up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
               {priceChangePct}%
             </span>
           )}
@@ -2740,6 +2756,17 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
         {hasPriceDoubt && !item.imported && (
           <div className="flex items-center gap-1 mt-1.5 text-[10px] font-semibold" style={{ color: TIER_COLORS.mid }}>
             <AlertTriangle size={11} className="shrink-0" /> {t("scanPriceDoubtLabel")}
+          </div>
+        )}
+        {/* Un écart de prix de plus de 40% (dans un sens comme dans l'autre) garde la ligne hors de
+            "Importer ces lignes" — sans cette note, une grosse BAISSE affichée en vert donnait
+            l'impression d'une ligne parfaitement normale mise de côté sans raison visible. Le ton
+            reste neutre : ce n'est pas une erreur détectée, juste un écart assez gros pour mériter
+            un coup d'œil (un prix sous-estimé gonfle la marge à tort, exactement comme un prix
+            surestimé la sous-estime). */}
+        {item.bigChange && !hasPriceDoubt && !item.imported && (
+          <div className="flex items-center gap-1 mt-1.5 text-[10px] font-semibold text-white/50">
+            <Info size={11} className="shrink-0" /> {t("scanBigChangeNote")}
           </div>
         )}
       </div>
@@ -2819,12 +2846,12 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
             </div>
           </div>
 
-          {item.currentPrice !== null && item.currentPriceIsReal && (
+          {item.currentPrice !== null && item.currentPriceIsReal && priceChangePct !== null && (
             <div
               className="flex items-center gap-1 text-[10px]"
-              style={{ color: item.bigChange ? TIER_COLORS.low : item.priceUp ? TIER_COLORS.mid : "#10B981" }}
+              style={{ color: priceChangeVisual(item).color }}
             >
-              {item.priceUp || item.bigChange ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+              {priceChangeVisual(item).up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
               {item.priceUp
                 ? `${t("scanPriceIncrease")} (+${priceChangePct}%) : ${item.currentPrice.toFixed(2)}€ → ${(item.unitPriceHT || 0).toFixed(2)}€`
                 : item.priceDown
@@ -3228,6 +3255,18 @@ function AdminDashboard() {
                         >
                           {u.status}
                         </span>
+                        {/* Compte interne (2026-08-26) : nos propres comptes restent listés ici
+                            (utile pour vérifier qu'un correctif marche), mais ne comptent plus dans
+                            aucun chiffre de l'onglet Aperçu — voir INTERNAL_EMAILS côté serveur. */}
+                        {u.internal && (
+                          <span
+                            className="text-[10px] px-2 py-0.5 rounded-full font-medium text-white/50"
+                            style={{ background: "rgba(255,255,255,0.08)" }}
+                            title="Compte interne : exclu des chiffres de l'onglet Aperçu"
+                          >
+                            interne
+                          </span>
+                        )}
                         {/* Email jamais confirmé (2026-08-25) : signal le plus important après un
                             incident de mails partis en spam — ce compte est peut-être bloqué à la
                             porte d'entrée sans jamais avoir pu utiliser l'app une seule fois. */}
@@ -3335,6 +3374,19 @@ function AdminDashboard() {
               <option value={30}>30 jours</option>
               <option value={90}>90 jours</option>
             </select>
+          </div>
+
+          {/* Rappel honnête sur ce que ces chiffres excluent réellement (2026-08-26). Les scans,
+              comptes, essais et abonnés sont rattachés à un compte : nos comptes internes en sont
+              donc retirés proprement. Les visites et clics de la page d'accueil, eux, sont
+              anonymes par conception (aucune donnée personnelle enregistrée) — impossible de savoir
+              après coup qu'une visite venait de nous. Le seul moyen reste `?notrack=1`, désormais
+              mémorisé durablement sur l'appareil dès la première utilisation (voir Landing.jsx). */}
+          <div className="text-white/35 text-[11px] mb-3 leading-relaxed">
+            Scans, comptes, essais et abonnés : nos comptes internes sont exclus.
+            <br />
+            Visites et clics : anonymes, donc non rattachables — ouvre le site avec{" "}
+            <span className="text-white/55">?notrack=1</span> une fois par appareil pour ne plus jamais y figurer.
           </div>
 
           {/* Mail de déblocage groupé (2026-08-25) : pour les comptes déjà inscrits mais jamais
@@ -4340,19 +4392,57 @@ export default function App() {
   // Mémoire des rapprochements déjà validés par l'utilisateur lors d'un scan précédent :
   // si ce texte brut de facture a déjà été relié à un ingrédient, on lui fait confiance
   // directement, sans repasser par le score de similarité ni la vérification manuelle.
-  const findMappedIngredientId = (rawLabel) => {
-    const key = normalizeStr(rawLabel);
-    if (!key) return null;
-    const found = supplierMappings.find((m) => m.key === key);
-    if (!found) return null;
-    // L'ingrédient appris a pu être supprimé depuis : dans ce cas on oublie l'association.
-    return ingredients.some((i) => i.id === found.ingredientId) ? found.ingredientId : null;
+  // [BUG confirmé et corrigé, 2026-08-26] La mémoire des rapprochements était morte depuis que le
+  // prompt exige que `rawLabel` recolle TOUTES les colonnes de la ligne (2026-07-31) : la clé
+  // contenait donc la quantité et les prix de CETTE facture-là, qui changent forcément d'un mois
+  // sur l'autre. Mesuré au banc de test sur 3 produits identiques à deux factures d'écart : 0/3
+  // clés retrouvées. Conséquence concrète : chaque nouvelle facture reposait au chef exactement les
+  // mêmes questions de rapprochement qu'il avait déjà validées le mois d'avant — c'est la source
+  // principale des "alertes de vérification pas nécessaires" qu'il a signalées.
+  //
+  // On mémorise désormais TROIS clés pour un même import, essayées de la plus précise à la plus
+  // large : le texte brut exact (comme avant, retrouve une ligne strictement identique), le texte
+  // brut débarrassé des nombres isolés (survit à un changement de quantité/prix : "entrecote vbf
+  // 4 12 kg 16 00 65 92" devient "entrecote vbf kg"), et le nom nettoyé par l'IA (retrouve le
+  // produit même si le fournisseur change sa mise en page). Les chiffres collés à une unité
+  // ("1kg", "75cl", "100g") ne sont jamais retirés : ils font partie de l'identité du produit.
+  const rawMappingKey = (rawLabel) => normalizeStr(lightRawLabel(rawLabel));
+
+  const stableMappingKey = (rawLabel) => {
+    const words = rawMappingKey(rawLabel)
+      .split(" ")
+      .filter((w) => w && !/^\d+$/.test(w));
+    const key = words.join(" ");
+    // Garde-fou anti-collision : une clé trop courte (un ou deux mots génériques) pourrait
+    // rapprocher à tort deux produits différents, et ce rapprochement serait marqué "confiant"
+    // donc importé sans vérification. On préfère ne rien mémoriser dans ce cas.
+    return words.length >= 2 && key.length >= 8 ? key : null;
   };
 
-  const rememberSupplierMapping = (rawLabel, ingredientId) => {
-    const key = normalizeStr(rawLabel);
-    if (!key || !ingredientId) return;
-    setSupplierMappings((maps) => [...maps.filter((m) => m.key !== key), { key, rawLabel, ingredientId, updatedAt: today() }]);
+  const nameMappingKey = (name) => {
+    const key = normalizeStr(name);
+    return key && key.length >= 4 ? `name:${key}` : null;
+  };
+
+  const findMappedIngredientId = (rawLabel, name) => {
+    const keys = [rawMappingKey(rawLabel), stableMappingKey(rawLabel), nameMappingKey(name)].filter(Boolean);
+    for (const key of keys) {
+      const found = supplierMappings.find((m) => m.key === key);
+      // L'ingrédient appris a pu être supprimé depuis : dans ce cas on ignore cette association
+      // et on continue avec les clés suivantes.
+      if (found && ingredients.some((i) => i.id === found.ingredientId)) return found.ingredientId;
+    }
+    return null;
+  };
+
+  const rememberSupplierMapping = (rawLabel, name, ingredientId) => {
+    if (!ingredientId) return;
+    const keys = [rawMappingKey(rawLabel), stableMappingKey(rawLabel), nameMappingKey(name)].filter(Boolean);
+    if (!keys.length) return;
+    setSupplierMappings((maps) => [
+      ...maps.filter((m) => !keys.includes(m.key)),
+      ...keys.map((key) => ({ key, rawLabel, ingredientId, updatedAt: today() })),
+    ]);
   };
 
   // Redimensionne ET compresse une photo avant envoi à l'IA. Passe par createImageBitmap avec
@@ -4561,12 +4651,29 @@ export default function App() {
   // IMPORTANT : ce filet dépend entièrement de `rawLabel` contenant bien le texte de conditionnement
   // (voir prompt `api/scan-invoice.js`, champ rawLabel) — si l'IA ne recopie que la colonne
   // désignation sans la colonne format/conditionnement, ce filet ne peut rien détecter.
-  const extractDeterministicContent = (text, contentUnit) => {
+  // [BUG confirmé et corrigé, 2026-08-26] Un motif "1L X12" ne veut PAS toujours dire "un colis
+  // qui contient 12 fois 1L" : très souvent c'est "12 briques de 1L achetées", donc 12 est le
+  // NOMBRE DE PIÈCES ACHETÉES (packageCount), pas un multiplicateur de conditionnement. Le filet
+  // écrasait alors la bonne valeur de l'IA (1L) par 12L, divisant le prix final par 12 EN SILENCE
+  // (trouvé au banc de test : "CREME LIQUIDE BRIQUE 1L X12" à 2,10€/pièce importée à 0,175€/L).
+  // Discriminant fiable : quand le multiplicateur lu dans le texte est EXACTEMENT le packageCount
+  // renvoyé par l'IA, c'est un nombre de pièces achetées, pas un multipack — on rend alors la main
+  // à l'IA (qui, elle, a vu la mise en page complète et applique la règle du prompt sur ce cas
+  // précis). Quand les deux nombres diffèrent (ex: "BURRATA 100G X8" avec 3 colis achetés), c'est
+  // bien un multipack et le filet garde la priorité comme avant.
+  const isPurchaseCountNotMultipack = (count, opts) =>
+    !!opts &&
+    opts.packageCount > 0 &&
+    opts.aiContent > 0 &&
+    Math.abs(count - opts.packageCount) < 0.001;
+
+  const extractDeterministicContent = (text, contentUnit, opts) => {
     if (!text || (contentUnit !== "kg" && contentUnit !== "L")) return null;
     if (contentUnit === "L") {
       const multipack = text.match(/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(cl|ml|l)\b/i);
       if (multipack) {
         const count = parseInt(multipack[1], 10);
+        if (isPurchaseCountNotMultipack(count, opts)) return null;
         const size = parseFloat(multipack[2].replace(",", "."));
         const u = multipack[3].toLowerCase();
         const perUnitL = u === "cl" ? size / 100 : u === "ml" ? size / 1000 : size;
@@ -4578,6 +4685,7 @@ export default function App() {
         const size = parseFloat(multipackRev[1].replace(",", "."));
         const u = multipackRev[2].toLowerCase();
         const count = parseInt(multipackRev[3], 10);
+        if (isPurchaseCountNotMultipack(count, opts)) return null;
         const perUnitL = u === "cl" ? size / 100 : u === "ml" ? size / 1000 : size;
         return Math.round(count * perUnitL * 1000) / 1000;
       }
@@ -4593,6 +4701,7 @@ export default function App() {
       if (multipackG) {
         const count = parseInt(multipackG[1], 10);
         const sizeG = parseFloat(multipackG[2].replace(",", "."));
+        if (isPurchaseCountNotMultipack(count, opts)) return null;
         return Math.round(count * sizeG) / 1000;
       }
       // Même calcul, ordre inversé "GRAMMAGE x COMPTE" (ex: "100G X8" = 8x100g, cas réel Burrata
@@ -4601,6 +4710,7 @@ export default function App() {
       if (multipackGRev) {
         const sizeG = parseFloat(multipackGRev[1].replace(",", "."));
         const count = parseInt(multipackGRev[2], 10);
+        if (isPurchaseCountNotMultipack(count, opts)) return null;
         return Math.round(count * sizeG) / 1000;
       }
       // Même calcul, multipack directement en kg (ex: "4x2.5kg" = 10kg, cas réel "PDT FRITE
@@ -4611,12 +4721,14 @@ export default function App() {
       if (multipackKg) {
         const count = parseInt(multipackKg[1], 10);
         const sizeKg = parseFloat(multipackKg[2].replace(",", "."));
+        if (isPurchaseCountNotMultipack(count, opts)) return null;
         return Math.round(count * sizeKg * 1000) / 1000;
       }
       const multipackKgRev = text.match(/(\d+(?:[.,]\d+)?)\s*kg\s*[x×]\s*(\d+)\b/i);
       if (multipackKgRev) {
         const sizeKg = parseFloat(multipackKgRev[1].replace(",", "."));
         const count = parseInt(multipackKgRev[2], 10);
+        if (isPurchaseCountNotMultipack(count, opts)) return null;
         return Math.round(sizeKg * count * 1000) / 1000;
       }
       const kgMatch = text.match(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
@@ -4638,8 +4750,11 @@ export default function App() {
     }
 
     const packageContentUnit = it.packageContentUnit || "pièce";
-    const deterministicContent = extractDeterministicContent(it.rawLabel || it.name || "", packageContentUnit);
     const packageCount = it.packageCount && it.packageCount > 0 ? it.packageCount : 1;
+    const deterministicContent = extractDeterministicContent(it.rawLabel || it.name || "", packageContentUnit, {
+      packageCount: it.packageCount,
+      aiContent: it.packageContent,
+    });
 
     // Piège "N PCE sans poids" pour un produit weighable (ex: "Noix de Saint-Jacques — 3 PCE —
     // 27,00€" sans aucun poids indiqué) : des tests réels ont montré que l'IA recopie parfois
@@ -4678,38 +4793,47 @@ export default function App() {
       // titre" avec "le prix affiché est déjà normalisé au litre/kilo". Sans ce recoupement, rien
       // ne détectait l'erreur : le garde-fou priceInconsistent plus bas est justement désactivé
       // pour cette branche (packageContent n'entre normalement pour rien dans un prix déjà au
-      // kg/L). On compare ici les deux hypothèses possibles au total imprimé.
+      // kg/L). On recoupe donc ici avec la quantité déduite du total imprimé.
       if (deterministicContent && printedPrice > 0 && it.totalPriceHT > 0) {
-        const printedTotalCheck = it.totalPriceHT;
-        const totalIfAlreadyNormalized = packageCount * deterministicContent * printedPrice;
-        const totalIfActuallyPerPiece = packageCount * printedPrice;
-        const diffNormalized = Math.abs(totalIfAlreadyNormalized - printedTotalCheck) / printedTotalCheck;
-        const diffPerPiece = Math.abs(totalIfActuallyPerPiece - printedTotalCheck) / printedTotalCheck;
-        if (diffPerPiece < 0.05 && diffNormalized > 0.15) {
-          // Le total imprimé ne colle qu'à l'hypothèse "prix par pièce/bouteille" : la
-          // classification de l'IA était fausse, on la corrige nous-mêmes.
-          finalUnit = printedUnit;
-          finalUnitPrice = Math.round((printedPrice / deterministicContent) * 10000) / 10000;
-        } else if (diffNormalized <= 0.15) {
-          // Tout colle : le prix imprimé, déjà au kg/L selon l'IA, est cohérent avec le total.
+        // [REFONTE 2026-08-26] L'ancien contrôle comparait le total imprimé à deux hypothèses
+        // construites à partir de packageCount — un champ que l'IA remplit de façon peu fiable
+        // sur les lignes vendues au poids (elle y met souvent le POIDS de la colonne quantité, pas
+        // un nombre de colis). Deux conséquences mesurées au banc de test : (1) fausse alerte
+        // systématique sur les lignes "N pièces + poids total" (ex: "FILET POULET 3 PCE 2,5 KG à
+        // 9,80/kg", "POULET ENTIER 6 PCE 9,84 KG") pourtant parfaitement calculées — cas très
+        // fréquent en boucherie/marée ; (2) pire, une "correction" appliquée à tort quand le poids
+        // se retrouvait aussi dans packageCount, divisant le prix par le poids EN SILENCE
+        // ("ENTRECOTE 4,12 KG à 16,00€/kg" importée à 3,88€/kg).
+        //
+        // Nouveau raisonnement, bien plus robuste : quand un prix est réellement au kg/L, la
+        // QUANTITÉ TOTALE de la ligne se déduit directement de deux chiffres indépendants et
+        // fiables (total ÷ prix unitaire), sans jamais passer par packageCount. On la compare
+        // ensuite aux lectures possibles du texte.
+        const impliedQty = it.totalPriceHT / printedPrice;
+        const close = (a, b) => a > 0 && b > 0 && Math.abs(a - b) / Math.max(a, b) <= 0.05;
+        const contentEqualsCount = Math.abs(deterministicContent - packageCount) < 0.001;
+        if (close(impliedQty, deterministicContent) || (!contentEqualsCount && close(impliedQty, packageCount * deterministicContent))) {
+          // La quantité déduite correspond au poids/volume lu sur la ligne (seul, ou multiplié par
+          // le nombre de colis) : le prix imprimé est bien un prix au kg/L, rien à corriger.
+          // `contentEqualsCount` neutralise l'hypothèse "N colis de C" quand les deux nombres sont
+          // en réalité le même chiffre lu deux fois (double comptage), sinon elle valide n'importe
+          // quoi — c'est ce qui masquait le cas "l'IA divise deux fois" ci-dessous.
           finalUnit = printedUnit;
           finalUnitPrice = printedPrice;
+        } else if (close(impliedQty, packageCount) && !contentEqualsCount) {
+          // La quantité déduite correspond au NOMBRE de pièces achetées, pas à un poids : le prix
+          // imprimé est en fait un prix par pièce/bouteille mal classé par l'IA (cas réel du vin
+          // Château Virant, 3,11€/bouteille de 75cl ressorti tel quel en 3,11€/L). On le ramène
+          // nous-mêmes au litre/kilo via la contenance lue dans le texte.
+          finalUnit = printedUnit;
+          finalUnitPrice = Math.round((printedPrice / deterministicContent) * 10000) / 10000;
         } else {
-          // [BUG confirmé, 2026-08-25] Ni l'une ni l'autre hypothèse ne colle au total imprimé.
-          // Une première version de ce correctif faisait alors confiance à l'IA EN SILENCE (cas
-          // NUGGETS, voir plus bas) — mais un test réel a montré que l'IA peut aussi, pour une
-          // ligne toute simple "5kg à 16€/kg = 80€", recalculer elle-même printedUnitPriceHT en
-          // divisant le total par la quantité (80÷5=16 devient à tort 3,20=16÷5, une deuxième
-          // division en trop) au lieu de recopier le chiffre déjà imprimé — silencieusement, sans
-          // qu'aucune des deux hypothèses testées ci-dessus ne le détecte, puisque deterministicContent
-          // (5, la quantité, correctement extraite) ne correspond ni à "déjà normalisé" ni à "par
-          // pièce" une fois combiné à un prix DÉJÀ FAUX. Un prix erroné qui ne colle à AUCUNE
-          // hypothèse plausible est exactement le signal qu'un humain doit vérifier — le faire
-          // confiance en silence dans ce cas précis a laissé passer un prix divisé par 5 sans la
-          // moindre alerte. Coût pour le cas NUGGETS (chiffre extrait sans rapport avec le
-          // conditionnement, ex: "22G" = poids d'un seul nugget) : cette ligne part maintenant en
-          // vérification au lieu d'être importée directement — un clic de plus, largement
-          // préférable à un prix faux importé sans avertissement.
+          // [BUG confirmé, 2026-08-25] Aucune lecture plausible ne colle : la quantité déduite du
+          // total ne correspond ni au poids lu, ni au nombre de pièces. C'est exactement la
+          // signature du cas où l'IA a recalculé elle-même le prix unitaire en divisant une
+          // deuxième fois de trop ("BŒUF 5 KG à 16,00€/kg = 80,00€" renvoyé à 3,20€/kg) — un prix
+          // divisé par 5 qui passait auparavant sans la moindre alerte. On garde le prix imprimé
+          // mais on force une vérification humaine plutôt que d'importer un chiffre invérifiable.
           finalUnit = printedUnit;
           finalUnitPrice = printedPrice;
           kgLPriceMismatch = true;
@@ -5022,7 +5146,7 @@ export default function App() {
 
         // Priorité à un rapprochement déjà validé manuellement lors d'un scan précédent pour
         // ce même texte brut fournisseur : on lui fait confiance sans repasser par le score.
-        const learnedId = findMappedIngredientId(merged.rawLabel);
+        const learnedId = findMappedIngredientId(merged.rawLabel, merged.name);
         const match = learnedId ? { id: learnedId, confident: true } : guessIngredientId(merged.name);
         const matchedId = match ? match.id : null;
         const matchedIng = matchedId ? ingredientById(matchedId) : null;
@@ -5255,7 +5379,7 @@ export default function App() {
     }
     // L'utilisateur vient de valider (ou corriger) ce rapprochement : on le retient pour que
     // ce même texte brut fournisseur soit reconnu automatiquement lors d'un prochain scan.
-    rememberSupplierMapping(item.rawLabel, resultingIngredientId);
+    rememberSupplierMapping(item.rawLabel, item.name, resultingIngredientId);
     updateScanItem(idx, { ...override, imported: true });
   };
 
@@ -6658,9 +6782,9 @@ export default function App() {
                                   {current.item.currentPrice !== null && current.item.currentPriceIsReal && current.item.priceComparisonValid !== false && (
                                     <div
                                       className="flex items-center gap-1 text-[11px] font-bold mt-1.5"
-                                      style={{ color: current.item.bigChange ? TIER_COLORS.low : current.item.priceUp ? TIER_COLORS.mid : "#10B981" }}
+                                      style={{ color: priceChangeVisual(current.item).color }}
                                     >
-                                      {current.item.priceUp || current.item.bigChange ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                                      {priceChangeVisual(current.item).up ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                                       {Math.round((Math.abs((current.item.unitPriceHT || 0) - current.item.currentPrice) / current.item.currentPrice) * 100)}%
                                       <span className="text-white/35 font-normal">
                                         ({current.item.currentPrice.toFixed(2)}€ → {(current.item.unitPriceHT || 0).toFixed(2)}€)
@@ -6706,6 +6830,15 @@ export default function App() {
                                   {current.item.unitChangeAffectsRecipes && (
                                     <div className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1.5 mt-3" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
                                       <AlertTriangle size={11} className="shrink-0" /> {t("scanUnitChangeWarning")(current.item.previousUnit, current.item.unit)}
+                                    </div>
+                                  )}
+
+                                  {/* Ton neutre volontaire (pas d'orange d'alerte) : un gros écart de
+                                      prix n'est pas une erreur détectée, juste un écart qui mérite un
+                                      coup d'œil — voir la même note dans ScanItemCard. */}
+                                  {current.item.bigChange && !current.item.priceInconsistent && !current.item.lowConfidence && (
+                                    <div className="flex items-center gap-1.5 text-[11px] rounded px-2 py-1.5 mt-3 text-white/55" style={{ background: "rgba(255,255,255,0.06)" }}>
+                                      <Info size={11} className="shrink-0" /> {t("scanBigChangeNote")}
                                     </div>
                                   )}
 
