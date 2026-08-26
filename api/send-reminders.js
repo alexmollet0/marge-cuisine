@@ -99,8 +99,11 @@ const EMAIL_COPY = {
     inactivitySubject: "Ça fait un moment... 👋",
     inactivityBody:
       `<p>Ça fait plus de 3 semaines que tu n'as pas scanné de facture sur Chefup. Un petit scan aujourd'hui garde tes marges à jour.</p>`,
-    marginSubject: "Des recettes sous ton objectif de marge",
-    marginIntro: "Ces recettes sont actuellement sous ton objectif de marge :",
+    marginSubject: "À vérifier : marge sous l'objectif",
+    marginIntro: "En regardant tes chiffres, ces recettes sont repassées sous l'objectif de marge que tu t'es fixé :",
+    marginOutro:
+      "Souvent, ça se corrige vite : un prix de vente à ajuster de quelques centimes, ou un fournisseur qui a discrètement augmenté ses tarifs sans que tu l'aies remarqué. Deux minutes dans Chefup pour vérifier peuvent suffire à les faire repasser dans le vert.",
+    marginCta: "Vérifier mes marges",
     trialEndedSubject: "Ton essai gratuit est terminé",
     trialEndedBody:
       `<p>Ton essai gratuit de 7 jours sur Chefup est terminé. Abonne-toi pour continuer à garder un œil sur tes marges, ton garde-manger et tes fiches recettes — rien n'a été perdu, tout t'attend.</p>`,
@@ -118,8 +121,11 @@ const EMAIL_COPY = {
     inactivitySubject: "Hace tiempo que no te vemos... 👋",
     inactivityBody:
       `<p>Hace más de 3 semanas que no escaneas ninguna factura en Chefup. Un escaneo rápido hoy mantiene tus márgenes al día.</p>`,
-    marginSubject: "Recetas por debajo de tu margen objetivo",
-    marginIntro: "Estas recetas están actualmente por debajo de tu margen objetivo:",
+    marginSubject: "A revisar: margen por debajo del objetivo",
+    marginIntro: "Al revisar tus números, estas recetas han vuelto a caer por debajo de tu margen objetivo:",
+    marginOutro:
+      "Muchas veces se arregla rápido: un precio de venta a ajustar unos céntimos, o un proveedor que ha subido precios sin que te dieras cuenta. Dos minutos en Chefup para revisarlo pueden bastar para volver al verde.",
+    marginCta: "Revisar mis márgenes",
     trialEndedSubject: "Tu prueba gratuita ha terminado",
     trialEndedBody:
       `<p>Tu prueba gratuita de 7 días en Chefup ha terminado. Suscríbete para seguir controlando tus márgenes, tu almacén y tus fichas de recetas — no se ha perdido nada, todo te espera.</p>`,
@@ -137,8 +143,11 @@ const EMAIL_COPY = {
     inactivitySubject: "It's been a while... 👋",
     inactivityBody:
       `<p>It's been over 3 weeks since you last scanned an invoice on Chefup. A quick scan today keeps your margins up to date.</p>`,
-    marginSubject: "Recipes below your target margin",
-    marginIntro: "These recipes are currently below your target margin:",
+    marginSubject: "To check: margin below target",
+    marginIntro: "Looking at your numbers, these recipes have dropped back below your target margin:",
+    marginOutro:
+      "It's often a quick fix: a selling price to nudge by a few cents, or a supplier who quietly raised their prices without you noticing. Two minutes in Chefup to check can be enough to get them back in the green.",
+    marginCta: "Check my margins",
     trialEndedSubject: "Your free trial has ended",
     trialEndedBody:
       `<p>Your 7-day free trial on Chefup has ended. Subscribe to keep an eye on your margins, pantry and recipe sheets — nothing was lost, it's all waiting for you.</p>`,
@@ -313,7 +322,10 @@ export default async function handler(req, res) {
           margin: recipeMarginPercent(r, ingredientsById, settings.vat),
           target: r.targetMargin ?? minMargin,
         }));
-        const belowTarget = allMargins.filter((r) => r.margin !== null && r.margin < r.target);
+        // Comparaison sur la valeur ARRONDIE, comme marginTier côté app (src/App.jsx) — sinon un
+        // 74,84% affiché "75%" (vert) à l'écran déclenchait quand même l'alerte email, incohérent
+        // avec ce que le restaurateur voit réellement (bug confirmé le 2026-08-26).
+        const belowTarget = allMargins.filter((r) => r.margin !== null && Math.round(r.margin) < r.target);
 
         // Série de lectures consécutives sous l'objectif, par recette — remise à zéro dès qu'une
         // recette repasse au-dessus (donc une seule série continue compte, pas un cumul global).
@@ -342,8 +354,8 @@ export default async function handler(req, res) {
           actions.push(`margin_digest: ${confirmedBelow.map((r) => `${r.name} (${Math.round(r.margin)}%)`).join(", ")}`);
           if (!dryRun) {
             const list = confirmedBelow.map((r) => `<li>${r.name} — ${Math.round(r.margin)}%</li>`).join("");
-            const body = `<p>${copy.marginIntro}</p><ul>${list}</ul>`;
-            await sendEmail(email, copy.marginSubject, wrapEmailHtml(body, copy.cta, copy.settingsHint));
+            const body = `<p>${copy.marginIntro}</p><ul>${list}</ul><p>${copy.marginOutro}</p>`;
+            await sendEmail(email, copy.marginSubject, wrapEmailHtml(body, copy.marginCta, copy.settingsHint));
           }
           nextState.marginDigestLastSentAt = now.toISOString();
         }
