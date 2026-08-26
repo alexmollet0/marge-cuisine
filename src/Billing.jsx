@@ -45,15 +45,31 @@ export default function SubscriptionGate({ children }) {
     // Offre de lancement (2026-08-26) : seul le serveur peut dire si ce compte détient encore une
     // des 50 places (ça dépend des autres comptes, jamais visible côté client). Best-effort — si
     // l'appel échoue, l'app se comporte exactement comme avant l'offre, sans jamais bloquer.
+    // Le même appel indique aussi si le compte est interne (voir INTERNAL_EMAILS, api/_lib.js).
     let founder = false;
+    let internal = false;
     try {
       const res = await fetch("/api/create-checkout-session", {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      if (res.ok) founder = !!(await res.json()).founder;
+      if (res.ok) {
+        const info = await res.json();
+        founder = !!info.founder;
+        internal = !!info.internal;
+      }
     } catch (e) {}
 
-    setStatus({ active, inTrial: left > 0, trialDaysLeft: left, founder });
+    // Comptes internes (2026-08-26) : accès permanent, jamais de paywall ni de bandeau d'essai.
+    // Sans ça, le fondateur se retrouvait enfermé hors de sa propre application dès qu'un test de
+    // paiement se terminait — et le tableau de bord admin, seul endroit d'où réinitialiser un
+    // essai, se trouve JUSTEMENT derrière ce paywall. La seule issue était alors d'aller écrire à
+    // la main dans Supabase.
+    // ⚠️ La décision vient du SERVEUR (email comparé à INTERNAL_EMAILS côté API, jamais côté
+    // client) et n'est volontairement PAS mise en cache dans le navigateur : un drapeau
+    // "je suis interne" stocké localement serait modifiable par n'importe qui pour contourner
+    // l'abonnement. En contrepartie, si cet appel échoue, le paywall réapparaît — c'est le repli
+    // sûr, jamais l'inverse.
+    setStatus({ active: active || internal, inTrial: left > 0, trialDaysLeft: left, founder, internal });
   }, []);
 
   useEffect(() => {

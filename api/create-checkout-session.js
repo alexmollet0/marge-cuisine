@@ -1,4 +1,4 @@
-import { getStripe, getSupabaseAdmin, requireUser, getFoundingState, TRIAL_DAYS } from "./_lib.js";
+import { getStripe, getSupabaseAdmin, requireUser, getFoundingState, isInternalEmail, TRIAL_DAYS } from "./_lib.js";
 
 // Deux rôles dans un seul fichier — le plan Hobby Vercel plafonne à 12 fonctions serverless et ce
 // projet y est exactement (voir CLAUDE.md) : aucun nouvel endpoint possible sans en fusionner un.
@@ -54,6 +54,10 @@ export default async function handler(req, res) {
     );
     return res.status(200).json({
       founder: isFounder,
+      // Comptes internes (2026-08-26) : accès permanent à l'app, jamais de paywall. Décidé ici,
+      // côté serveur, à partir de l'email vérifié du token — jamais d'un drapeau envoyé par le
+      // client, qui serait trivial à falsifier pour obtenir un abonnement gratuit.
+      internal: isInternalEmail(user.email),
       spotsRemaining: founding.remaining,
       spotsTotal: founding.total,
       trialDaysLeft,
