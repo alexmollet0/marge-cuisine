@@ -138,28 +138,10 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
         </div>
         {LangSwitcher}
 
-        {/* Bandeau d'offre de lancement (2026-08-26), tout en haut : c'est la première chose que
-            voit un visiteur venu d'une publicité, et le compteur de places est ce qui donne une
-            raison d'agir maintenant plutôt que "plus tard". Le chiffre est réel (recalculé côté
-            serveur, voir api/_lib.js) — pas un faux compte à rebours. */}
-        {launchOfferOpen && (
-          <div className="max-w-xl mx-auto mt-6 text-center">
-            <div
-              className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full px-4 py-1.5 border"
-              style={{ borderColor: `${BRAND_SOLID}66`, background: `${BRAND_SOLID}1A` }}
-            >
-              <span className="font-display uppercase text-[10px] tracking-wide" style={{ color: BRAND_SOLID }}>
-                {t("launchBadge")}
-              </span>
-              <span className="text-white/85 text-xs font-semibold">
-                {t("launchFounderPrice")(PRICING.founding, PRICING.standard)}
-              </span>
-              {typeof spots === "number" && (
-                <span className="text-white/50 text-xs">· {t("launchSpotsLeft")(spots)}</span>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Pas de pastille d'offre au-dessus du titre (2026-08-26) : l'encart mis en avant juste
+            sous les boutons est déjà visible sans défiler sur un écran de téléphone, donc annoncer
+            "OFFRE DE LANCEMENT" une première fois ici ne faisait que répéter le même texte deux
+            fois sur le même écran. Un seul bloc fort vaut mieux que deux mentions tièdes. */}
 
         <div className="text-center max-w-xl mx-auto mt-6 mb-10">
           <h2 className="font-display text-white text-2xl sm:text-3xl tracking-wide leading-snug mb-4">
@@ -184,6 +166,35 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
             </button>
           </div>
           <p className="text-emerald-400/90 text-xs font-semibold mt-3">{t("landingPricingTrial")}</p>
+
+          {/* Encart d'offre de lancement mis en avant (2026-08-26, demandé par l'utilisateur avant
+              sa campagne TikTok) : placé JUSTE APRÈS les boutons, donc lu au moment exact où le
+              visiteur hésite. Volontairement plus voyant que le reste de la page (bordure de marque
+              épaisse, prix en très gros, places restantes en couleur d'accent) — c'est le seul
+              élément de la page qui donne une raison d'agir maintenant plutôt que plus tard. */}
+          {launchOfferOpen && (
+            <div
+              className="max-w-md mx-auto mt-6 rounded-2xl border-2 px-5 py-4"
+              style={{ borderColor: BRAND_SOLID, background: `${BRAND_SOLID}14` }}
+            >
+              <div className="font-display uppercase text-[11px] tracking-widest mb-2" style={{ color: BRAND_SOLID }}>
+                {t("launchBadge")}
+              </div>
+              <div className="flex items-end justify-center gap-2 flex-wrap">
+                <span className="text-white/35 text-xl line-through">{money(PRICING.standard)}</span>
+                <span className="text-white font-display text-5xl leading-none">{money(PRICING.founding)}</span>
+                <span className="text-white/60 text-sm mb-1">{t("landingPricingPerMonth")}</span>
+              </div>
+              <div className="font-display uppercase text-sm tracking-wide mt-2" style={{ color: BRAND_SOLID }}>
+                {t("launchForLife")}
+              </div>
+              {typeof spots === "number" && (
+                <div className="text-white text-sm font-bold mt-3">{t("launchSpotsLeft")(spots)}</div>
+              )}
+              <p className="text-white/50 text-[11px] mt-2 leading-relaxed">{t("launchCondition")}</p>
+            </div>
+          )}
+
           <p className="text-white/40 text-xs italic mt-5 max-w-md mx-auto">{t("billingFounderStory")}</p>
         </div>
 
