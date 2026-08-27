@@ -7,7 +7,7 @@
 // ⚠️ Ce projet est au plafond du plan Hobby Vercel (12 fonctions serverless par déploiement,
 // _lib.js exclu) avec ce fichier. Avant d'ajouter un nouvel endpoint : fusionner avec un fichier
 // existant proche, voir la note dans CLAUDE.md ("Fichiers clés").
-import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml, isInternalEmail } from "./_lib.js";
+import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml, isInternalEmail, landingEventsSummary } from "./_lib.js";
 
 const ADMIN_EMAIL = "alexmollet0@gmail.com";
 const TRIAL_DAYS = 7;
@@ -145,20 +145,24 @@ export default async function handler(req, res) {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    const [landingRes, scanRes, subRes, usersRes, activityRes] = await Promise.all([
-      // `source` (2026-08-26) : provenance de la visite (`?src=tiktok` dans le lien d'une campagne).
-      // Colonne ajoutée à la main dans Supabase — si elle manque encore sur un projet non migré, la
-      // requête échoue et on retombe plus bas sur la version sans elle plutôt que de casser tout le
-      // tableau de bord pour une seule colonne.
-      // [BUG confirmé et corrigé, 2026-08-27] Supabase plafonne toute requête à 1000 lignes sans
-      // tri explicite, et l'ordre des lignes retenues n'est alors pas garanti — depuis la campagne
-      // TikTok, `landing_events` dépasse largement 1000 lignes par jour. Signalé par l'utilisateur :
-      // "le compteur de visites ne bouge plus depuis ce matin". Voir api/landing.js pour la mesure
-      // qui a confirmé le problème (days=1 donnait 108 événements récents, days=3 en donnait 0).
-      // Le tri par date décroissante garantit que les événements les PLUS RÉCENTS sont toujours
-      // conservés en cas de troncature, au prix d'un sous-comptage possible des jours plus anciens
-      // dans une fenêtre large (limite connue, une vraie agrégation SQL réglerait ça complètement).
-      supabaseAdmin.from("landing_events").select("event_type, source, created_at").gte("created_at", since).order("created_at", { ascending: false }).limit(10000),
+    // [BUG confirmé et corrigé, 2026-08-27] Supabase plafonne TOUTE requête à 1000 lignes, quelle
+    // que soit la valeur de `.limit(...)` — le tri par date descendante posé la veille ne réglait
+    // que l'ordre des survivants, pas le plafond lui-même. Depuis la campagne TikTok, `landing_events`
+    // dépasse 1000 lignes par jour, donc le début de journée se faisait évincer au fil des nouvelles
+    // visites — exactement le "le compteur ne bouge plus depuis ce matin" remonté par l'utilisateur
+    // (confirmé par calcul : `views+startClicks+loginClicks+engaged+calcUsed` tombait pile à 1000).
+    // Corrigé en sortant l'agrégation vers Postgres (`landingEventsSummary`, api/_lib.js) : la
+    // requête ne renvoie plus que quelques dizaines de lignes déjà sommées par jour/type/provenance,
+    // jamais soumise au plafond quel que soit le volume réel.
+    const landingGroupedPromise = landingEventsSummary(supabaseAdmin, since).catch(async () => {
+      const { data } = await supabaseAdmin
+        .from("landing_events").select("event_type, source, created_at").gte("created_at", since)
+        .order("created_at", { ascending: false }).limit(10000);
+      return (data || []).map((r) => ({ event_type: r.event_type, source: r.source || "direct", day: (r.created_at || "").slice(0, 10), cnt: 1 }));
+    });
+
+    const [landingGrouped, scanRes, subRes, usersRes, activityRes] = await Promise.all([
+      landingGroupedPromise,
       // `user_id` sélectionné en plus (2026-08-26) uniquement pour pouvoir écarter les scans de nos
       // propres comptes des statistiques — voir INTERNAL_EMAILS.
       supabaseAdmin.from("scan_events").select("user_id, created_at").gte("created_at", since),
@@ -171,18 +175,10 @@ export default async function handler(req, res) {
       // du dashboard.
       supabaseAdmin.from("activity_events").select("*").order("created_at", { ascending: false }).limit(200),
     ]);
-    if (landingRes.error) {
-      const retry = await supabaseAdmin
-        .from("landing_events").select("event_type, created_at").gte("created_at", since)
-        .order("created_at", { ascending: false }).limit(10000);
-      if (retry.error) throw landingRes.error;
-      landingRes.data = retry.data;
-    }
     if (scanRes.error) throw scanRes.error;
     if (subRes.error) throw subRes.error;
     if (usersRes.error) throw usersRes.error;
 
-    const landingRows = landingRes.data || [];
     const subByUser = new Map((subRes.data || []).map((s) => [s.user_id, s]));
     const authUsers = usersRes.data?.users || [];
     const emailById = new Map(authUsers.map((u) => [u.id, u.email]));
@@ -213,11 +209,12 @@ export default async function handler(req, res) {
       const k = dayKey(new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString());
       dailyMap[k] = { date: k, views: 0, startClicks: 0, scans: 0 };
     }
-    landingRows.forEach((r) => {
-      const k = dayKey(r.created_at);
+    landingGrouped.forEach((r) => {
+      const k = r.day;
       if (!dailyMap[k]) return;
-      if (r.event_type === "view") dailyMap[k].views++;
-      if (r.event_type === "start_click") dailyMap[k].startClicks++;
+      const n = Number(r.cnt);
+      if (r.event_type === "view") dailyMap[k].views += n;
+      if (r.event_type === "start_click") dailyMap[k].startClicks += n;
     });
     scanRows.forEach((r) => {
       const k = dayKey(r.created_at);
@@ -235,13 +232,14 @@ export default async function handler(req, res) {
       if (!sourceMap[key]) sourceMap[key] = { source: key, views: 0, engaged: 0, calcUsed: 0, startClicks: 0, loginClicks: 0, accounts: 0 };
       return sourceMap[key];
     };
-    for (const r of landingRows) {
+    for (const r of landingGrouped) {
       const s = touchSource(r.source || "direct");
-      if (r.event_type === "view") s.views++;
-      if (r.event_type === "engaged") s.engaged++;
-      if (r.event_type === "calc_used") s.calcUsed++;
-      if (r.event_type === "start_click") s.startClicks++;
-      if (r.event_type === "login_click") s.loginClicks++;
+      const n = Number(r.cnt);
+      if (r.event_type === "view") s.views += n;
+      if (r.event_type === "engaged") s.engaged += n;
+      if (r.event_type === "calc_used") s.calcUsed += n;
+      if (r.event_type === "start_click") s.startClicks += n;
+      if (r.event_type === "login_click") s.loginClicks += n;
     }
     // Comptes créés, rattachés à la campagne qui les a amenés (2026-08-26). La provenance est
     // recopiée dans les métadonnées du compte au moment de l'inscription (voir src/Auth.jsx) :
@@ -293,8 +291,8 @@ export default async function handler(req, res) {
       canceled: clientUsers.filter((u) => u.status === "Annulé").length,
       expiredNoSub: clientUsers.filter((u) => u.status === "Essai expiré").length,
       unconfirmedEmails: clientUsers.filter((u) => !u.emailConfirmed).length,
-      views: landingRows.filter((r) => r.event_type === "view").length,
-      startClicks: landingRows.filter((r) => r.event_type === "start_click").length,
+      views: landingGrouped.filter((r) => r.event_type === "view").reduce((s, r) => s + Number(r.cnt), 0),
+      startClicks: landingGrouped.filter((r) => r.event_type === "start_click").reduce((s, r) => s + Number(r.cnt), 0),
       scans: scanRows.length,
     };
 

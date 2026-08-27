@@ -10,7 +10,7 @@
 //
 // GET (protégé par `ADMIN_SECRET`, `?secret=...&days=30`) : donne le funnel complet — vues,
 // clics, et le nombre de comptes réellement créés sur la période (API admin Supabase Auth).
-import { getSupabaseAdmin, getFoundingState } from "./_lib.js";
+import { getSupabaseAdmin, getFoundingState, landingEventsSummary } from "./_lib.js";
 
 // `engaged` (2026-08-27) : la page est restée visible 3 secondes. Comparé à `view`, c'est ce qui
 // distingue un vrai visiteur d'un simple chargement de page — voir src/Landing.jsx.
@@ -98,52 +98,37 @@ export default async function handler(req, res) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
     try {
-      // [BUG confirmé et corrigé, 2026-08-27] Supabase plafonne toute requête à 1000 lignes par
-      // défaut. Sans tri explicite, quelles lignes survivent à ce plafond n'est PAS garanti — et
-      // depuis la campagne TikTok (884 à 990 vues en une seule journée), `landing_events` dépasse
-      // largement 1000 lignes sur une fenêtre de plusieurs jours. Résultat mesuré : `days=1`
-      // renvoyait 108 événements "engaged", `days=3` (qui contient pourtant ce même jour) en
-      // renvoyait 0 — la troncature avait purement et simplement écarté les événements les plus
-      // récents. C'est très probablement la cause du "compteur figé depuis ce matin" signalé par
-      // l'utilisateur : dès que le volume du jour dépassait 1000 lignes, les événements suivants
-      // n'entraient tout simplement plus dans le décompte.
-      // `.order(..., { ascending: false })` garantit que si troncature il y a, ce sont les lignes
-      // les PLUS RÉCENTES qui sont conservées — le tableau de bord reste à jour même un jour de
-      // forte affluence, au prix d'un sous-comptage possible des jours plus anciens dans une
-      // fenêtre très large (limite connue, pas résolue ici : une vraie somme SQL type `count`
-      // réglerait ça complètement, mais c'est un chantier plus large qu'un simple tri).
-      let { data, error } = await supabaseAdmin
-        .from("landing_events")
-        .select("event_type, source, created_at")
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(10000);
-      if (error) {
-        const retry = await supabaseAdmin
+      // Agrégation SQL (voir landingEventsSummary, api/_lib.js) : immunisée contre le plafond de
+      // 1000 lignes de Supabase, quel que soit le volume d'événements sur la période. En cas
+      // d'échec (fonction RPC pas encore créée côté Supabase), repli sur l'ancienne méthode —
+      // dégradée (toujours soumise au plafond) mais fonctionnelle en attendant.
+      let grouped;
+      try {
+        grouped = await landingEventsSummary(supabaseAdmin, since);
+      } catch (e) {
+        const { data } = await supabaseAdmin
           .from("landing_events")
-          .select("event_type, created_at")
+          .select("event_type, source, created_at")
           .gte("created_at", since)
           .order("created_at", { ascending: false })
           .limit(10000);
-        data = retry.data;
-        error = retry.error;
+        grouped = (data || []).map((r) => ({ event_type: r.event_type, source: r.source || "direct", cnt: 1 }));
       }
-      if (error) throw error;
 
-      const rows = data || [];
-      const countOf = (type) => rows.filter((r) => r.event_type === type).length;
+      const countOf = (type) => grouped.filter((r) => r.event_type === type).reduce((s, r) => s + Number(r.cnt), 0);
 
       // Funnel détaillé par provenance : c'est ce qui dit si une campagne payante convertit
       // réellement, ou si les inscriptions viennent en fait du trafic organique.
       const bySource = {};
-      for (const r of rows) {
+      for (const r of grouped) {
         const key = r.source || "direct";
         if (!bySource[key]) bySource[key] = { views: 0, engaged: 0, calcUsed: 0, startClicks: 0, loginClicks: 0 };
-        if (r.event_type === "view") bySource[key].views++;
-        if (r.event_type === "engaged") bySource[key].engaged++;
-        if (r.event_type === "calc_used") bySource[key].calcUsed++;
-        if (r.event_type === "start_click") bySource[key].startClicks++;
-        if (r.event_type === "login_click") bySource[key].loginClicks++;
+        const n = Number(r.cnt);
+        if (r.event_type === "view") bySource[key].views += n;
+        if (r.event_type === "engaged") bySource[key].engaged += n;
+        if (r.event_type === "calc_used") bySource[key].calcUsed += n;
+        if (r.event_type === "start_click") bySource[key].startClicks += n;
+        if (r.event_type === "login_click") bySource[key].loginClicks += n;
       }
 
       let accountsCreated = null;

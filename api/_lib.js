@@ -123,6 +123,36 @@ export const TRIAL_DAYS = 7;
 export const INTERNAL_EMAILS = ["alexmollet0@gmail.com", "contact.ttra@gmail.com"];
 export const isInternalEmail = (email) => !!email && INTERNAL_EMAILS.includes(email.toLowerCase());
 
+// [BUG confirmé et corrigé, 2026-08-27] `landing_events` ne peut plus être compté en récupérant les
+// lignes brutes puis en comptant côté JS : Supabase plafonne TOUTE requête à 1000 lignes, quelle
+// que soit la valeur passée à `.limit(...)`. Le tri par date décroissante ajouté la veille ne
+// réglait que l'ORDRE des lignes survivantes (les plus récentes) — pas le plafond lui-même. Preuve
+// mesurée le jour même : `views + startClicks + loginClicks + engaged + calcUsed` tombait pile sur
+// 1000 un jour de forte affluence (campagne TikTok), et une insertion de test manuelle apparaissait
+// bien dans `bySource` sans jamais faire bouger le total — un événement plus ancien se faisant
+// silencieusement évincer à chaque nouvelle insertion. Dès qu'une journée dépasse 1000 événements
+// (le cas quasi tous les jours depuis la campagne), le début de journée disparaissait du décompte.
+// Corrigé en sortant l'agrégation de JS pour la confier à Postgres (`GROUP BY`, fonction RPC
+// `landing_events_summary`) : la requête ne renvoie plus que quelques dizaines de lignes DÉJÀ
+// SOMMÉES (une par jour × type d'événement × provenance), jamais les événements un par un — donc
+// plus jamais soumise au plafond de 1000 lignes, quel que soit le volume réel.
+// ⚠️ Fonction à créer une seule fois dans Supabase (SQL Editor) :
+//   create or replace function landing_events_summary(since timestamptz)
+//   returns table(event_type text, source text, day date, cnt bigint)
+//   language sql stable as $$
+//     select event_type, coalesce(source, 'direct') as source, created_at::date as day, count(*) as cnt
+//     from landing_events where created_at >= since
+//     group by event_type, coalesce(source, 'direct'), created_at::date
+//   $$;
+// Tant que cette fonction n'existe pas côté Supabase, l'appel RPC échoue et on retombe sur
+// l'ancienne méthode (lignes brutes + tri + plafond 10000) — dégradée mais fonctionnelle, pour ne
+// jamais casser le tableau de bord le temps que la fonction soit créée.
+export async function landingEventsSummary(supabaseAdmin, sinceISO) {
+  const { data, error } = await supabaseAdmin.rpc("landing_events_summary", { since: sinceISO });
+  if (error) throw error;
+  return data || []; // [{event_type, source, day, cnt}, ...]
+}
+
 const ACTIVE_SUB_STATUSES = ["active", "trialing", "past_due"];
 
 // Calcule qui détient réellement une place fondateur, en parcourant les comptes par date
