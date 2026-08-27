@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Receipt, Percent, Printer, Package, QrCode, Camera } from "lucide-react";
-import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING } from "./App.jsx";
+import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING, TIER_COLORS, marginTier } from "./App.jsx";
 
-// Même vert que TIER_COLORS.high (src/App.jsx, marge "haute") — dupliqué ici plutôt qu'exporté
-// pour ne pas élargir la surface exportée d'App.jsx pour une seule couleur déjà stable.
-const MARGIN_HIGH_COLOR = "#10B981";
+// TVA restauration sur place, valeur par défaut de l'app (settings.vatRate) : le calculateur de
+// démonstration doit donner exactement le même résultat que l'app pour les mêmes chiffres, sinon
+// le visiteur découvre un autre pourcentage une fois inscrit et perd confiance.
+const DEMO_VAT_RATE = 10;
+// Objectif de marge par défaut de l'app — décide du seuil vert/orange (voir marginTier).
+const DEMO_TARGET_MARGIN = 75;
 
 // Fire-and-forget, jamais bloquant pour le visiteur — voir api/landing.js (POST).
 // `?notrack=1` dans l'URL désactive le comptage (2026-08-19) : demandé par l'utilisateur qui
@@ -114,6 +117,99 @@ const STEPS = [
   { icon: Percent, titleKey: "landingStep2Title", descKey: "landingStep2Desc" },
   { icon: QrCode, titleKey: "landingStep3Title", descKey: "landingStep3Desc" },
 ];
+
+// Accepte la virgule comme séparateur décimal : un restaurateur français tape "4,80", pas "4.80".
+const parseAmount = (raw) => {
+  const n = parseFloat(String(raw).replace(",", "."));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
+
+// Champ montant du calculateur. `text` plutôt que `number` : sur mobile, un input number refuse la
+// virgule sur certains claviers et affiche des flèches inutiles. `inputMode="decimal"` fait quand
+// même apparaître le pavé numérique. Taille de police à 16px minimum, sinon iOS zoome au focus et
+// le visiteur se retrouve avec une page à moitié hors écran — abandon quasi garanti.
+function AmountField({ value, onChange, suffix, ariaLabel }) {
+  return (
+    <div className="flex items-center gap-1.5 rounded-lg px-3 py-2.5" style={{ background: "rgba(0,0,0,0.25)" }}>
+      <input
+        type="text"
+        inputMode="decimal"
+        aria-label={ariaLabel}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full min-w-0 bg-transparent text-white text-base font-semibold outline-none text-right"
+      />
+      <span className="text-white/40 text-sm shrink-0">{suffix}</span>
+    </div>
+  );
+}
+
+// [CHANGEMENT MAJEUR, 2026-08-27] Calculateur de marge jouable SANS COMPTE, à la place de
+// l'ancienne reconstitution statique d'une fiche recette.
+// Motif : la première campagne payante a montré que personne ne franchissait l'étape "créer un
+// compte" — or jusqu'ici, on ne pouvait strictement rien voir du produit avant de s'inscrire. La
+// page décrivait une promesse ("connais ta marge") sans jamais la démontrer. Ici le visiteur entre
+// ses propres chiffres et voit SA marge, avec la même couleur et le même calcul que dans l'app :
+// la promesse devient vérifiable en quinze secondes, sans email, sans mot de passe.
+function MarginCalculator({ t, lang, onEngage, onStart }) {
+  const [cost, setCost] = useState("4,80");
+  const [price, setPrice] = useState("21");
+
+  const c = parseAmount(cost);
+  const p = parseAmount(price);
+  const priceHT = p !== null ? p / (1 + DEMO_VAT_RATE / 100) : null;
+  const margin = priceHT !== null && priceHT > 0 && c !== null ? ((priceHT - c) / priceHT) * 100 : null;
+  const tier = marginTier(margin, DEMO_TARGET_MARGIN);
+  const color = tier ? TIER_COLORS[tier] : "rgba(255,255,255,0.3)";
+
+  // Signale une seule fois qu'un visiteur a réellement manipulé le calculateur — c'est le signal
+  // d'intérêt le plus fiable de toute la page, bien plus qu'une visite.
+  const engaged = React.useRef(false);
+  const touch = () => {
+    if (!engaged.current) {
+      engaged.current = true;
+      onEngage();
+    }
+  };
+
+  return (
+    <div className="max-w-sm mx-auto rounded-2xl p-5 border border-white/10 mb-12" style={{ background: "#26221C" }}>
+      <div className="text-center mb-4">
+        <div className="font-display uppercase text-xs tracking-widest text-white/90">{t("calcTitle")}</div>
+        <div className="text-white/40 text-[11px] mt-1">{t("calcSubtitle")}</div>
+      </div>
+
+      <label className="block text-white/50 text-[11px] mb-1">{t("calcCostLabel")}</label>
+      <AmountField value={cost} onChange={(v) => { setCost(v); touch(); }} suffix="€" ariaLabel={t("calcCostLabel")} />
+
+      <label className="block text-white/50 text-[11px] mb-1 mt-3">{t("calcPriceLabel")}</label>
+      <AmountField value={price} onChange={(v) => { setPrice(v); touch(); }} suffix="€" ariaLabel={t("calcPriceLabel")} />
+
+      <div className="mt-5 rounded-xl px-4 py-4 text-center" style={{ background: `${color}18`, border: `1px solid ${color}55` }}>
+        <div className="text-white/45 text-[10px] uppercase tracking-widest">{t("calcResultLabel")}</div>
+        <div className="font-display text-5xl leading-none mt-1" style={{ color }}>
+          {margin === null ? "—" : `${Math.round(margin)}%`}
+        </div>
+        {margin !== null && (
+          <div className="text-[11px] mt-2 font-semibold" style={{ color }}>
+            {t(tier === "high" ? "calcVerdictHigh" : tier === "mid" ? "calcVerdictMid" : "calcVerdictLow")}
+          </div>
+        )}
+      </div>
+
+      <p className="text-white/30 text-[10px] mt-3 text-center leading-relaxed">{t("calcVatNote")(DEMO_VAT_RATE)}</p>
+
+      <button
+        type="button"
+        onClick={onStart}
+        className="w-full mt-4 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold"
+        style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+      >
+        {t("calcCta")}
+      </button>
+    </div>
+  );
+}
 
 // Écran d'accueil public, montré avant le formulaire de connexion tant que
 // personne n'est authentifié (voir AuthGate). Purement présentationnel, ne
@@ -233,34 +329,14 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           <p className="text-white/40 text-xs italic mt-5 max-w-md mx-auto">{t("billingFounderStory")}</p>
         </div>
 
-        {/* Aperçu illustratif (2026-08-19) : pas une vraie capture d'écran (indisponible dans cet
-            environnement), mais une reconstitution simplifiée d'une fiche recette pour donner un
-            avant-goût concret plutôt que de tout décrire en texte — demandé par l'utilisateur pour
-            améliorer la conversion d'un trafic froid (TikTok) qui ne connaît pas encore l'app. */}
-        <div
-          className="max-w-xs mx-auto rounded-2xl p-4 border border-white/10 mb-12"
-          style={{ background: "#26221C" }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-white font-display uppercase text-xs tracking-wide">{t("landingPreviewDish")}</span>
-            <span
-              className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full font-semibold shrink-0"
-              style={{ background: `${MARGIN_HIGH_COLOR}22`, color: MARGIN_HIGH_COLOR }}
-            >
-              75% {t("landingPreviewMarginLabel")}
-            </span>
-          </div>
-          <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between text-white/50">
-              <span>{t("landingPreviewCost")}</span>
-              <span className="text-white/80">4,80 €</span>
-            </div>
-            <div className="flex justify-between text-white/50">
-              <span>{t("landingPreviewPrice")}</span>
-              <span className="text-white/80">21 €</span>
-            </div>
-          </div>
-        </div>
+        {/* Remplace la reconstitution statique d'une fiche recette (2026-08-19 → 2026-08-27) :
+            elle décrivait le produit sans jamais le faire essayer. Voir MarginCalculator. */}
+        <MarginCalculator
+          t={t}
+          lang={lang}
+          onEngage={() => logLandingEvent("calc_used")}
+          onStart={handleStart}
+        />
 
         <div className="mb-12">
           <h2 className="text-center font-display text-white/90 uppercase text-xs tracking-widest mb-6">

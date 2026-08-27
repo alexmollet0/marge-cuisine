@@ -119,6 +119,12 @@ export default function AuthGate({ children }) {
   const [recoveryMode, setRecoveryMode] = useState(false); // arrivée depuis le lien "mot de passe oublié"
   const [showLanding, setShowLanding] = useState(true); // page d'accueil publique, avant le formulaire
   const [mode, setMode] = useState("login"); // "login" | "signup" | "forgot"
+  // [CHANGEMENT 2026-08-27] Inscription en deux temps : on ne montre d'abord QUE le champ email.
+  // Motif : sur mobile, un formulaire qui affiche d'emblée "email + mot de passe (6 caractères
+  // minimum)" à quelqu'un qui n'a encore rien vu du produit se lit comme une corvée, et c'est l'un
+  // des points d'abandon les mieux documentés. Un seul champ visible se lit comme une question.
+  // Le mot de passe reste obligatoire ensuite (voir plus bas pourquoi on ne l'a PAS supprimé).
+  const [signupStep, setSignupStep] = useState("email"); // "email" | "password"
   const [authLang, setAuthLang] = useState(guessAuthLang);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -156,12 +162,25 @@ export default function AuthGate({ children }) {
     setMode(next);
     setErr("");
     setInfo("");
+    setSignupStep("email");
   }
 
   async function submit(e) {
     e.preventDefault();
     setErr("");
     setInfo("");
+    // Première étape de l'inscription : on ne fait AUCUN appel réseau, on révèle simplement le
+    // champ mot de passe. Volontairement tolérant sur la validation (le champ est déjà `type=email`
+    // et `required`) — refuser une adresse ici avec un message d'erreur serait le meilleur moyen de
+    // perdre quelqu'un dès le premier écran.
+    if (mode === "signup" && signupStep === "email") {
+      if (!email.trim()) {
+        setErr("authErrorInvalidEmail");
+        return;
+      }
+      setSignupStep("password");
+      return;
+    }
     setBusy(true);
     try {
       if (mode === "login") {
@@ -236,9 +255,20 @@ export default function AuthGate({ children }) {
     }
     setBusy(true);
     try {
+      // `signInWithOtp` crée le compte s'il n'existe pas encore : ce bouton sert donc aussi bien à
+      // se connecter qu'à s'inscrire sans jamais choisir de mot de passe. On y joint la même
+      // provenance de campagne que l'inscription classique (voir plus haut), sinon une inscription
+      // par lien magique serait comptée comme "direct" et fausserait la mesure de la publicité.
+      let signupSource = null;
+      try {
+        signupSource = sessionStorage.getItem("chefup:src");
+      } catch (e) {}
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: window.location.origin },
+        options: {
+          emailRedirectTo: window.location.origin,
+          ...(signupSource ? { data: { signup_source: signupSource.slice(0, 40) } } : {}),
+        },
       });
       if (error) throw error;
       setInfo("authMagicLinkInfo");
@@ -418,7 +448,12 @@ export default function AuthGate({ children }) {
             placeholder={t("authEmailPlaceholder")}
           />
 
-          {mode !== "forgot" && (
+          {/* Le champ mot de passe reste caché tant que l'inscription est à l'étape "email" —
+              un seul champ visible au premier regard (voir signupStep plus haut). En mode
+              connexion, rien ne change : les deux champs restent affichés ensemble, l'utilisateur
+              connaît déjà son mot de passe et le remplissage automatique du navigateur fait le
+              travail. */}
+          {mode !== "forgot" && !(mode === "signup" && signupStep === "email") && (
             <div className="mb-5">
               <PasswordField
                 label={t("authPasswordLabel")}
@@ -437,10 +472,24 @@ export default function AuthGate({ children }) {
             style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
           >
             {busy && <Loader2 size={14} className="animate-spin" />}
-            {mode === "login" ? t("authLoginButton") : mode === "signup" ? t("authSignupButton") : t("authForgotButton")}
+            {mode === "login"
+              ? t("authLoginButton")
+              : mode === "signup"
+              ? signupStep === "email"
+                ? t("authContinueButton")
+                : t("authSignupButton")
+              : t("authForgotButton")}
           </button>
 
-          {mode === "login" && (
+          {/* Lien magique proposé aussi à l'INSCRIPTION depuis 2026-08-27, pas seulement à la
+              connexion : `signInWithOtp` crée le compte s'il n'existe pas, c'est donc une vraie
+              inscription sans aucun mot de passe à inventer.
+              ⚠️ Volontairement gardé en second choix, PAS en chemin principal : il remplace un mot
+              de passe par un aller-retour vers la boîte mail — dépendance totale à la délivrabilité
+              (3 inscriptions ont déjà été perdues dans les spams sur ce projet), et dans le
+              navigateur intégré d'un réseau social, le lien ouvre un AUTRE navigateur, ce qui perd
+              l'utilisateur en route. L'inscription par mot de passe, elle, est immédiate. */}
+          {(mode === "login" || (mode === "signup" && signupStep === "password")) && (
             <>
               <div className="flex items-center gap-3 my-4">
                 <div className="h-px flex-1 bg-white/10" />
@@ -453,7 +502,7 @@ export default function AuthGate({ children }) {
                 onClick={sendMagicLink}
                 className="w-full py-2.5 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/5 disabled:opacity-60"
               >
-                {t("authMagicLinkButton")}
+                {mode === "signup" ? t("authMagicLinkSignupButton") : t("authMagicLinkButton")}
               </button>
             </>
           )}

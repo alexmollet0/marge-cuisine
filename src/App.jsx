@@ -794,6 +794,7 @@ export const TR = {
     authForgotLink: "Mot de passe oublié ?", authSwitchToSignup: "Pas encore de compte ? Créer un compte", authSwitchToLogin: "Déjà un compte ? Se connecter", authBackToLogin: "Retour à la connexion",
     authSignupSuccessInfo: "Compte créé ! Vérifie ta boîte mail pour confirmer ton adresse (regarde aussi tes spams/courriers indésirables), puis connecte-toi.",
     authForgotSuccessInfo: "Si un compte existe avec cet email, un lien de réinitialisation vient d'être envoyé.",
+    authContinueButton: "Continuer", authMagicLinkSignupButton: "M'inscrire sans mot de passe",
     authMagicLinkButton: "Recevoir un lien de connexion par email", authMagicLinkInfo: "Un lien de connexion vient d'être envoyé par email — clique dessus pour te connecter directement, sans mot de passe.",
     authOrDivider: "ou",
     authErrorInvalidCredentials: "Email ou mot de passe incorrect.", authErrorAlreadyRegistered: "Un compte existe déjà avec cet email.",
@@ -817,6 +818,16 @@ export const TR = {
     landingFeaturePrintTitle: "Fiches prêtes à imprimer", landingFeaturePrintDesc: "Fiche technique (avec ou sans prix) et fiche allergènes de toutes tes recettes, prêtes pour la cuisine ou un contrôle.",
     landingFeatureMenuTitle: "Carte digitale avec QR code", landingFeatureMenuDesc: "Génère une carte publique à partir de tes recettes — le prix se met à jour tout seul dès que tu le changes dans l'app.",
     landingFeaturePantryTitle: "Garde-manger multi-fournisseurs", landingFeaturePantryDesc: "Historique des prix, plusieurs fournisseurs par ingrédient, pertes à la préparation prises en compte.",
+    calcTitle: "Essaie tout de suite",
+    calcSubtitle: "Prends un de tes plats, mets tes chiffres.",
+    calcCostLabel: "Ce que te coûtent les ingrédients, par portion",
+    calcPriceLabel: "Ton prix de vente, TTC",
+    calcResultLabel: "Ta marge",
+    calcVerdictHigh: "Bonne marge, ce plat travaille pour toi.",
+    calcVerdictMid: "Marge correcte, mais il y a mieux à faire.",
+    calcVerdictLow: "Marge trop faible : ce plat te coûte plus qu'il ne te rapporte.",
+    calcVatNote: (v) => `Calculé hors taxes, TVA ${v}% (restauration sur place) — exactement comme dans l'app.`,
+    calcCta: "Faire ça pour toute ma carte",
     landingPricingTitle: "Un seul tarif, tout inclus", landingPricingTrial: "7 jours d'essai gratuit, sans carte bancaire",
     landingPricingCta: "Démarrer mon essai gratuit", landingPricingPerMonth: "/ mois",
     landingLegalNotice: "Mentions légales", landingTerms: "CGV", landingPrivacy: "Confidentialité",
@@ -1098,6 +1109,7 @@ export const TR = {
     authForgotLink: "¿Contraseña olvidada?", authSwitchToSignup: "¿Aún no tienes cuenta? Crear una cuenta", authSwitchToLogin: "¿Ya tienes cuenta? Iniciar sesión", authBackToLogin: "Volver al inicio de sesión",
     authSignupSuccessInfo: "¡Cuenta creada! Revisa tu correo para confirmar tu dirección (mira también tu carpeta de spam), luego inicia sesión.",
     authForgotSuccessInfo: "Si existe una cuenta con este email, se acaba de enviar un enlace de restablecimiento.",
+    authContinueButton: "Continuar", authMagicLinkSignupButton: "Registrarme sin contraseña",
     authMagicLinkButton: "Recibir un enlace de acceso por email", authMagicLinkInfo: "Se acaba de enviar un enlace de acceso por email — haz clic para conectarte directamente, sin contraseña.",
     authOrDivider: "o",
     authErrorInvalidCredentials: "Email o contraseña incorrectos.", authErrorAlreadyRegistered: "Ya existe una cuenta con este email.",
@@ -1121,6 +1133,16 @@ export const TR = {
     landingFeaturePrintTitle: "Fichas listas para imprimir", landingFeaturePrintDesc: "Ficha técnica (con o sin precios) y ficha de alérgenos de todas tus recetas, listas para cocina o inspección.",
     landingFeatureMenuTitle: "Carta digital con código QR", landingFeatureMenuDesc: "Genera una carta pública a partir de tus recetas — el precio se actualiza solo en cuanto lo cambias en la app.",
     landingFeaturePantryTitle: "Despensa con varios proveedores", landingFeaturePantryDesc: "Historial de precios, varios proveedores por ingrediente, mermas de preparación incluidas.",
+    calcTitle: "Pruébalo ahora mismo",
+    calcSubtitle: "Coge uno de tus platos y pon tus cifras.",
+    calcCostLabel: "Lo que te cuestan los ingredientes, por ración",
+    calcPriceLabel: "Tu precio de venta, con IVA",
+    calcResultLabel: "Tu margen",
+    calcVerdictHigh: "Buen margen, este plato trabaja para ti.",
+    calcVerdictMid: "Margen correcto, pero se puede mejorar.",
+    calcVerdictLow: "Margen demasiado bajo: este plato te cuesta más de lo que te deja.",
+    calcVatNote: (v) => `Calculado sin impuestos, IVA ${v}% (restauración) — igual que en la app.`,
+    calcCta: "Hacer esto con toda mi carta",
     landingPricingTitle: "Un único precio, todo incluido", landingPricingTrial: "7 días de prueba gratuita, sin tarjeta bancaria",
     landingPricingCta: "Empezar mi prueba gratuita", landingPricingPerMonth: "/ mes",
     landingLegalNotice: "Aviso legal", landingTerms: "Condiciones", landingPrivacy: "Privacidad",
@@ -1402,6 +1424,7 @@ export const TR = {
     authForgotLink: "Forgot password?", authSwitchToSignup: "No account yet? Create one", authSwitchToLogin: "Already have an account? Log in", authBackToLogin: "Back to login",
     authSignupSuccessInfo: "Account created! Check your inbox to confirm your address (also check your spam/junk folder), then log in.",
     authForgotSuccessInfo: "If an account exists with this email, a reset link was just sent.",
+    authContinueButton: "Continue", authMagicLinkSignupButton: "Sign up without a password",
     authMagicLinkButton: "Get a one-click login link by email", authMagicLinkInfo: "A login link was just sent by email — click it to log in directly, no password needed.",
     authOrDivider: "or",
     authErrorInvalidCredentials: "Incorrect email or password.", authErrorAlreadyRegistered: "An account already exists with this email.",
@@ -1425,6 +1448,16 @@ export const TR = {
     landingFeaturePrintTitle: "Print-ready sheets", landingFeaturePrintDesc: "Spec sheet (with or without prices) and allergen sheet for every recipe, ready for the kitchen or an inspection.",
     landingFeatureMenuTitle: "Digital menu with QR code", landingFeatureMenuDesc: "Generate a public menu from your recipes — the price updates itself the moment you change it in the app.",
     landingFeaturePantryTitle: "Multi-supplier pantry", landingFeaturePantryDesc: "Price history, several suppliers per ingredient, prep loss taken into account.",
+    calcTitle: "Try it right now",
+    calcSubtitle: "Take one of your dishes and put in your own numbers.",
+    calcCostLabel: "What the ingredients cost you, per portion",
+    calcPriceLabel: "Your selling price, incl. VAT",
+    calcResultLabel: "Your margin",
+    calcVerdictHigh: "Good margin — this dish is working for you.",
+    calcVerdictMid: "Decent margin, but you can do better.",
+    calcVerdictLow: "Margin too low: this dish costs you more than it earns.",
+    calcVatNote: (v) => `Calculated excluding tax, ${v}% VAT (dine-in) — exactly like in the app.`,
+    calcCta: "Do this for my whole menu",
     landingPricingTitle: "One price, everything included", landingPricingTrial: "7-day free trial, no credit card required",
     landingPricingCta: "Start my free trial", landingPricingPerMonth: "/ month",
     landingLegalNotice: "Legal notice", landingTerms: "Terms", landingPrivacy: "Privacy",
@@ -1761,7 +1794,11 @@ function IngredientPicker({
   );
 }
 
-const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
+// Exporté (2026-08-27) pour que le calculateur de la page d'accueil parle EXACTEMENT le même
+// langage de couleurs que l'app : un visiteur qui voit du vert avant de créer son compte doit
+// retrouver le même vert au même seuil une fois dedans. Dupliquer ces valeurs les aurait fait
+// diverger au premier changement de seuil.
+export const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 // Couleurs du badge de classement des recettes (TOP1/2/3), volontairement distinctes des
 // TIER_COLORS ci-dessus qui ne servent qu'à la marge — or / argent / bronze, un rang = une couleur.
 // Couleur de marque Chefup (2026-07-31), dégradé violet -> cyan, à ne jamais confondre avec
@@ -2913,7 +2950,7 @@ function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, ingredien
     </div>
   );
 }
-function marginTier(m, minMargin) {
+export function marginTier(m, minMargin) {
   if (m === null || m === undefined) return null;
   const rounded = Math.round(m);
   if (rounded < CRITICAL_MARGIN) return "low";
@@ -3496,6 +3533,7 @@ function AdminDashboard() {
                       <th className="text-left font-normal pb-2">Source</th>
                       <th className="text-right font-normal pb-2 pl-3">Visites</th>
                       <th className="text-right font-normal pb-2 pl-3">3s+</th>
+                      <th className="text-right font-normal pb-2 pl-3">Calcul</th>
                       <th className="text-right font-normal pb-2 pl-3">Clics</th>
                       <th className="text-right font-normal pb-2 pl-3">Comptes</th>
                       <th className="text-right font-normal pb-2 pl-3">→ Compte</th>
@@ -3527,6 +3565,9 @@ function AdminDashboard() {
                               chargée sans être regardée — trafic sans valeur, quelle que soit la
                               qualité de la page. */}
                           <td className="text-right text-white/70 pl-3">{s.engaged ?? 0}</td>
+                          {/* Visiteurs ayant manipulé le calculateur : le vrai signal d'intérêt,
+                              il précède le clic d'inscription dans le parcours. */}
+                          <td className="text-right pl-3 font-semibold" style={{ color: (s.calcUsed ?? 0) > 0 ? BRAND_SOLID : "rgba(255,255,255,0.3)" }}>{s.calcUsed ?? 0}</td>
                           <td className="text-right text-white/70 pl-3">{s.startClicks}</td>
                           <td className="text-right text-white pl-3 font-semibold">{s.accounts}</td>
                           <td

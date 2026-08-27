@@ -14,7 +14,9 @@ import { getSupabaseAdmin, getFoundingState } from "./_lib.js";
 
 // `engaged` (2026-08-27) : la page est restée visible 3 secondes. Comparé à `view`, c'est ce qui
 // distingue un vrai visiteur d'un simple chargement de page — voir src/Landing.jsx.
-const VALID_EVENTS = new Set(["view", "start_click", "login_click", "engaged"]);
+// `calc_used` (2026-08-27) : le visiteur a réellement manipulé le calculateur de marge de la page
+// d'accueil. C'est le signal d'intérêt le plus fiable du funnel, bien avant le clic d'inscription.
+const VALID_EVENTS = new Set(["view", "start_click", "login_click", "engaged", "calc_used"]);
 
 // Provenance de la visite (2026-08-26), pour distinguer le trafic d'une campagne payante du
 // trafic organique — indispensable dès qu'on paie de la publicité, sinon impossible de savoir si
@@ -120,9 +122,10 @@ export default async function handler(req, res) {
       const bySource = {};
       for (const r of rows) {
         const key = r.source || "direct";
-        if (!bySource[key]) bySource[key] = { views: 0, engaged: 0, startClicks: 0, loginClicks: 0 };
+        if (!bySource[key]) bySource[key] = { views: 0, engaged: 0, calcUsed: 0, startClicks: 0, loginClicks: 0 };
         if (r.event_type === "view") bySource[key].views++;
         if (r.event_type === "engaged") bySource[key].engaged++;
+        if (r.event_type === "calc_used") bySource[key].calcUsed++;
         if (r.event_type === "start_click") bySource[key].startClicks++;
         if (r.event_type === "login_click") bySource[key].loginClicks++;
       }
@@ -142,6 +145,7 @@ export default async function handler(req, res) {
         startClicks: countOf("start_click"),
         loginClicks: countOf("login_click"),
         engaged: countOf("engaged"),
+        calcUsed: countOf("calc_used"),
         accountsCreated,
         bySource,
       });
