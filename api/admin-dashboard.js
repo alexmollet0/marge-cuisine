@@ -222,12 +222,13 @@ export default async function handler(req, res) {
     // ouvert le site avec `?notrack=1` au moins une fois sur cet appareil.
     const sourceMap = {};
     const touchSource = (key) => {
-      if (!sourceMap[key]) sourceMap[key] = { source: key, views: 0, startClicks: 0, loginClicks: 0, accounts: 0 };
+      if (!sourceMap[key]) sourceMap[key] = { source: key, views: 0, engaged: 0, startClicks: 0, loginClicks: 0, accounts: 0 };
       return sourceMap[key];
     };
     for (const r of landingRows) {
       const s = touchSource(r.source || "direct");
       if (r.event_type === "view") s.views++;
+      if (r.event_type === "engaged") s.engaged++;
       if (r.event_type === "start_click") s.startClicks++;
       if (r.event_type === "login_click") s.loginClicks++;
     }

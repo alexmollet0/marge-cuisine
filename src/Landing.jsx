@@ -69,6 +69,30 @@ function logLandingEvent(event) {
   }).catch(() => {});
 }
 
+// [CORRECTION DE MESURE, 2026-08-27] Une visite n'est comptée que si la page a été RÉELLEMENT
+// AFFICHÉE à un humain. Motif : la première campagne TikTok payante a produit 970 "visites" pour
+// 1 seul clic (0,1%), un chiffre 20 à 100 fois inférieur à ce que donne même une mauvaise page —
+// donc le dénominateur était faux, pas la page (vérifiée bonne : rendu correct, 416ms de
+// chargement, formulaire fonctionnel). Les régies publicitaires préchargent la page de destination
+// pendant que la vidéo défile, dans une vue web masquée : le JavaScript s'exécute, le composant se
+// monte, l'événement partait — sans qu'aucun être humain n'ait rien vu ni cliqué.
+// On attend donc que l'onglet soit visible. S'il ne l'est jamais, rien n'est envoyé.
+function logViewWhenVisible() {
+  if (typeof document === "undefined") return () => {};
+  if (document.visibilityState === "visible") {
+    logLandingEvent("view");
+    return () => {};
+  }
+  const onVisible = () => {
+    if (document.visibilityState === "visible") {
+      logLandingEvent("view");
+      document.removeEventListener("visibilitychange", onVisible);
+    }
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  return () => document.removeEventListener("visibilitychange", onVisible);
+}
+
 const FEATURES = [
   { icon: Receipt, titleKey: "landingFeatureScanTitle", descKey: "landingFeatureScanDesc" },
   { icon: Percent, titleKey: "landingFeatureMarginTitle", descKey: "landingFeatureMarginDesc" },
@@ -110,13 +134,24 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
   const launchOfferOpen = !!offer && (spots === null || spots > 0);
 
   useEffect(() => {
-    logLandingEvent("view");
+    const stopWatchingVisibility = logViewWhenVisible();
+    // Deuxième mesure, plus exigeante : quelqu'un qui reste 3 secondes sur la page l'a vraiment
+    // regardée. Comparer "visites" et "3s+" dit immédiatement si le trafic d'une campagne est
+    // composé d'êtres humains ou de simples chargements — un écart énorme entre les deux est le
+    // signe d'un trafic qui ne vaut rien, quelle que soit la qualité de la page.
+    const engagedTimer = setTimeout(() => {
+      if (document.visibilityState === "visible") logLandingEvent("engaged");
+    }, 3000);
     fetch("/api/landing?spots=1")
       .then((r) => r.json())
       .then((d) => {
         if (d && d.enabled) setOffer({ remaining: typeof d.remaining === "number" ? d.remaining : null });
       })
       .catch(() => {});
+    return () => {
+      stopWatchingVisibility();
+      clearTimeout(engagedTimer);
+    };
   }, []);
 
   function handleStart() {

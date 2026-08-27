@@ -12,7 +12,9 @@
 // clics, et le nombre de comptes réellement créés sur la période (API admin Supabase Auth).
 import { getSupabaseAdmin, getFoundingState } from "./_lib.js";
 
-const VALID_EVENTS = new Set(["view", "start_click", "login_click"]);
+// `engaged` (2026-08-27) : la page est restée visible 3 secondes. Comparé à `view`, c'est ce qui
+// distingue un vrai visiteur d'un simple chargement de page — voir src/Landing.jsx.
+const VALID_EVENTS = new Set(["view", "start_click", "login_click", "engaged"]);
 
 // Provenance de la visite (2026-08-26), pour distinguer le trafic d'une campagne payante du
 // trafic organique — indispensable dès qu'on paie de la publicité, sinon impossible de savoir si
@@ -118,8 +120,9 @@ export default async function handler(req, res) {
       const bySource = {};
       for (const r of rows) {
         const key = r.source || "direct";
-        if (!bySource[key]) bySource[key] = { views: 0, startClicks: 0, loginClicks: 0 };
+        if (!bySource[key]) bySource[key] = { views: 0, engaged: 0, startClicks: 0, loginClicks: 0 };
         if (r.event_type === "view") bySource[key].views++;
+        if (r.event_type === "engaged") bySource[key].engaged++;
         if (r.event_type === "start_click") bySource[key].startClicks++;
         if (r.event_type === "login_click") bySource[key].loginClicks++;
       }
@@ -138,6 +141,7 @@ export default async function handler(req, res) {
         views: countOf("view"),
         startClicks: countOf("start_click"),
         loginClicks: countOf("login_click"),
+        engaged: countOf("engaged"),
         accountsCreated,
         bySource,
       });

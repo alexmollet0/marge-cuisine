@@ -3495,6 +3495,7 @@ function AdminDashboard() {
                     <tr className="text-white/35 text-[10px] uppercase tracking-wide">
                       <th className="text-left font-normal pb-2">Source</th>
                       <th className="text-right font-normal pb-2 pl-3">Visites</th>
+                      <th className="text-right font-normal pb-2 pl-3">3s+</th>
                       <th className="text-right font-normal pb-2 pl-3">Clics</th>
                       <th className="text-right font-normal pb-2 pl-3">Comptes</th>
                       <th className="text-right font-normal pb-2 pl-3">→ Compte</th>
@@ -3522,6 +3523,10 @@ function AdminDashboard() {
                             </span>
                           </td>
                           <td className="text-right text-white pl-3">{s.views}</td>
+                          {/* Un écart énorme entre "Visites" et "3s+" signifie que la page a été
+                              chargée sans être regardée — trafic sans valeur, quelle que soit la
+                              qualité de la page. */}
+                          <td className="text-right text-white/70 pl-3">{s.engaged ?? 0}</td>
                           <td className="text-right text-white/70 pl-3">{s.startClicks}</td>
                           <td className="text-right text-white pl-3 font-semibold">{s.accounts}</td>
                           <td
@@ -3537,6 +3542,8 @@ function AdminDashboard() {
                 </table>
               </div>
               <p className="text-white/30 text-[10px] mt-3 leading-relaxed">
+                « 3s+ » = visiteurs restés au moins 3 secondes sur la page. Un écart énorme avec « Visites » signifie que la
+                page a été chargée sans être regardée : trafic sans valeur, quelle que soit la qualité de la page.
                 « Clics » = clics sur « Commencer ». « → Compte » = part des visiteurs de cette source qui sont allés
                 jusqu'à créer un compte : c'est le chiffre qui dit si une campagne rapporte.
                 <br />
