@@ -6441,19 +6441,32 @@ export default function App() {
         .font-display { font-family: 'Oswald', sans-serif; }
         .font-body { font-family: 'Manrope', sans-serif; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
-        .ticket { background: #F3EBDA; color: #2B2620; position: relative; box-shadow: 0 12px 30px rgba(0,0,0,0.35); max-width: 100%; }
-        .ticket::before, .ticket::after {
-          content: ""; position: absolute; left: 0; right: 0; height: 14px;
-          background-image: radial-gradient(circle at 10px 7px, #1B1815 6px, transparent 7px);
-          background-size: 20px 14px; background-repeat: repeat-x;
+        /* [REFONTE 2026-08-27] La fiche recette ne ressemble plus à un ticket de caisse.
+           L'utilisateur ne voulait plus de cette métaphore : bords dentelés, papier crème étroit,
+           police à chasse fixe. Elle devient une vraie fiche de travail — pleine largeur, coins
+           arrondis, typographie lisible.
+           ⚠️ Contrainte majeure : ce MÊME bloc DOM est la mise en page d'impression (voir
+           @media print plus bas, qui ne rend visible que .ticket). On garde donc une surface
+           CLAIRE, sinon les innombrables classes text-black/... des lignes d'ingrédients
+           deviendraient illisibles et il faudrait toutes les réécrire — pour un résultat
+           identique à l'impression. Le nom de classe .ticket est conservé pour la même raison :
+           le renommer obligerait à toucher la règle d'impression et la fiche allergènes. */
+        .ticket {
+          background: #FBF8F3; color: #211D18; position: relative;
+          border-radius: 18px; box-shadow: 0 4px 24px rgba(0,0,0,0.28);
+          max-width: 100%;
         }
-        .ticket::before { top: -7px; }
-        .ticket::after { bottom: -7px; transform: rotate(180deg); }
         .stamp { border: 3px solid currentColor; transform: rotate(-6deg); font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.9; }
         @media print {
           body * { visibility: hidden; }
           .ticket, .ticket *, .allergen-sheet, .allergen-sheet * { visibility: visible; }
-          .ticket { position: absolute; top: 0; left: 0; right: 0; margin: 0 auto; box-shadow: none; }
+          /* À l'impression on retrouve une vraie feuille : ni ombre, ni coins arrondis, ni fond
+             teinté (économie d'encre), et une largeur de page classique plutôt que la pleine
+             largeur d'écran. */
+          .ticket {
+            position: absolute; top: 0; left: 0; right: 0; margin: 0 auto;
+            box-shadow: none; border-radius: 0; background: #fff; max-width: 190mm;
+          }
           .allergen-sheet { position: absolute; top: 0; left: 0; right: 0; margin: 0 auto; }
           .hide-prices .price-field { display: none !important; }
         }
@@ -8147,11 +8160,14 @@ export default function App() {
               </div>
             </div>
 
-            <div className={`ticket rounded-sm px-5 sm:px-6 py-8 max-w-md mx-auto font-mono text-sm ${hidePricesPrint ? "hide-prices" : ""}`}>
+            {/* Pleine largeur et police du corps de l'app à la place de `max-w-md` + `font-mono` :
+                la chasse fixe et la colonne étroite étaient là pour imiter un ticket de caisse,
+                elles ne faisaient que rendre la fiche moins lisible et plus longue à parcourir. */}
+            <div className={`ticket px-4 sm:px-8 py-7 sm:py-9 w-full font-body text-[15px] ${hidePricesPrint ? "hide-prices" : ""}`}>
               <input
                 value={active.name}
                 onChange={(e) => updateRecipe({ name: e.target.value })}
-                className="w-full bg-transparent font-display text-lg sm:text-xl uppercase tracking-wide mb-1 outline-none text-center border-b border-dashed border-black/20 pb-2"
+                className="w-full bg-transparent font-display text-2xl sm:text-3xl uppercase tracking-wide mb-2 outline-none text-center border-b border-black/10 pb-3"
               />
               <div className="flex justify-center mb-2">
                 <div
@@ -8182,7 +8198,7 @@ export default function App() {
                   recette exemple doit rester lisible d'un coup d'œil dès l'arrivée, sans clic
                   supplémentaire pour comprendre sa structure. */}
               <div className="text-[10px] uppercase tracking-wide text-black/40 mt-2">{t("ingredientsSectionLabel")}</div>
-              <div className="border-t border-b border-dashed border-black/30 py-3 space-y-2">
+              <div className="border-t border-b border-black/10 py-4 space-y-2.5">
                 {/* Ajout rapide en TÊTE de liste : c'est le geste le plus fréquent quand on
                     construit une recette, il doit être le premier sous la main. */}
                 <QuickAddLine
@@ -8205,7 +8221,7 @@ export default function App() {
                   const unitMismatch = ing && line.unitAtEntry !== undefined && line.unitAtEntry !== ing.unit;
                   return (
                     <div key={idx}>
-                      <div className="flex items-center gap-2 text-xs">
+                      <div className="flex items-center gap-2 text-sm">
                         <IngredientPicker
                           ingredients={ingredients}
                           value={line.ingredientId}
@@ -8220,7 +8236,7 @@ export default function App() {
                           typeToSearchText={t("pickerTypeToSearch")}
                           noResultsText={t("pickerNoResults")}
                         />
-                        <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" t={t} />
+                        <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-14 shrink-0 bg-transparent text-right outline-none border-b border-black/20 py-1" t={t} />
                         {activeSupplier(ing)?.priceSource === "estimate" && (
                           <span className="w-1.5 h-1.5 rounded-full shrink-0 price-field" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
                         )}
