@@ -89,6 +89,11 @@ function effectiveUnitPrice(ing) {
   return sup.price / (1 - loss / 100);
 }
 function recipeMarginPercent(recipe, ingredientsById, vatRate) {
+  // Aligné sur `recipeMargin` (src/App.jsx, 2026-08-27) : sans ingrédient, la marge est INCONNUE,
+  // pas égale à 100%. Sans conséquence visible ici (100% n'a jamais déclenché d'alerte, qui ne
+  // se déclenche que SOUS l'objectif), mais les deux formules doivent rester identiques — c'est
+  // la règle posée pour cette duplication volontaire.
+  if (!recipe.lines || recipe.lines.length === 0) return null;
   const cost = (recipe.lines || []).reduce((sum, line) => {
     const ing = ingredientsById.get(line.ingredientId);
     return sum + (ing ? effectiveUnitPrice(ing) * line.qty : 0);

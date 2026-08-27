@@ -746,6 +746,7 @@ export const TR = {
     digitalMenuSimpleItemsHint: "Pour ce qui est revendu tel quel (Coca, Perrier…) — pas besoin de créer une recette.",
     digitalMenuSimpleItemNamePlaceholder: "Nom (ex : Coca 33cl)",
     digitalMenuSimpleItemCostLabel: "Coût d'achat :", digitalMenuSimpleItemAddCost: "+ ajouter un coût d'achat",
+    digitalMenuConvertToRecipe: "Connaître sa marge",
     digitalMenuCopyLink: "Copier le lien", digitalMenuLinkCopied: "Copié !", digitalMenuDownloadQr: "Télécharger le QR code",
     digitalMenuRecipesLabel: "Recettes affichées sur la carte", digitalMenuNoRecipes: "Crée une recette pour pouvoir l'ajouter à la carte.",
     digitalMenuDescriptionPlaceholder: "Description pour le client (optionnel)",
@@ -1077,6 +1078,7 @@ export const TR = {
     digitalMenuSimpleItemsHint: "Para lo que se revende tal cual (Coca-Cola, Perrier…) — no hace falta crear una receta.",
     digitalMenuSimpleItemNamePlaceholder: "Nombre (ej: Coca-Cola 33cl)",
     digitalMenuSimpleItemCostLabel: "Coste de compra:", digitalMenuSimpleItemAddCost: "+ añadir coste de compra",
+    digitalMenuConvertToRecipe: "Conocer su margen",
     digitalMenuCopyLink: "Copiar enlace", digitalMenuLinkCopied: "¡Copiado!", digitalMenuDownloadQr: "Descargar código QR",
     digitalMenuRecipesLabel: "Recetas mostradas en la carta", digitalMenuNoRecipes: "Crea una receta para poder añadirla a la carta.",
     digitalMenuDescriptionPlaceholder: "Descripción para el cliente (opcional)",
@@ -1408,6 +1410,7 @@ export const TR = {
     digitalMenuSimpleItemsHint: "For things resold as-is (Coke, Perrier…) — no need to create a recipe.",
     digitalMenuSimpleItemNamePlaceholder: "Name (e.g. Coke 330ml)",
     digitalMenuSimpleItemCostLabel: "Purchase cost:", digitalMenuSimpleItemAddCost: "+ add a purchase cost",
+    digitalMenuConvertToRecipe: "See its margin",
     digitalMenuCopyLink: "Copy link", digitalMenuLinkCopied: "Copied!", digitalMenuDownloadQr: "Download QR code",
     digitalMenuRecipesLabel: "Recipes shown on the menu", digitalMenuNoRecipes: "Create a recipe to add it to the menu.",
     digitalMenuDescriptionPlaceholder: "Description for the customer (optional)",
@@ -2228,7 +2231,7 @@ function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
 // que le "0" est suivi du point, `parseFloat("0.")` vaut 0 et l'affichage revient à "0", effaçant
 // le point) : bug réel signalé par l'utilisateur. `NumField` garde un texte local pendant la frappe
 // et ne resynchronise qu'au blur, donc n'a pas ce problème.
-function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove }) {
+function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove, onConvert }) {
   const [showCost, setShowCost] = useState(item.cost != null);
 
   // Traduction automatique du nom (2026-08-19), même principe débouncé que la description d'une
@@ -2288,6 +2291,19 @@ function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove }) {
           {t("digitalMenuSimpleItemAddCost")}
         </button>
       )}
+      {/* [PONT, 2026-08-27] Le passage d'un simple nom sur la carte à un plat dont on connaît la
+          marge. Sans lui, un chef qui compose sa carte en saisie rapide reste bloqué dans un coin
+          du produit qui ne parle jamais de marge — alors que c'est précisément là qu'il a sous les
+          yeux la liste de tous les plats dont il aimerait connaître la rentabilité. */}
+      {onConvert && (
+        <button
+          onClick={onConvert}
+          className="flex items-center gap-1 text-[10px] mt-1.5 font-semibold"
+          style={{ color: BRAND_SOLID }}
+        >
+          <Percent size={10} /> {t("digitalMenuConvertToRecipe")}
+        </button>
+      )}
     </div>
   );
 }
@@ -2299,7 +2315,7 @@ function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove }) {
 // `src/App.jsx`) : n'apparaissent jamais dans l'onglet Recettes, le classement TOP, les fiches
 // imprimées ou allergènes — seulement sur la carte publique. Champ nom + prix suffisent pour
 // ajouter ; la ligne se vide et le focus revient sur le nom pour enchaîner rapidement.
-function SimpleItemsSection({ items, setItems, categories, lang, t }) {
+function SimpleItemsSection({ items, setItems, categories, lang, t, onConvert }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const nameRef = useRef(null);
@@ -2336,6 +2352,7 @@ function SimpleItemsSection({ items, setItems, categories, lang, t }) {
               t={t}
               onUpdate={(patch) => updateItem(it.id, patch)}
               onRemove={() => removeItem(it.id)}
+              onConvert={onConvert ? () => onConvert(it) : null}
             />
           ))}
         </div>
@@ -2376,7 +2393,7 @@ function SimpleItemsSection({ items, setItems, categories, lang, t }) {
 // recette, ce qui doit apparaître dessus. Rien n'est jamais publié par défaut : `menuIncluded`
 // et `menuSettings.published` démarrent tous les deux à false/undefined — un restaurateur qui
 // n'ouvre jamais cette fenêtre ne change rien à ce qui existait avant.
-function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipes, setRecipes, simpleItems, setSimpleItems, userId, lang, t }) {
+function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipes, setRecipes, simpleItems, setSimpleItems, userId, lang, t, onConvertToRecipe }) {
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [qrBusy, setQrBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -2711,7 +2728,7 @@ function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings, recipe
             )}
           </div>
 
-          <SimpleItemsSection items={simpleItems} setItems={setSimpleItems} categories={categories} lang={lang} t={t} />
+          <SimpleItemsSection items={simpleItems} setItems={setSimpleItems} categories={categories} lang={lang} t={t} onConvert={onConvertToRecipe} />
         </div>
 
         <button onClick={onClose} className="w-full mt-4 text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] shrink-0">
@@ -4221,11 +4238,82 @@ export default function App() {
     logActivity("recipe_created", { name: newRecipe.name, source: "first_run" });
   };
 
+  // [PONT CARTE DIGITALE → MARGE, 2026-08-27] Transforme un article simple de la carte (nom + prix,
+  // saisi en rafale, sans recette derrière) en vraie recette dont on pourra connaître la marge.
+  // C'est la pièce qui manquait pour que la carte digitale serve de porte d'entrée : le chef
+  // compose d'abord sa carte en quelques minutes (gratifiant, visible, aucun effort), puis
+  // découvre plat par plat ce que chacun lui rapporte — au lieu de devoir créer des recettes
+  // complètes avant d'avoir la moindre carte à montrer.
+  const convertSimpleItemToRecipe = (item) => {
+    if (!item) return;
+    const lines = [];
+    // Un coût déjà saisi sur l'article n'a nulle part où aller dans une recette : sans ce
+    // traitement, la conversion afficherait 100% de marge et perdrait l'information. On le
+    // matérialise donc en ingrédient "à la pièce" — ce qui est d'ailleurs la modélisation juste
+    // pour un produit revendu tel quel (une bouteille achetée = une pièce consommée).
+    if (item.cost > 0) {
+      const sId = uid();
+      const ingId = uid();
+      setIngredients((ings) => [
+        ...ings,
+        {
+          id: ingId,
+          name: item.name || t("newRecipeName"),
+          unit: "pièce",
+          catalogId: null,
+          category: "autres",
+          selectedSupplierId: sId,
+          suppliers: [{ id: sId, name: t("supplier"), price: item.cost, priceSource: "manual" }],
+          history: [],
+          lastUpdated: today(),
+        },
+      ]);
+      lines.push({ ingredientId: ingId, qty: 1, unitAtEntry: "pièce" });
+    }
+
+    const newRecipe = {
+      id: uid(),
+      name: item.name || t("newRecipeName"),
+      // 1 portion : le prix saisi sur la carte est celui d'UNE assiette vendue.
+      portions: 1,
+      sellPrice: item.sellPrice || 0,
+      targetMargin: settings.minMargin ?? 75,
+      notes: "",
+      allergens: "",
+      allergensAuto: true,
+      createdAt: today(),
+      lines,
+      // Reprend la place de l'article sur la carte publique, avec sa section et sa traduction déjà
+      // calculée — sinon le plat disparaîtrait de la carte au moment de la conversion, alors que
+      // le chef n'a rien demandé de tel.
+      menuIncluded: true,
+      menuCategory: item.menuCategory || null,
+      menuNameI18n: item.menuNameI18n || null,
+    };
+    setRecipes((rs) => [...rs, newRecipe]);
+    // Indispensable : sans cette suppression, le plat apparaîtrait EN DOUBLE sur la carte publique
+    // (une fois comme article simple, une fois comme recette).
+    setSimpleItems((items) => items.filter((i) => i.id !== item.id));
+
+    setActiveId(newRecipe.id);
+    setActiveTab("recipes");
+    setRecipeSubView("detail");
+    setDigitalMenuOpen(false);
+    logActivity("recipe_created", { name: newRecipe.name, source: "menu_item" });
+  };
+
   const recipeCost = (r) => r.lines.reduce((s, l) => s + lineCost(l), 0);
   const recipeCostPerPortion = (r) => (r.portions > 0 ? recipeCost(r) / r.portions : 0);
   const vatRate = settings.vat ?? 10;
   const priceHT = (ttc) => ttc / (1 + vatRate / 100);
   const recipeMargin = (r) => {
+    // [CORRECTION 2026-08-27] Une recette sans le moindre ingrédient n'a pas une marge de 100%,
+    // elle a une marge INCONNUE. Le cas ne se produisait presque jamais avant (une recette créée à
+    // la main démarre à 0€ de prix de vente, donc sans marge calculable), mais le pont
+    // "article de carte → recette" arrive maintenant avec un prix de vente DÉJÀ renseigné et
+    // aucune ligne : sans ce garde-fou, le chef verrait un magnifique 100% vert, et la recette
+    // décrocherait même un badge TOP1 au classement.
+    if (!r.lines || r.lines.length === 0) return null;
     const cpp = recipeCostPerPortion(r);
     const ht = priceHT(r.sellPrice || 0);
     return ht > 0 ? ((ht - cpp) / ht) * 100 : null;
@@ -6475,6 +6563,7 @@ export default function App() {
         setRecipes={setRecipes}
         simpleItems={simpleItems}
         setSimpleItems={setSimpleItems}
+        onConvertToRecipe={convertSimpleItemToRecipe}
         userId={menuUserId}
         lang={lang}
         t={t}
