@@ -666,7 +666,7 @@ export const TR = {
     pickerSearchPlaceholder: "Tape 2 lettres…", pickerTypeToSearch: "Tape pour chercher…", pickerNoResults: "Aucun résultat",
     unitPieceLabel: "pièce", unitFieldLabel: "Unité",
     quickAddNamePlaceholder: "Ajouter un ingrédient…", quickAddKnown: "connu", quickAddButton: "Ajouter",
-    quickAddHint: "Tape le nom, Entrée, la quantité en grammes, Entrée. Ça s'ajoute et tu enchaînes.",
+    quickAddHint: "Entrée pour passer à la quantité, Entrée pour ajouter.",
     legacyPantryHint: "Ton garde-manger contient encore l'ancienne liste de démonstration (~200 ingrédients). Charge la nouvelle version allégée (7 ingrédients essentiels) pour repartir sur une base plus claire.",
     legacyPantryButton: "Charger le nouveau garde-manger",
     cancelLabel: "Annuler", resetConfirmButton: "Oui, tout réinitialiser",
@@ -999,7 +999,7 @@ export const TR = {
     pickerSearchPlaceholder: "Escribe 2 letras…", pickerTypeToSearch: "Escribe para buscar…", pickerNoResults: "Sin resultados",
     unitPieceLabel: "unidad", unitFieldLabel: "Unidad",
     quickAddNamePlaceholder: "Añadir un ingrediente…", quickAddKnown: "conocido", quickAddButton: "Añadir",
-    quickAddHint: "Escribe el nombre, Intro, la cantidad en gramos, Intro. Se añade y sigues.",
+    quickAddHint: "Intro para pasar a la cantidad, Intro para añadir.",
     legacyPantryHint: "Tu despensa todavía tiene la antigua lista de demostración (~200 ingredientes). Carga la nueva versión reducida (7 ingredientes esenciales) para empezar con una base más clara.",
     legacyPantryButton: "Cargar la nueva despensa",
     cancelLabel: "Cancelar", resetConfirmButton: "Sí, reiniciar todo",
@@ -1332,7 +1332,7 @@ export const TR = {
     pickerSearchPlaceholder: "Type 2 letters…", pickerTypeToSearch: "Type to search…", pickerNoResults: "No results",
     unitPieceLabel: "piece", unitFieldLabel: "Unit",
     quickAddNamePlaceholder: "Add an ingredient…", quickAddKnown: "known", quickAddButton: "Add",
-    quickAddHint: "Type the name, Enter, the amount in grams, Enter. It is added and you carry on.",
+    quickAddHint: "Enter to jump to the amount, Enter to add.",
     legacyPantryHint: "Your pantry still has the old demo list (~200 ingredients). Load the new lean version (7 essential ingredients) to start from a clearer base.",
     legacyPantryButton: "Load the new pantry",
     cancelLabel: "Cancel", resetConfirmButton: "Yes, reset everything",
@@ -1769,34 +1769,61 @@ function QtyField({ qty, unit, onChange, className, t }) {
 // choisir → revenir saisir la quantité", jugé "vraiment chiant" en test réel.
 // Les suggestions montrent d'abord le garde-manger (prix déjà connus, donc marge juste) puis le
 // catalogue de référence ; un nom totalement inédit reste acceptable et crée l'ingrédient.
-function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd }) {
+function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, guessUnit }) {
   const [name, setName] = useState("");
-  const [grams, setGrams] = useState("");
+  const [amount, setAmount] = useState("");
   const [picked, setPicked] = useState(null); // id si choisi dans le garde-manger, sinon null
+  const [unit, setUnit] = useState("kg");
+  // Vrai dès que l'utilisateur a choisi l'unité lui-même : on cesse alors de la deviner à sa
+  // place, sinon on écraserait son choix à la frappe suivante.
+  const unitTouched = useRef(false);
   const nameRef = useRef(null);
-  const gramsRef = useRef(null);
+  const amountRef = useRef(null);
 
   const q = name.trim();
+
+  // [CORRECTION 2026-08-27] L'unité se devine à partir du nom tapé, à chaque frappe, tant que
+  // l'utilisateur n'y a pas touché. Sans ça, tout était forcément saisi en grammes : "Lait
+  // entier" se retrouvait en grammes, et un nom inconnu du catalogue ("croûtons") tombait même
+  // en "pièce" à 5€ pièce. Le catalogue connaît l'unité de ses 195 entrées, autant s'en servir.
+  useEffect(() => {
+    if (unitTouched.current || picked || q.length < 3) return;
+    const guessed = guessUnit ? guessUnit(q) : "kg";
+    setUnit((u) => (u === guessed ? u : guessed));
+  }, [q, picked, guessUnit]);
+
   const suggestions =
     q.length >= 2 && !picked
       ? [
           ...ingredients
             .filter((i) => textIncludes(ingredientDisplayName(i), q))
             .slice(0, 4)
-            .map((i) => ({ key: "ing-" + i.id, label: ingredientDisplayName(i), id: i.id, known: true })),
+            .map((i) => ({ key: "ing-" + i.id, label: ingredientDisplayName(i), id: i.id, unit: normUnit(i.unit), known: true })),
           ...CATALOG.filter((c) => textIncludes(c[lang] || c.fr, q) && !ingredients.some((i) => i.catalogId === c.id))
             .slice(0, 3)
-            .map((c) => ({ key: "cat-" + c.id, label: c[lang] || c.fr, id: null, known: false })),
+            .map((c) => ({ key: "cat-" + c.id, label: c[lang] || c.fr, id: null, unit: normUnit(c.unit), known: false })),
         ]
       : [];
 
+  // Libellé de saisie : grammes pour un ingrédient au poids, millilitres pour un liquide, pièce
+  // pour ce qui se compte. L'unité de STOCKAGE reste kg/L, la conversion se fait à l'ajout.
+  const amountLabel = unit === "L" ? "mL" : unit === "pièce" ? unitDisplayLabel("pièce", t) : "g";
+  const placeholderAmount = unit === "L" ? "100" : unit === "pièce" ? "1" : "150";
+
+  const pickUnit = (u) => {
+    unitTouched.current = true;
+    setUnit(u);
+    amountRef.current?.focus();
+  };
+
   const submit = () => {
-    const g = parseFloat(String(grams).replace(",", "."));
-    if (!q || !Number.isFinite(g) || g <= 0) return;
-    onAdd({ existingId: picked, name: q, grams: g });
+    const n = parseFloat(String(amount).replace(",", "."));
+    if (!q || !Number.isFinite(n) || n <= 0) return;
+    onAdd({ existingId: picked, name: q, grams: n, unit });
     setName("");
-    setGrams("");
+    setAmount("");
     setPicked(null);
+    unitTouched.current = false;
     nameRef.current?.focus();
   };
 
@@ -1808,38 +1835,45 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd }) {
             ref={nameRef}
             value={name}
             onChange={(e) => { setName(e.target.value); setPicked(null); }}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); gramsRef.current?.focus(); } }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); amountRef.current?.focus(); } }}
             placeholder={t("quickAddNamePlaceholder")}
             className="w-full bg-white/70 rounded-lg px-2.5 py-2 text-sm text-black outline-none border border-black/10 focus:border-[#8B5CF6]"
           />
           {suggestions.length > 0 && (
             <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg overflow-hidden shadow-lg border border-black/10 bg-white">
-              {suggestions.map((s) => (
+              {suggestions.map((sg) => (
                 <button
-                  key={s.key}
+                  key={sg.key}
                   type="button"
-                  onClick={() => { setName(s.label); setPicked(s.id); gramsRef.current?.focus(); }}
+                  onClick={() => {
+                    setName(sg.label);
+                    setPicked(sg.id);
+                    // L'unité vient de la source choisie : celle du garde-manger si l'ingrédient
+                    // existe déjà (elle fait foi), celle du catalogue sinon.
+                    unitTouched.current = false;
+                    setUnit(sg.unit || "kg");
+                    amountRef.current?.focus();
+                  }}
                   className="w-full text-left px-2.5 py-2 text-xs text-black/80 hover:bg-black/5 flex items-center gap-2 border-b border-black/5 last:border-0"
                 >
-                  <span className="flex-1 min-w-0 truncate">{s.label}</span>
+                  <span className="flex-1 min-w-0 truncate">{sg.label}</span>
                   {/* Un ingrédient déjà dans le garde-manger a un vrai prix : le signaler évite
                       d'en recréer un doublon sans s'en rendre compte. */}
-                  {s.known && <span className="text-[9px] uppercase tracking-wide text-[#10B981] shrink-0">{t("quickAddKnown")}</span>}
+                  {sg.known && <span className="text-[9px] uppercase tracking-wide text-[#10B981] shrink-0">{t("quickAddKnown")}</span>}
                 </button>
               ))}
             </div>
           )}
         </div>
         <input
-          ref={gramsRef}
-          value={grams}
+          ref={amountRef}
+          value={amount}
           inputMode="decimal"
-          onChange={(e) => setGrams(e.target.value.replace(/[^0-9.,]/g, ""))}
+          onChange={(e) => setAmount(e.target.value.replace(/[^0-9.,]/g, ""))}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
-          placeholder="150"
-          className="w-16 shrink-0 bg-white/70 rounded-lg px-2 py-2 text-sm text-black text-right outline-none border border-black/10 focus:border-[#8B5CF6]"
+          placeholder={placeholderAmount}
+          className="w-14 shrink-0 bg-white/70 rounded-lg px-2 py-2 text-sm text-black text-right outline-none border border-black/10 focus:border-[#8B5CF6]"
         />
-        <span className="text-black/40 text-xs shrink-0">g</span>
         <button
           type="button"
           onClick={submit}
@@ -1850,11 +1884,37 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd }) {
           <Plus size={16} />
         </button>
       </div>
-      <p className="text-[10px] text-black/35 mt-1">{t("quickAddHint")}</p>
+
+      {/* Choix d'unité toujours VISIBLE plutôt que caché derrière un petit bouton à deviner : il
+          est pré-réglé automatiquement (donc rarement à toucher) mais on voit immédiatement dans
+          quoi on est en train de saisir, et un seul tap suffit à corriger. C'est exactement ce qui
+          manquait à l'ancienne bascule kg/g minuscule dont l'utilisateur ne savait jamais si elle
+          avait fonctionné. */}
+      <div className="flex items-center gap-1 mt-1.5">
+        {[
+          { u: "kg", label: "g" },
+          { u: "L", label: "mL" },
+          { u: "pièce", label: unitDisplayLabel("pièce", t) },
+        ].map((opt) => (
+          <button
+            key={opt.u}
+            type="button"
+            onClick={() => pickUnit(opt.u)}
+            className="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors"
+            style={
+              unit === opt.u
+                ? { background: BRAND_SOLID, borderColor: BRAND_SOLID, color: "#fff" }
+                : { background: "transparent", borderColor: "rgba(0,0,0,0.15)", color: "rgba(0,0,0,0.45)" }
+            }
+          >
+            {opt.label}
+          </button>
+        ))}
+        <span className="text-[10px] text-black/35 ml-1 truncate">{t("quickAddHint")}</span>
+      </div>
     </div>
   );
 }
-
 // Sélecteur d'ingrédient avec recherche (remplace un <select> qui deviendrait interminable).
 // Tape au moins 2 lettres pour filtrer, clique une suggestion pour choisir. Sert désormais
 // surtout à CORRIGER une ligne existante — l'ajout passe par QuickAddLine ci-dessus.
@@ -4338,15 +4398,28 @@ export default function App() {
   // ESTIMÉ par catégorie (deviné via le catalogue) plutôt que d'interrompre la saisie pour
   // demander un prix : le badge "estimé" déjà existant signale ces prix, et le chef les corrige
   // quand il veut — le même compromis que celui déjà retenu pour le scanner de fiche recette.
-  const quickAddLine = ({ existingId, name, grams }) => {
+  // Unité proposée pour un nom tapé, dans l'ordre : ce que le garde-manger sait déjà de cet
+  // ingrédient, puis ce que le catalogue en dit (il connaît l'unité de chacune de ses 195
+  // entrées), puis kg par défaut.
+  // ⚠️ Le repli est "kg" (donc des grammes) et surtout PAS `CATEGORY_DEFAULT_UNIT` : celui-ci
+  // renvoie "pièce" pour la catégorie "autres", où atterrit tout nom inconnu du catalogue — c'est
+  // ce qui a transformé "croûtons" en un article à 5€ LA PIÈCE alors que l'utilisateur voulait en
+  // mettre 100 grammes. Un ingrédient de cuisine inconnu se pèse, il ne se compte pas.
+  const guessUnitForName = (name) => {
+    const known = ingredients.find((i) => textIncludes(ingredientDisplayName(i), name.trim()) && ingredientDisplayName(i).length <= name.trim().length + 3);
+    if (known?.unit) return normUnit(known.unit);
+    const guess = guessCatalogEntry(name);
+    return guess?.unit || "kg";
+  };
+
+  const quickAddLine = ({ existingId, name, grams, unit: chosenUnit }) => {
     if (!active) return;
     let ingredientId = existingId;
-    let unit = "kg";
+    let unit = chosenUnit || "kg";
 
     if (!ingredientId) {
       const guess = guessCatalogEntry(name);
       const category = guess ? guess.category : "autres";
-      unit = CATEGORY_DEFAULT_UNIT[category] || "kg";
       const sId = uid();
       ingredientId = uid();
       setIngredients((ings) => [
@@ -4367,8 +4440,8 @@ export default function App() {
       unit = ingredientById(existingId)?.unit || "kg";
     }
 
-    // La saisie se fait toujours en grammes/mL (voir QtyField) : on reconvertit vers l'unité de
-    // stockage, qui reste le kg/L. Un ingrédient "à la pièce" prend le nombre tel quel.
+    // Le nombre saisi est exprimé dans l'unité AFFICHÉE (g, mL ou pièce) : on le reconvertit vers
+    // l'unité de stockage, qui reste le kg/L. Une pièce se prend telle quelle.
     const qty = unit === "kg" || unit === "L" ? (grams || 0) / 1000 : grams || 0;
     applyLinesChange([...active.lines, { ingredientId, qty, unitAtEntry: unit }]);
   };
@@ -4963,7 +5036,10 @@ export default function App() {
       }
     }
     if (!best || bestCatScore < 0.5) return null;
-    return { catalogId: best.id, category: best.cat, confident: bestIdScore >= 0.99 && !bestFuzzy };
+    // `unit` renvoyé aussi (2026-08-27) : le catalogue SAIT que le lait se compte en litres et la
+    // viande en kilos. Ne pas s'en servir obligeait à retomber sur CATEGORY_DEFAULT_UNIT, une
+    // approximation par catégorie qui donnait "Lait entier" en grammes (catégorie crémerie → kg).
+    return { catalogId: best.id, category: best.cat, unit: normUnit(best.unit), confident: bestIdScore >= 0.99 && !bestFuzzy };
   };
 
   // Ingrédients tombés en "Autres" faute de rapprochement catalogue au moment de l'import scan
@@ -8115,6 +8191,7 @@ export default function App() {
                   lang={lang}
                   t={t}
                   onAdd={quickAddLine}
+                  guessUnit={guessUnitForName}
                 />
                 {active.lines.map((line, idx) => {
                   const ing = ingredientById(line.ingredientId);
