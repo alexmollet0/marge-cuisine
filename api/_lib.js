@@ -128,7 +128,40 @@ const ACTIVE_SUB_STATUSES = ["active", "trialing", "past_due"];
 // Calcule qui détient réellement une place fondateur, en parcourant les comptes par date
 // d'inscription croissante (le premier arrivé est le premier servi) et en s'arrêtant à 50.
 // Renvoie aussi le nombre de places restantes, affiché publiquement sur la landing.
-export async function getFoundingState(supabaseAdmin) {
+// [BUG DE LENTEUR corrigé, 2026-08-27] Signalé par l'utilisateur : la page de paiement Stripe
+// mettait "très très" longtemps à s'ouvrir après un clic sur "S'abonner". Cause : `listUsers`
+// (l'API Admin de Supabase, appelée ci-dessous) est l'une des routes les plus lentes de Supabase —
+// et `getFoundingState` la réinterrogeait EN ENTIER à chaque affichage du bandeau d'essai
+// (`Billing.jsx` la charge au montage, via le GET de `create-checkout-session.js`) ET à chaque
+// clic sur "S'abonner" (le POST du même fichier), sans aucun cache. Deux appels complets à
+// `listUsers` en quelques secondes pour une information qui ne change jamais aussi vite — le
+// statut fondateur ne bouge qu'à une inscription ou un abonnement, jamais en continu.
+// Cache mémoire de 20s, partagé par TOUS les appelants (`create-checkout-session.js`, `landing.js`,
+// `send-reminders.js`) : le premier appel après expiration paie le coût de `listUsers`, tous les
+// suivants dans la fenêtre le récupèrent instantanément. Dans le cas réel qui a motivé ce
+// correctif, le GET au chargement de la page prime déjà le cache — le POST qui suit au clic sur
+// "S'abonner" devient donc quasi immédiat.
+// ⚠️ La valeur mise en cache contient un `Set` (`holders`) : tous les appelants ne font que le
+// LIRE (`.has(...)`), jamais le modifier — vérifié avant d'introduire ce partage de référence.
+let foundingStateCache = { at: 0, promise: null };
+const FOUNDING_STATE_TTL_MS = 20 * 1000;
+
+export function getFoundingState(supabaseAdmin) {
+  const now = Date.now();
+  if (foundingStateCache.promise && now - foundingStateCache.at < FOUNDING_STATE_TTL_MS) {
+    return foundingStateCache.promise;
+  }
+  const promise = computeFoundingState(supabaseAdmin);
+  foundingStateCache = { at: now, promise };
+  // Une promesse rejetée ne doit jamais rester en cache tout le TTL : le prochain appel doit
+  // pouvoir réessayer immédiatement plutôt que d'échouer pendant 20 secondes.
+  promise.catch(() => {
+    foundingStateCache = { at: 0, promise: null };
+  });
+  return promise;
+}
+
+async function computeFoundingState(supabaseAdmin) {
   const [usersRes, subsRes, kvRes] = await Promise.all([
     supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
     supabaseAdmin.from("subscriptions").select("user_id, status"),

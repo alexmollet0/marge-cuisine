@@ -26,29 +26,32 @@ export default async function handler(req, res) {
 
   const supabaseAdmin = getSupabaseAdmin();
 
-  // État de l'offre, calculé à chaque appel (jamais un compteur figé, qui se désynchroniserait
-  // dès qu'un essai expire et libère une place). Best-effort : si ce calcul échoue, l'offre est
-  // simplement considérée comme indisponible et le paiement normal continue de fonctionner.
-  let founding = { holders: new Set(), remaining: 0, total: 0 };
-  try {
-    founding = await getFoundingState(supabaseAdmin);
-  } catch (e) {
+  // État de l'offre (mis en cache 20s dans getFoundingState, voir _lib.js — c'était l'essentiel de
+  // la lenteur signalée sur le bouton "S'abonner"). Lancé AVANT tout `await`, en parallèle du
+  // reste du travail de cette requête (jamais attendu seul) : sur GET, en parallèle de la lecture
+  // de `trialStartOverride` ; sur POST, en parallèle de la vérification "client Stripe déjà
+  // existant" — aucune des deux ne dépend de l'offre de lancement. Best-effort : si ce calcul
+  // échoue, l'offre est simplement considérée comme indisponible et le paiement continue.
+  const foundingPromise = getFoundingState(supabaseAdmin).catch((e) => {
     console.error("[checkout] calcul de l'offre de lancement impossible", e);
-  }
-  // Même garde-fou que sur la landing : sans prix fondateur configuré côté Stripe, le paiement se
-  // ferait forcément au tarif normal — on n'annonce donc jamais l'offre dans ce cas.
-  const isFounder = founding.holders.has(user.id) && !!process.env.STRIPE_FOUNDING_PRICE_ID;
+    return { holders: new Set(), remaining: 0, total: 0 };
+  });
 
   if (req.method === "GET") {
+    const overridePromise = supabaseAdmin
+      .from("kv_store").select("value").eq("user_id", user.id).eq("key", "trialStartOverride").maybeSingle()
+      .then(({ data }) => data)
+      .catch(() => null);
+    const [founding, override] = await Promise.all([foundingPromise, overridePromise]);
+    const isFounder = founding.holders.has(user.id) && !!process.env.STRIPE_FOUNDING_PRICE_ID;
+
     let trialStart = user.created_at;
-    try {
-      const { data: override } = await supabaseAdmin
-        .from("kv_store").select("value").eq("user_id", user.id).eq("key", "trialStartOverride").maybeSingle();
-      if (override?.value) {
+    if (override?.value) {
+      try {
         const parsed = JSON.parse(override.value);
         if (parsed && new Date(parsed) > new Date(trialStart)) trialStart = parsed;
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
     const trialDaysLeft = Math.ceil(
       (new Date(trialStart).getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000 - Date.now()) / (24 * 60 * 60 * 1000)
     );
@@ -71,11 +74,16 @@ export default async function handler(req, res) {
   const stripe = getStripe();
 
   try {
-    const { data: existing } = await supabaseAdmin
+    // Lancée EN PARALLÈLE de foundingPromise (ci-dessus, démarrée avant tout `await` de cette
+    // requête) plutôt qu'après : c'est ce qui économise l'aller-retour réseau supplémentaire sur
+    // le chemin du clic "S'abonner".
+    const existingPromise = supabaseAdmin
       .from("subscriptions")
       .select("stripe_customer_id")
       .eq("user_id", user.id)
       .maybeSingle();
+    const [founding, { data: existing }] = await Promise.all([foundingPromise, existingPromise]);
+    const isFounder = founding.holders.has(user.id) && !!process.env.STRIPE_FOUNDING_PRICE_ID;
 
     let customerId = existing?.stripe_customer_id;
     if (!customerId) {

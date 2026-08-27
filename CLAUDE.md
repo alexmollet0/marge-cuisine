@@ -534,6 +534,10 @@ Liste tenue à jour au fil des sessions. **Cocher au fur et à mesure, ne jamais
 5. ✅ Bouton « S'abonner » visible dans le bandeau d'essai (fait le 2026-08-27).
 6. ✅ Fausse hausse de prix de +70% (fait le 2026-08-27).
 
+- **[BUG DE LENTEUR corrigé, 2026-08-27] Page de paiement Stripe "très très lente" à s'ouvrir.** Cause trouvée en lisant `getFoundingState` (`api/_lib.js`) : elle appelle `supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })`, l'une des routes les plus lentes de l'API Supabase — et cette fonction était réinterrogée **en entier, sans aucun cache**, à chaque affichage du bandeau d'essai (`Billing.jsx` la charge au montage via le GET de `create-checkout-session.js`) **et** à chaque clic sur « S'abonner » (le POST du même fichier). Deux appels complets à `listUsers` en quelques secondes pour une information — le statut fondateur — qui ne change jamais aussi vite.
+  **Corrigé à deux niveaux** : (1) `getFoundingState` met désormais son résultat en cache **20 secondes**, partagé par tous les appelants (`create-checkout-session.js`, `api/landing.js`, `api/send-reminders.js`) — vérifié avant de partager la référence que tous ne font que LIRE le `Set` `holders`, jamais le modifier. Dans le cas réel qui a motivé ce correctif, le GET au chargement de la page prime déjà le cache : le POST qui suit au clic sur « S'abonner » devient donc quasi immédiat. (2) Dans `create-checkout-session.js`, les appels indépendants qui étaient enchaînés en séquence sont désormais parallélisés via `Promise.all` : `getFoundingState` + lecture de `trialStartOverride` sur GET, `getFoundingState` + vérification du client Stripe existant sur POST.
+  Non mesuré précisément (pas d'accès aux vrais temps de réponse Vercel), mais la cause structurelle (un appel `listUsers` complet en double sur le chemin le plus emprunté du produit) est confirmée et corrigée. **À confirmer par l'utilisateur au prochain clic sur « S'abonner ».**
+
 ## EN COURS
 
 ### ✅ RÉSOLU (2026-08-25) — Mails de confirmation d'inscription qui partaient en spam
