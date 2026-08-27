@@ -39,7 +39,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    await sendEmail(contactEmail, `Chefup — message de ${user.email}`, html, attachments);
+    // [BUG confirmé et corrigé, 2026-08-27] Sans `replyTo`, cliquer "Répondre" sur ce mail dans
+    // Gmail renvoyait vers `hello@getchefup.com` (l'adresse d'expéditeur par défaut de
+    // `sendEmail`) — qui n'a AUCUNE boîte de réception configurée. Le message non distribué
+    // fourni par l'utilisateur (bounce Gmail après 45h de tentatives) montre exactement ça : une
+    // réponse à un client tombée dans le vide sans qu'il ne le sache jamais. `replyTo` sur
+    // l'adresse RÉELLE du client fait que "Répondre" écrit directement au bon endroit.
+    await sendEmail(contactEmail, `Chefup — message de ${user.email}`, html, attachments, null, user.email);
     return res.status(200).json({ ok: true });
   } catch (e) {
     return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });

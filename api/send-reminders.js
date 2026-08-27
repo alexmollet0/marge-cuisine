@@ -314,7 +314,11 @@ export default async function handler(req, res) {
       if (daysSinceScan >= INACTIVITY_DAYS && daysSinceLastReminder >= INACTIVITY_RENOTIFY_DAYS) {
         actions.push("inactivity_reminder");
         if (!dryRun) {
-          await sendEmail(email, copy.inactivitySubject, wrapEmailHtml(copy.inactivityBody, copy.cta, copy.settingsHint));
+          // [BUG confirmé et corrigé, 2026-08-27] Sans `replyTo`, une réponse du client à ce mail
+          // partait vers `hello@getchefup.com` — sans boîte de réception — et se perdait
+          // silencieusement (bounce après 45h, jamais vu par personne). Voir le même correctif
+          // sur `api/contact.js` pour le détail complet du bug, découvert via un cas réel.
+          await sendEmail(email, copy.inactivitySubject, wrapEmailHtml(copy.inactivityBody, copy.cta, copy.settingsHint), null, null, process.env.CONTACT_EMAIL || undefined);
         }
         nextState.lastInactivityReminderAt = now.toISOString();
       }
@@ -339,10 +343,13 @@ export default async function handler(req, res) {
           const isFounder = foundingHolders.has(user.id) && !!process.env.STRIPE_FOUNDING_PRICE_ID;
           actions.push(isFounder ? "trial_ending_reminder_founder" : "trial_ending_reminder");
           if (!dryRun) {
+            // Voir la note sur api/contact.js : sans replyTo, une réponse se serait perdue vers
+            // hello@getchefup.com (sans boîte de réception) — trouvé via un vrai bounce Gmail.
             await sendEmail(
               email,
               copy.trialEndingSubject,
-              wrapEmailHtml(copy.trialEndingBody(isFounder, FOUNDING_PRICE), copy.trialEndingCta, copy.settingsHint)
+              wrapEmailHtml(copy.trialEndingBody(isFounder, FOUNDING_PRICE), copy.trialEndingCta, copy.settingsHint),
+              null, null, process.env.CONTACT_EMAIL || undefined
             );
           }
           nextState.trialEndingEmailSentAt = now.toISOString();
@@ -360,7 +367,8 @@ export default async function handler(req, res) {
         if (!isActive) {
           actions.push("trial_ended_reminder");
           if (!dryRun) {
-            await sendEmail(email, copy.trialEndedSubject, wrapEmailHtml(copy.trialEndedBody, copy.cta, copy.settingsHint));
+            // Voir la note sur api/contact.js : même correctif replyTo, même cause de bounce.
+            await sendEmail(email, copy.trialEndedSubject, wrapEmailHtml(copy.trialEndedBody, copy.cta, copy.settingsHint), null, null, process.env.CONTACT_EMAIL || undefined);
           }
           nextState.trialEndedEmailSentAt = now.toISOString();
         }
@@ -430,7 +438,8 @@ export default async function handler(req, res) {
           if (!dryRun) {
             const list = confirmedBelow.map((r) => `<li>${r.name} — ${Math.round(r.margin)}%</li>`).join("");
             const body = `<p>${copy.marginIntro}</p><ul>${list}</ul><p>${copy.marginOutro}</p>`;
-            await sendEmail(email, copy.marginSubject, wrapEmailHtml(body, copy.marginCta, copy.settingsHint));
+            // Voir la note sur api/contact.js : même correctif replyTo, même cause de bounce.
+            await sendEmail(email, copy.marginSubject, wrapEmailHtml(body, copy.marginCta, copy.settingsHint), null, null, process.env.CONTACT_EMAIL || undefined);
           }
           nextState.marginDigestLastSentAt = now.toISOString();
         }
