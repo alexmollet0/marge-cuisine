@@ -666,6 +666,8 @@ export const TR = {
     pickerSearchPlaceholder: "Tape 2 lettres…", pickerTypeToSearch: "Tape pour chercher…", pickerNoResults: "Aucun résultat",
     unitPieceLabel: "pièce", unitFieldLabel: "Unité",
     quickAddNamePlaceholder: "Ajouter un ingrédient…", quickAddKnown: "connu", quickAddButton: "Ajouter",
+    quickAddPriceLabel: "prix",
+    scalePortionsLabel: "Adapter les quantités pour", scalePortionsButton: "Recalculer",
     quickAddHint: "Entrée pour passer à la quantité, Entrée pour ajouter.",
     legacyPantryHint: "Ton garde-manger contient encore l'ancienne liste de démonstration (~200 ingrédients). Charge la nouvelle version allégée (7 ingrédients essentiels) pour repartir sur une base plus claire.",
     legacyPantryButton: "Charger le nouveau garde-manger",
@@ -999,6 +1001,8 @@ export const TR = {
     pickerSearchPlaceholder: "Escribe 2 letras…", pickerTypeToSearch: "Escribe para buscar…", pickerNoResults: "Sin resultados",
     unitPieceLabel: "unidad", unitFieldLabel: "Unidad",
     quickAddNamePlaceholder: "Añadir un ingrediente…", quickAddKnown: "conocido", quickAddButton: "Añadir",
+    quickAddPriceLabel: "precio",
+    scalePortionsLabel: "Adaptar las cantidades para", scalePortionsButton: "Recalcular",
     quickAddHint: "Intro para pasar a la cantidad, Intro para añadir.",
     legacyPantryHint: "Tu despensa todavía tiene la antigua lista de demostración (~200 ingredientes). Carga la nueva versión reducida (7 ingredientes esenciales) para empezar con una base más clara.",
     legacyPantryButton: "Cargar la nueva despensa",
@@ -1332,6 +1336,8 @@ export const TR = {
     pickerSearchPlaceholder: "Type 2 letters…", pickerTypeToSearch: "Type to search…", pickerNoResults: "No results",
     unitPieceLabel: "piece", unitFieldLabel: "Unit",
     quickAddNamePlaceholder: "Add an ingredient…", quickAddKnown: "known", quickAddButton: "Add",
+    quickAddPriceLabel: "price",
+    scalePortionsLabel: "Scale the amounts for", scalePortionsButton: "Recalculate",
     quickAddHint: "Enter to jump to the amount, Enter to add.",
     legacyPantryHint: "Your pantry still has the old demo list (~200 ingredients). Load the new lean version (7 essential ingredients) to start from a clearer base.",
     legacyPantryButton: "Load the new pantry",
@@ -1769,28 +1775,36 @@ function QtyField({ qty, unit, onChange, className, t }) {
 // choisir → revenir saisir la quantité", jugé "vraiment chiant" en test réel.
 // Les suggestions montrent d'abord le garde-manger (prix déjà connus, donc marge juste) puis le
 // catalogue de référence ; un nom totalement inédit reste acceptable et crée l'ingrédient.
-function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, guessUnit }) {
+function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, guessUnit, guessPrice }) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
+  const [price, setPrice] = useState("");
   const [picked, setPicked] = useState(null); // id si choisi dans le garde-manger, sinon null
   const [unit, setUnit] = useState("kg");
   // Vrai dès que l'utilisateur a choisi l'unité lui-même : on cesse alors de la deviner à sa
   // place, sinon on écraserait son choix à la frappe suivante.
   const unitTouched = useRef(false);
+  const priceTouched = useRef(false);
   const nameRef = useRef(null);
   const amountRef = useRef(null);
 
   const q = name.trim();
 
-  // [CORRECTION 2026-08-27] L'unité se devine à partir du nom tapé, à chaque frappe, tant que
-  // l'utilisateur n'y a pas touché. Sans ça, tout était forcément saisi en grammes : "Lait
-  // entier" se retrouvait en grammes, et un nom inconnu du catalogue ("croûtons") tombait même
-  // en "pièce" à 5€ pièce. Le catalogue connaît l'unité de ses 195 entrées, autant s'en servir.
+  // L'unité ET le prix se devinent à partir du nom tapé, à chaque frappe, tant que l'utilisateur
+  // n'y a pas touché lui-même. Le catalogue connaît l'unité de ses 195 entrées et le garde-manger
+  // connaît les vrais prix déjà saisis : sans s'en servir, tout était saisi en grammes et un nom
+  // inconnu tombait même en "pièce" (cas réel : "croûtons" ajouté à 5€ la pièce).
   useEffect(() => {
-    if (unitTouched.current || picked || q.length < 3) return;
-    const guessed = guessUnit ? guessUnit(q) : "kg";
-    setUnit((u) => (u === guessed ? u : guessed));
-  }, [q, picked, guessUnit]);
+    if (picked || q.length < 3) return;
+    if (!unitTouched.current && guessUnit) {
+      const g = guessUnit(q);
+      setUnit((u) => (u === g ? u : g));
+    }
+    if (!priceTouched.current && guessPrice) {
+      const gp = guessPrice(q);
+      setPrice((cur) => (String(gp) === cur ? cur : gp ? String(gp) : ""));
+    }
+  }, [q, picked, guessUnit, guessPrice]);
 
   const suggestions =
     q.length >= 2 && !picked
@@ -1798,17 +1812,16 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
           ...ingredients
             .filter((i) => textIncludes(ingredientDisplayName(i), q))
             .slice(0, 4)
-            .map((i) => ({ key: "ing-" + i.id, label: ingredientDisplayName(i), id: i.id, unit: normUnit(i.unit), known: true })),
+            .map((i) => ({ key: "ing-" + i.id, label: ingredientDisplayName(i), id: i.id, unit: normUnit(i.unit), price: activeSupplier(i)?.price || 0, known: true })),
           ...CATALOG.filter((c) => textIncludes(c[lang] || c.fr, q) && !ingredients.some((i) => i.catalogId === c.id))
             .slice(0, 3)
-            .map((c) => ({ key: "cat-" + c.id, label: c[lang] || c.fr, id: null, unit: normUnit(c.unit), known: false })),
+            .map((c) => ({ key: "cat-" + c.id, label: c[lang] || c.fr, id: null, unit: normUnit(c.unit), price: CATEGORY_ESTIMATE_PRICE[c.cat] || 5, known: false })),
         ]
       : [];
 
-  // Libellé de saisie : grammes pour un ingrédient au poids, millilitres pour un liquide, pièce
-  // pour ce qui se compte. L'unité de STOCKAGE reste kg/L, la conversion se fait à l'ajout.
-  const amountLabel = unit === "L" ? "mL" : unit === "pièce" ? unitDisplayLabel("pièce", t) : "g";
+  // Le nombre saisi est exprimé dans l'unité AFFICHÉE ; l'unité de STOCKAGE reste kg/L.
   const placeholderAmount = unit === "L" ? "100" : unit === "pièce" ? "1" : "150";
+  const priceUnitLabel = unit === "kg" ? "/kg" : unit === "L" ? "/L" : "/" + unitDisplayLabel("pièce", t);
 
   const pickUnit = (u) => {
     unitTouched.current = true;
@@ -1819,11 +1832,14 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
   const submit = () => {
     const n = parseFloat(String(amount).replace(",", "."));
     if (!q || !Number.isFinite(n) || n <= 0) return;
-    onAdd({ existingId: picked, name: q, grams: n, unit });
+    const pr = parseFloat(String(price).replace(",", "."));
+    onAdd({ existingId: picked, name: q, grams: n, unit, price: Number.isFinite(pr) && pr > 0 ? pr : 0 });
     setName("");
     setAmount("");
+    setPrice("");
     setPicked(null);
     unitTouched.current = false;
+    priceTouched.current = false;
     nameRef.current?.focus();
   };
 
@@ -1837,7 +1853,7 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
             onChange={(e) => { setName(e.target.value); setPicked(null); }}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); amountRef.current?.focus(); } }}
             placeholder={t("quickAddNamePlaceholder")}
-            className="w-full bg-white/70 rounded-lg px-2.5 py-2 text-sm text-black outline-none border border-black/10 focus:border-[#8B5CF6]"
+            className="w-full bg-white rounded-lg px-2.5 py-2.5 text-sm text-black outline-none border border-black/15 focus:border-[#8B5CF6]"
           />
           {suggestions.length > 0 && (
             <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg overflow-hidden shadow-lg border border-black/10 bg-white">
@@ -1848,10 +1864,12 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
                   onClick={() => {
                     setName(sg.label);
                     setPicked(sg.id);
-                    // L'unité vient de la source choisie : celle du garde-manger si l'ingrédient
-                    // existe déjà (elle fait foi), celle du catalogue sinon.
+                    // Unité ET prix viennent de la source choisie : le garde-manger si
+                    // l'ingrédient existe déjà (ses valeurs font foi), le catalogue sinon.
                     unitTouched.current = false;
+                    priceTouched.current = false;
                     setUnit(sg.unit || "kg");
+                    setPrice(sg.price ? String(sg.price) : "");
                     amountRef.current?.focus();
                   }}
                   className="w-full text-left px-2.5 py-2 text-xs text-black/80 hover:bg-black/5 flex items-center gap-2 border-b border-black/5 last:border-0"
@@ -1872,25 +1890,24 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
           onChange={(e) => setAmount(e.target.value.replace(/[^0-9.,]/g, ""))}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
           placeholder={placeholderAmount}
-          className="w-14 shrink-0 bg-white/70 rounded-lg px-2 py-2 text-sm text-black text-right outline-none border border-black/10 focus:border-[#8B5CF6]"
+          className="w-14 shrink-0 bg-white rounded-lg px-2 py-2.5 text-sm text-black text-right outline-none border border-black/15 focus:border-[#8B5CF6]"
         />
         <button
           type="button"
           onClick={submit}
-          className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white"
+          className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-white"
           style={{ background: BRAND_GRADIENT }}
           title={t("quickAddButton")}
         >
-          <Plus size={16} />
+          <Plus size={18} />
         </button>
       </div>
 
-      {/* Choix d'unité toujours VISIBLE plutôt que caché derrière un petit bouton à deviner : il
-          est pré-réglé automatiquement (donc rarement à toucher) mais on voit immédiatement dans
-          quoi on est en train de saisir, et un seul tap suffit à corriger. C'est exactement ce qui
-          manquait à l'ancienne bascule kg/g minuscule dont l'utilisateur ne savait jamais si elle
-          avait fonctionné. */}
-      <div className="flex items-center gap-1 mt-1.5">
+      {/* Unité et prix sur une deuxième ligne : tous deux pré-remplis automatiquement, donc
+          rarement à toucher — mais VISIBLES, pour qu'on sache dans quoi on saisit et sur quel prix
+          la marge va se calculer. C'est ce qui manquait à l'ancienne bascule kg/g minuscule, et ce
+          qui a laissé passer un ingrédient ajouté à 5€ la pièce sans que personne ne le voie. */}
+      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
         {[
           { u: "kg", label: "g" },
           { u: "L", label: "mL" },
@@ -1900,7 +1917,7 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
             key={opt.u}
             type="button"
             onClick={() => pickUnit(opt.u)}
-            className="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors"
+            className="px-2.5 py-1 rounded-full text-[11px] font-semibold border"
             style={
               unit === opt.u
                 ? { background: BRAND_SOLID, borderColor: BRAND_SOLID, color: "#fff" }
@@ -1910,7 +1927,18 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
             {opt.label}
           </button>
         ))}
-        <span className="text-[10px] text-black/35 ml-1 truncate">{t("quickAddHint")}</span>
+        <div className="flex items-center gap-1 ml-auto">
+          <span className="text-[10px] text-black/35">{t("quickAddPriceLabel")}</span>
+          <input
+            value={price}
+            inputMode="decimal"
+            onChange={(e) => { priceTouched.current = true; setPrice(e.target.value.replace(/[^0-9.,]/g, "")); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+            placeholder="0"
+            className="w-14 bg-white rounded px-1.5 py-1 text-[12px] text-black text-right outline-none border border-black/15 focus:border-[#8B5CF6]"
+          />
+          <span className="text-[10px] text-black/35">€{priceUnitLabel}</span>
+        </div>
       </div>
     </div>
   );
@@ -4001,6 +4029,9 @@ export default function App() {
   // directement depuis la fiche recette — demandé par l'utilisateur pour corriger rapidement un
   // prix estimé faux (ex: import scan) sans devoir aller jusqu'au garde-manger.
   const [editingLinePriceIdx, setEditingLinePriceIdx] = useState(null);
+  // Nombre de portions cible pour "adapter les quantités" — distinct du champ portions de la
+  // recette, qui lui ne recalcule rien (voir scaleRecipeToPortions).
+  const [scaleTarget, setScaleTarget] = useState(0);
 
   // Formulaire de contact/réclamation : état totalement indépendant du reste.
   const [contactModalOpen, setContactModalOpen] = useState(false);
@@ -4364,6 +4395,33 @@ export default function App() {
   const nextMarginStep = marginRounded !== null ? Math.min(99, Math.ceil((marginRounded + 5) / 5) * 5) : null;
 
   const updateRecipe = (patch) => setRecipes((rs) => rs.map((r) => (r.id === active.id ? { ...r, ...patch } : r)));
+  // [2026-08-27] Adapter une recette à un autre nombre de portions EN RECALCULANT les quantités.
+  // Volontairement séparé du champ "portions" lui-même, qui reste inchangé — les deux usages
+  // existent et sont contradictoires si on les mélange :
+  //  · changer le champ portions SANS toucher aux quantités : le chef a saisi une préparation
+  //    entière (3 kg de viande) et veut juste savoir combien ça fait par portion ;
+  //  · adapter les quantités : le chef a saisi UNE assiette et veut imprimer sa fiche pour 10
+  //    couverts, avec les grammages qui suivent.
+  // Un champ qui ferait les deux serait forcément faux pour la moitié des utilisateurs, d'où une
+  // action explicite et nommée plutôt qu'un comportement implicite.
+  // Pré-rempli avec le nombre de portions actuel à chaque changement de recette : le chef part
+  // toujours de la valeur en cours plutôt que d'un champ vide à deviner.
+  useEffect(() => { if (active) setScaleTarget(active.portions || 1); }, [active?.id, active?.portions]);
+
+  const scaleRecipeToPortions = (target) => {
+    if (!active || !(target > 0)) return;
+    const from = active.portions > 0 ? active.portions : 1;
+    if (target === from) return;
+    const ratio = target / from;
+    const newLines = active.lines.map((l) => ({ ...l, qty: Math.round((l.qty || 0) * ratio * 100000) / 100000 }));
+    const patch = { lines: newLines, portions: target };
+    if (active.allergensAuto !== false) {
+      patch.allergens = detectAllergens(newLines, ingredients, lang);
+      patch.allergenCodes = detectAllergenCodes(newLines, ingredients);
+    }
+    updateRecipe(patch);
+  };
+
   const applyLinesChange = (newLines) => {
     const patch = { lines: newLines };
     if (active.allergensAuto !== false) {
@@ -4398,6 +4456,16 @@ export default function App() {
   // ESTIMÉ par catégorie (deviné via le catalogue) plutôt que d'interrompre la saisie pour
   // demander un prix : le badge "estimé" déjà existant signale ces prix, et le chef les corrige
   // quand il veut — le même compromis que celui déjà retenu pour le scanner de fiche recette.
+  // Prix connu pour un nom tapé : celui du garde-manger si l'ingrédient existe, sinon l'estimation
+  // de sa catégorie. Sert à pré-remplir le champ prix de la saisie rapide, pour que l'utilisateur
+  // voie tout de suite sur quoi la marge va être calculée — et corrige si c'est manifestement faux.
+  const guessPriceForName = (name) => {
+    const known = ingredients.find((i) => textIncludes(ingredientDisplayName(i), name.trim()) && ingredientDisplayName(i).length <= name.trim().length + 3);
+    if (known) return activeSupplier(known)?.price || 0;
+    const guess = guessCatalogEntry(name);
+    return CATEGORY_ESTIMATE_PRICE[guess?.category || "autres"] || 5;
+  };
+
   // Unité proposée pour un nom tapé, dans l'ordre : ce que le garde-manger sait déjà de cet
   // ingrédient, puis ce que le catalogue en dit (il connaît l'unité de chacune de ses 195
   // entrées), puis kg par défaut.
@@ -4412,7 +4480,7 @@ export default function App() {
     return guess?.unit || "kg";
   };
 
-  const quickAddLine = ({ existingId, name, grams, unit: chosenUnit }) => {
+  const quickAddLine = ({ existingId, name, grams, unit: chosenUnit, price }) => {
     if (!active) return;
     let ingredientId = existingId;
     let unit = chosenUnit || "kg";
@@ -4437,7 +4505,41 @@ export default function App() {
         },
       ]);
     } else {
-      unit = ingredientById(existingId)?.unit || "kg";
+      // [BUG corrigé 2026-08-27] L'unité choisie par l'utilisateur était IGNORÉE pour un
+      // ingrédient déjà connu : on reprenait systématiquement celle stockée. Résultat, un "Lait
+      // entier" enregistré en kg par erreur restait en grammes même après avoir explicitement
+      // cliqué "mL" — 100 mL devenaient 100 g, sans le moindre signe.
+      // Choisir une autre unité que celle enregistrée est donc désormais interprété comme une
+      // CORRECTION de l'ingrédient lui-même : c'est la seule lecture qui ait du sens.
+      // ⚠️ Effet voulu et déjà géré ailleurs : les recettes qui utilisaient déjà cet ingrédient
+      // afficheront l'avertissement d'unité changée (voir `unitAtEntry`), puisque leurs quantités
+      // avaient été saisies dans l'ancienne unité.
+      const existing = ingredientById(existingId);
+      const current = normUnit(existing?.unit || "kg");
+      if (chosenUnit && chosenUnit !== current) {
+        unit = chosenUnit;
+        setIngredients((ings) => ings.map((i) => (i.id === existingId ? { ...i, unit: chosenUnit } : i)));
+      } else {
+        unit = current;
+      }
+    }
+
+    // Prix corrigé directement dans la ligne de saisie (2026-08-27) : évite d'avoir à ressortir
+    // pour rectifier une estimation manifestement fausse, et rend la marge juste immédiatement.
+    if (price > 0) {
+      setIngredients((ings) =>
+        ings.map((i) => {
+          if (i.id !== ingredientId) return i;
+          const sup = i.suppliers.find((s) => s.id === i.selectedSupplierId) || i.suppliers[0];
+          if (!sup || sup.price === price) return i;
+          return {
+            ...i,
+            suppliers: i.suppliers.map((s) => (s.id === sup.id ? { ...s, price, priceSource: "manual" } : s)),
+            history: [...(i.history || []), { date: today(), price, supplierName: sup.name, supplierId: sup.id }].slice(-15),
+            lastUpdated: today(),
+          };
+        })
+      );
     }
 
     // Le nombre saisi est exprimé dans l'unité AFFICHÉE (g, mL ou pièce) : on le reconvertit vers
@@ -8184,6 +8286,33 @@ export default function App() {
                   />
                 </div>
               </div>
+
+              {/* Deux actions distinctes et nommées, jamais un comportement implicite : le champ
+                  ci-dessus change le nombre de portions SANS toucher aux quantités (préparation
+                  entière déjà saisie), celui-ci recalcule les grammages (fiche à imprimer pour un
+                  autre nombre de couverts). Mélanger les deux serait forcément faux pour la moitié
+                  des utilisateurs. */}
+              {active.lines.length > 0 && (
+                <div className="flex items-center justify-center gap-1.5 mb-3 print:hidden">
+                  <span className="text-[11px] text-black/45">{t("scalePortionsLabel")}</span>
+                  <NumField
+                    allowDecimal={false}
+                    value={scaleTarget}
+                    onChange={setScaleTarget}
+                    className="w-11 bg-white rounded px-1.5 py-1 text-center text-sm text-black outline-none border border-black/15 focus:border-[#8B5CF6]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => scaleRecipeToPortions(scaleTarget)}
+                    disabled={!(scaleTarget > 0) || scaleTarget === active.portions}
+                    className="text-[11px] font-semibold px-2.5 py-1 rounded-full disabled:opacity-35"
+                    style={{ background: `${BRAND_SOLID}22`, color: BRAND_SOLID }}
+                  >
+                    {t("scalePortionsButton")}
+                  </button>
+                </div>
+              )}
+
               <div className="text-center text-[10px] text-black/40 mb-4">{t("createdOn")} {active.createdAt || today()}</div>
               {active.isExample && (
                 <div className="flex justify-center -mt-3 mb-4 print:hidden">
@@ -8208,6 +8337,7 @@ export default function App() {
                   t={t}
                   onAdd={quickAddLine}
                   guessUnit={guessUnitForName}
+                  guessPrice={guessPriceForName}
                 />
                 {active.lines.map((line, idx) => {
                   const ing = ingredientById(line.ingredientId);
