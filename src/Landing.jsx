@@ -327,70 +327,34 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
       )}
 
       <div className="max-w-4xl mx-auto px-4 py-10 sm:py-16">
-        <div className="flex items-center gap-2 justify-center mb-2">
-          <Logo size={34} />
-          <h1 className="font-display text-white text-xl tracking-wide uppercase">Chefup</h1>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            <Logo size={34} />
+            <h1 className="font-display text-white text-xl tracking-wide uppercase">Chefup</h1>
+          </div>
+          {/* [RESTRUCTURATION 2026-08-27, refonte conversion] "J'ai déjà un compte" était un
+              deuxième bouton de même poids visuel que le CTA principal, juste sous le titre — pour
+              un visiteur froid venu de pub (99% des cas), c'est une hésitation gratuite : il n'a
+              jamais eu de compte. Redescendu en simple lien discret, toujours là pour qui revient
+              sur le lien une 2e fois, mais qui ne dispute plus l'attention du CTA principal. */}
+          <button type="button" onClick={handleLogin} className="text-[11px] text-white/40 hover:text-white/70 shrink-0">
+            {t("landingCtaLogin")}
+          </button>
         </div>
         {LangSwitcher}
 
-        {/* Pas de pastille d'offre au-dessus du titre (2026-08-26) : l'encart mis en avant juste
-            sous les boutons est déjà visible sans défiler sur un écran de téléphone, donc annoncer
-            "OFFRE DE LANCEMENT" une première fois ici ne faisait que répéter le même texte deux
-            fois sur le même écran. Un seul bloc fort vaut mieux que deux mentions tièdes. */}
-
-        <div className="text-center max-w-xl mx-auto mt-6 mb-10">
-          <h2 className="font-display text-white text-2xl sm:text-3xl tracking-wide leading-snug mb-4">
+        {/* [RESTRUCTURATION 2026-08-27, refonte conversion] Mesuré sur la 1re semaine de campagne :
+            203 visiteurs restés 3s+ ("engaged") sur la page, mais seulement 3 clics sur "Commencer"
+            et 0 (zéro) utilisation du calculateur — alors que le calculateur, lui, était placé APRÈS
+            un long titre+sous-titre+2 boutons+bandeau d'offre+citation. Pour du trafic pub froid,
+            chaque bloc avant la démonstration de valeur est une occasion de repartir. Le calculateur
+            devient donc la toute première chose vue après le titre : aucune promesse à croire sur
+            parole avant de voir un résultat, aucun choix à faire, un seul geste possible (essayer). */}
+        <div className="text-center max-w-xl mx-auto mt-6 mb-8">
+          <h2 className="font-display text-white text-2xl sm:text-3xl tracking-wide leading-snug mb-3">
             {t("landingHeroTitle")}
           </h2>
           <p className="text-white/60 text-sm sm:text-base leading-relaxed">{t("landingHeroSubtitle")}</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-7">
-            <button
-              type="button"
-              onClick={handleStart}
-              className="w-full sm:w-auto px-8 py-3 rounded-full font-display uppercase text-xs tracking-wide font-semibold"
-              style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
-            >
-              {t("landingCtaStart")}
-            </button>
-            <button
-              type="button"
-              onClick={handleLogin}
-              className="w-full sm:w-auto px-8 py-3 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/5"
-            >
-              {t("landingCtaLogin")}
-            </button>
-          </div>
-          <p className="text-emerald-400/90 text-xs font-semibold mt-3">{t("landingPricingTrial")}</p>
-
-          {/* Encart d'offre de lancement mis en avant (2026-08-26, demandé par l'utilisateur avant
-              sa campagne TikTok) : placé JUSTE APRÈS les boutons, donc lu au moment exact où le
-              visiteur hésite. Volontairement plus voyant que le reste de la page (bordure de marque
-              épaisse, prix en très gros, places restantes en couleur d'accent) — c'est le seul
-              élément de la page qui donne une raison d'agir maintenant plutôt que plus tard. */}
-          {launchOfferOpen && (
-            <div
-              className="max-w-md mx-auto mt-6 rounded-2xl border-2 px-5 py-4"
-              style={{ borderColor: BRAND_SOLID, background: `${BRAND_SOLID}14` }}
-            >
-              <div className="font-display uppercase text-[11px] tracking-widest mb-2" style={{ color: BRAND_SOLID }}>
-                {t("launchBadge")}
-              </div>
-              <div className="flex items-end justify-center gap-2 flex-wrap">
-                <span className="text-white/35 text-xl line-through">{money(PRICING.standard)}</span>
-                <span className="text-white font-display text-5xl leading-none">{money(PRICING.founding)}</span>
-                <span className="text-white/60 text-sm mb-1">{t("landingPricingPerMonth")}</span>
-              </div>
-              <div className="font-display uppercase text-sm tracking-wide mt-2" style={{ color: BRAND_SOLID }}>
-                {t("launchForLife")}
-              </div>
-              {typeof spots === "number" && (
-                <div className="text-white text-sm font-bold mt-3">{t("launchSpotsLeft")(spots)}</div>
-              )}
-              <p className="text-white/50 text-[11px] mt-2 leading-relaxed">{t("launchCondition")}</p>
-            </div>
-          )}
-
-          <p className="text-white/40 text-xs italic mt-5 max-w-md mx-auto">{t("billingFounderStory")}</p>
         </div>
 
         {/* Remplace la reconstitution statique d'une fiche recette (2026-08-19 → 2026-08-27) :
@@ -407,6 +371,44 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           }}
           onStart={handleStart}
         />
+        <p className="text-emerald-400/90 text-xs font-semibold text-center -mt-8 mb-12">{t("landingPricingTrial")}</p>
+
+        {/* [RESTRUCTURATION 2026-08-27] Bandeau d'offre déplacé APRÈS le calculateur (avant : juste
+            sous le titre, donc lu avant toute preuve de valeur). Un engagement mensuel affiché en
+            premier, à un visiteur froid qui n'a encore rien vu, augmente le réflexe de fuite — voir
+            CLAUDE.md pour le raisonnement complet. Ici, il arrive comme la récompense/la bonne
+            surprise juste après que le visiteur a déjà vu SA marge, pas comme la première chose
+            qu'on lui demande de croire. Contenu et logique inchangés, seul l'emplacement change. */}
+        {launchOfferOpen && (
+          <div
+            className="max-w-md mx-auto mb-12 rounded-2xl border-2 px-5 py-4 text-center"
+            style={{ borderColor: BRAND_SOLID, background: `${BRAND_SOLID}14` }}
+          >
+            <div className="font-display uppercase text-[11px] tracking-widest mb-2" style={{ color: BRAND_SOLID }}>
+              {t("launchBadge")}
+            </div>
+            <div className="flex items-end justify-center gap-2 flex-wrap">
+              <span className="text-white/35 text-xl line-through">{money(PRICING.standard)}</span>
+              <span className="text-white font-display text-5xl leading-none">{money(PRICING.founding)}</span>
+              <span className="text-white/60 text-sm mb-1">{t("landingPricingPerMonth")}</span>
+            </div>
+            <div className="font-display uppercase text-sm tracking-wide mt-2" style={{ color: BRAND_SOLID }}>
+              {t("launchForLife")}
+            </div>
+            {typeof spots === "number" && (
+              <div className="text-white text-sm font-bold mt-3">{t("launchSpotsLeft")(spots)}</div>
+            )}
+            <p className="text-white/50 text-[11px] mt-2 leading-relaxed">{t("launchCondition")}</p>
+            <button
+              type="button"
+              onClick={handleStart}
+              className="w-full sm:w-auto px-8 py-2.5 mt-4 rounded-full font-display uppercase text-xs tracking-wide font-semibold"
+              style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+            >
+              {t("landingCtaStart")}
+            </button>
+          </div>
+        )}
 
         <div className="mb-12">
           <h2 className="text-center font-display text-white/90 uppercase text-xs tracking-widest mb-6">
@@ -448,6 +450,12 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
             </div>
           ))}
         </div>
+
+        {/* Citation du fondateur (2026-08-27) : redescendue ici depuis le haut de la page — un
+            trust-signal a plus de poids juste avant le moment où on demande vraiment un
+            engagement (la carte de prix) que tout en haut, avant que le visiteur sache même de
+            quoi il s'agit. */}
+        <p className="text-white/40 text-xs italic text-center mb-6 max-w-md mx-auto">{t("billingFounderStory")}</p>
 
         <div
           className="max-w-sm mx-auto rounded-2xl p-6 border-2 text-center"

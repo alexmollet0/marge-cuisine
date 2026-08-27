@@ -62,13 +62,22 @@ function guessAuthLang() {
 // Messages Supabase bruts (toujours en anglais côté API) mappés vers une clé TR
 // (résolue seulement à l'affichage) plutôt qu'un texte déjà traduit — sinon un
 // message déjà affiché reste figé dans l'ancienne langue si on change de langue.
-function authErrorKey(message) {
-  const m = (message || "").toLowerCase();
+// Accepte soit l'erreur complète (objet, avec `.code`/`.message`), soit directement une chaîne
+// (compatibilité). Le `code` structuré de Supabase est vérifié en priorité — plus fiable qu'un
+// texte qui peut changer d'une version à l'autre —, avec repli sur le texte du message pour les
+// erreurs qui n'exposent pas de `code`.
+function authErrorKey(err) {
+  const code = (typeof err === "object" && err?.code) || "";
+  const m = (typeof err === "string" ? err : err?.message || "").toLowerCase();
+  if (code === "over_email_send_rate_limit" || m.includes("rate limit") || m.includes("security purposes") || m.includes("can only request this")) return "authErrorRateLimit";
   if (m.includes("invalid login credentials")) return "authErrorInvalidCredentials";
   if (m.includes("already registered")) return "authErrorAlreadyRegistered";
   if (m.includes("email not confirmed")) return "authErrorEmailNotConfirmed";
   if (m.includes("password should be at least")) return "authErrorPasswordTooShort";
   if (m.includes("valid email")) return "authErrorInvalidEmail";
+  // [AJOUT 2026-08-27, flux OTP par code] Messages Supabase pour un code faux/expiré (`verifyOtp`),
+  // trouvés en interceptant les appels réels pendant la vérification de cette fonctionnalité.
+  if (m.includes("token has expired") || m.includes("otp") || m.includes("token is invalid")) return "authErrorOtpInvalid";
   return "authErrorGeneric";
 }
 
@@ -126,6 +135,16 @@ export default function AuthGate({ children }) {
   // des points d'abandon les mieux documentés. Un seul champ visible se lit comme une question.
   // Le mot de passe reste obligatoire ensuite (voir plus bas pourquoi on ne l'a PAS supprimé).
   const [signupStep, setSignupStep] = useState("email"); // "email" | "password"
+  // [AJOUT 2026-08-27, refonte "inscription hyper rapide"] Connexion/inscription par code à 6
+  // chiffres reçu par email, sans mot de passe — remplace l'ancien lien magique. Motif du
+  // changement de mécanisme (pas juste de nom) : un LIEN fait quitter l'onglet (ouvre parfois une
+  // autre appli sur mobile/navigateur intégré TikTok — c'est exactement ce qui avait cassé
+  // l'inscription par lien magique le 2026-08-27, voir plus bas). Un CODE se tape directement dans
+  // le même onglet : on ne perd jamais le contexte. `otpFlow` distingue signup (crée le compte,
+  // envoie l'événement pub CompleteRegistration) de login (compte déjà existant) — même écran de
+  // saisie de code pour les deux, seul ce qui se passe APRÈS la vérification diffère.
+  const [otpFlow, setOtpFlow] = useState(null); // null | "signup" | "login"
+  const [otpCode, setOtpCode] = useState("");
   const [authLang, setAuthLang] = useState(guessAuthLang);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -164,6 +183,8 @@ export default function AuthGate({ children }) {
     setErr("");
     setInfo("");
     setSignupStep("email");
+    setOtpFlow(null);
+    setOtpCode("");
   }
 
   async function submit(e) {
@@ -222,7 +243,7 @@ export default function AuthGate({ children }) {
         setInfo("authForgotSuccessInfo");
       }
     } catch (e2) {
-      setErr(authErrorKey(e2.message));
+      setErr(authErrorKey(e2));
     } finally {
       setBusy(false);
     }
@@ -244,25 +265,25 @@ export default function AuthGate({ children }) {
       if (error) throw error;
       setInfo("authResendConfirmationSent");
     } catch (e2) {
-      setErr(authErrorKey(e2.message));
+      setErr(authErrorKey(e2));
     } finally {
       setResendBusy(false);
     }
   }
 
-  async function sendMagicLink() {
+  // Envoie le code à 6 chiffres (signup crée le compte s'il n'existe pas encore, login échoue
+  // simplement si le compte n'existe pas — Supabase gère déjà ça nativement via `shouldCreateUser`).
+  async function sendOtpCode(flow) {
     setErr("");
     setInfo("");
-    if (!email) {
+    if (!email.trim()) {
       setErr("authErrorInvalidEmail");
       return;
     }
     setBusy(true);
     try {
-      // `signInWithOtp` crée le compte s'il n'existe pas encore : ce bouton sert donc aussi bien à
-      // se connecter qu'à s'inscrire sans jamais choisir de mot de passe. On y joint la même
-      // provenance de campagne que l'inscription classique (voir plus haut), sinon une inscription
-      // par lien magique serait comptée comme "direct" et fausserait la mesure de la publicité.
+      // Provenance de campagne (voir plus haut, même logique que l'inscription classique) : sans
+      // ça, un compte créé par ce chemin serait compté "direct" et fausserait la mesure pub.
       let signupSource = null;
       try {
         signupSource = sessionStorage.getItem("chefup:src");
@@ -270,14 +291,41 @@ export default function AuthGate({ children }) {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: window.location.origin,
-          ...(signupSource ? { data: { signup_source: signupSource.slice(0, 40) } } : {}),
+          shouldCreateUser: flow === "signup",
+          ...(flow === "signup" && signupSource ? { data: { signup_source: signupSource.slice(0, 40) } } : {}),
         },
       });
       if (error) throw error;
+      setOtpCode("");
+      setOtpFlow(flow);
       setInfo("authMagicLinkInfo");
     } catch (e2) {
-      setErr(authErrorKey(e2.message));
+      setErr(authErrorKey(e2));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Vérifie le code tapé. Réutilisée pour signup ET login : `otpFlow` dit laquelle des deux on
+  // vient de faire, uniquement pour savoir s'il faut prévenir la régie publicitaire d'une vraie
+  // conversion (`CompleteRegistration`) — la session, elle, se met en place pareil dans les deux
+  // cas via `onAuthStateChange` (SIGNED_IN), déjà branché plus haut.
+  async function verifyOtpCode(code) {
+    setErr("");
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
+      if (error) throw error;
+      if (otpFlow === "signup") {
+        let signupSource = null;
+        try {
+          signupSource = sessionStorage.getItem("chefup:src");
+        } catch (e) {}
+        trackAdEvent("CompleteRegistration", { content_name: signupSource || "direct" });
+      }
+    } catch (e2) {
+      setErr(authErrorKey(e2));
+      setOtpCode("");
     } finally {
       setBusy(false);
     }
@@ -294,7 +342,7 @@ export default function AuthGate({ children }) {
       if (error) throw error;
       setRecoveryMode(false);
     } catch (e2) {
-      setErr(authErrorKey(e2.message));
+      setErr(authErrorKey(e2));
     } finally {
       setBusy(false);
     }
@@ -387,6 +435,84 @@ export default function AuthGate({ children }) {
           switchMode("login");
         }}
       />
+    );
+  }
+
+  // Écran de saisie du code à 6 chiffres — remplace tout le formulaire tant qu'un code a été
+  // envoyé (`otpFlow` non nul). Un seul champ, vérification automatique dès le 6e chiffre : pas de
+  // bouton supplémentaire à chercher, c'est le point qui rend ce chemin vraiment "hyper rapide".
+  if (!session && otpFlow) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 font-body" style={{ background: "#1B1815" }}>
+        <div className="w-full max-w-sm rounded-2xl p-6 border border-white/10" style={{ background: "#26221C" }}>
+          <div className="flex items-center gap-2 justify-center mb-2">
+            <Logo size={30} />
+            <h1 className="font-display text-white text-lg tracking-wide uppercase">Chefup</h1>
+          </div>
+          {LangSwitcher}
+          <h2 className="text-white text-center font-display uppercase text-sm tracking-wide mb-1.5">
+            {t("authOtpTitle")}
+          </h2>
+          <p className="text-center text-xs text-white/50 mb-5">{t("authOtpSubtitle")(email)}</p>
+
+          {err && (
+            <div className="mb-4 text-xs rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">
+              {t(err)}
+            </div>
+          )}
+          {info && !err && (
+            <div className="mb-4 text-xs rounded-lg px-3 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              {t(info)}
+            </div>
+          )}
+
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            autoFocus
+            maxLength={6}
+            value={otpCode}
+            disabled={busy}
+            onChange={(e) => {
+              const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+              setOtpCode(v);
+              setErr("");
+              // Vérification automatique dès le 6e chiffre — pas besoin de chercher un bouton.
+              if (v.length === 6) verifyOtpCode(v);
+            }}
+            className={`${inputClass} text-center text-2xl tracking-[0.6em] font-display mb-4 disabled:opacity-60`}
+            placeholder="······"
+          />
+
+          <button
+            type="button"
+            disabled={busy || otpCode.length !== 6}
+            onClick={() => verifyOtpCode(otpCode)}
+            className="w-full py-2.5 rounded-full font-display uppercase text-xs tracking-wide font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+            style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+          >
+            {busy && <Loader2 size={14} className="animate-spin" />}
+            {t("authOtpVerifyButton")}
+          </button>
+
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => sendOtpCode(otpFlow)}
+            className="w-full mt-3 text-xs text-white/50 hover:text-white disabled:opacity-60"
+          >
+            {t("authOtpResend")}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setOtpFlow(null); setOtpCode(""); setErr(""); setInfo(""); }}
+            className="w-full mt-2 text-xs text-white/40 hover:text-white"
+          >
+            {t("authOtpBack")}
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -497,15 +623,35 @@ export default function AuthGate({ children }) {
               : t("authForgotButton")}
           </button>
 
-          {/* [RETIRÉ DE L'INSCRIPTION le 2026-08-27, après un test réel de l'utilisateur]
-              Le lien magique avait été proposé aussi à l'inscription. Piège découvert en test :
-              `signInWithOtp` CRÉE le compte avant même que le lien soit cliqué. L'utilisateur a
-              cliqué "M'inscrire sans mot de passe", n'a rien vu arriver (mail non reçu ou parti en
-              spam — historique connu de ce projet), a voulu revenir au mot de passe… et s'est fait
-              répondre "un compte existe déjà avec cette adresse". Il a dû changer d'email pour
-              s'inscrire. Un chemin secondaire qui bloque le chemin principal est pire que pas de
-              chemin secondaire du tout : il ne reste donc proposé qu'à la CONNEXION, où le compte
-              existe déjà et où ce piège ne peut pas se produire. */}
+          {/* [REVENU À L'INSCRIPTION le 2026-08-27, refonte "hyper rapide", avec le vrai problème
+              corrigé cette fois] Un lien magique avait déjà été proposé ici, puis retiré : il
+              créait le compte avant même d'être cliqué, et un utilisateur qui n'avait rien reçu
+              (mail parti en spam) puis basculait sur le mot de passe se heurtait à "un compte
+              existe déjà" sans issue — il avait dû changer d'email pour s'inscrire. Cette fois,
+              DEUX choses ont changé : (1) c'est un CODE à taper dans le même onglet, plus un lien
+              qui fait quitter l'app (le vrai souci sur le navigateur intégré de TikTok, où ouvrir
+              un lien peut basculer vers un autre navigateur et perdre le contexte) ; (2) le
+              cul-de-sac "compte existe déjà" a depuis reçu un bouton "Me connecter avec ce compte"
+              (voir plus haut, `authAlreadyRegisteredGoLogin`) — même si quelqu'un choisit le code,
+              ne le reçoit pas à temps et revient au mot de passe, il n'est plus jamais bloqué. */}
+          {mode === "signup" && signupStep === "email" && (
+            <>
+              <div className="flex items-center gap-3 my-4">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-[10px] uppercase tracking-wide text-white/30">{t("authOrDivider")}</span>
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => sendOtpCode("signup")}
+                className="w-full py-2.5 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/5 disabled:opacity-60"
+              >
+                {t("authMagicLinkSignupButton")}
+              </button>
+            </>
+          )}
+
           {mode === "login" && (
             <>
               <div className="flex items-center gap-3 my-4">
@@ -516,7 +662,7 @@ export default function AuthGate({ children }) {
               <button
                 type="button"
                 disabled={busy}
-                onClick={sendMagicLink}
+                onClick={() => sendOtpCode("login")}
                 className="w-full py-2.5 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/5 disabled:opacity-60"
               >
                 {t("authMagicLinkButton")}
