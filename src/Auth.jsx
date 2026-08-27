@@ -3,6 +3,7 @@ import { Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
 import Landing from "./Landing.jsx";
+import { trackAdEvent } from "./adPixel.js";
 
 // text-base (16px) plutôt que text-sm : en dessous de 16px, iOS/Android zooment
 // automatiquement l'écran au focus d'un champ, et ne rezooment pas toujours
@@ -206,6 +207,9 @@ export default function AuthGate({ children }) {
           ...(signupSource ? { options: { data: { signup_source: signupSource.slice(0, 40) } } } : {}),
         });
         if (error) throw error;
+        // Conversion réelle envoyée au pixel publicitaire (silencieux sans consentement ou sans
+        // pixel configuré) : c'est le seul événement qui compte vraiment pour une régie.
+        trackAdEvent("CompleteRegistration", { content_name: signupSource || "direct" });
         if (!data.session) {
           setInfo("authSignupSuccessInfo");
           setMode("login");
@@ -429,6 +433,18 @@ export default function AuthGate({ children }) {
                   {t("authResendConfirmationButton")}
                 </button>
               )}
+              {/* "Un compte existe déjà" était un cul-de-sac : en test réel, l'utilisateur a fini
+                  par changer d'adresse email pour pouvoir s'inscrire. On propose donc directement
+                  la sortie évidente — se connecter avec ce compte. */}
+              {err === "authErrorAlreadyRegistered" && (
+                <button
+                  type="button"
+                  onClick={() => switchMode("login")}
+                  className="mt-2 w-full text-center underline text-red-300 hover:text-red-200"
+                >
+                  {t("authAlreadyRegisteredGoLogin")}
+                </button>
+              )}
             </div>
           )}
           {info && (
@@ -481,15 +497,16 @@ export default function AuthGate({ children }) {
               : t("authForgotButton")}
           </button>
 
-          {/* Lien magique proposé aussi à l'INSCRIPTION depuis 2026-08-27, pas seulement à la
-              connexion : `signInWithOtp` crée le compte s'il n'existe pas, c'est donc une vraie
-              inscription sans aucun mot de passe à inventer.
-              ⚠️ Volontairement gardé en second choix, PAS en chemin principal : il remplace un mot
-              de passe par un aller-retour vers la boîte mail — dépendance totale à la délivrabilité
-              (3 inscriptions ont déjà été perdues dans les spams sur ce projet), et dans le
-              navigateur intégré d'un réseau social, le lien ouvre un AUTRE navigateur, ce qui perd
-              l'utilisateur en route. L'inscription par mot de passe, elle, est immédiate. */}
-          {(mode === "login" || (mode === "signup" && signupStep === "password")) && (
+          {/* [RETIRÉ DE L'INSCRIPTION le 2026-08-27, après un test réel de l'utilisateur]
+              Le lien magique avait été proposé aussi à l'inscription. Piège découvert en test :
+              `signInWithOtp` CRÉE le compte avant même que le lien soit cliqué. L'utilisateur a
+              cliqué "M'inscrire sans mot de passe", n'a rien vu arriver (mail non reçu ou parti en
+              spam — historique connu de ce projet), a voulu revenir au mot de passe… et s'est fait
+              répondre "un compte existe déjà avec cette adresse". Il a dû changer d'email pour
+              s'inscrire. Un chemin secondaire qui bloque le chemin principal est pire que pas de
+              chemin secondaire du tout : il ne reste donc proposé qu'à la CONNEXION, où le compte
+              existe déjà et où ce piège ne peut pas se produire. */}
+          {mode === "login" && (
             <>
               <div className="flex items-center gap-3 my-4">
                 <div className="h-px flex-1 bg-white/10" />
@@ -502,7 +519,7 @@ export default function AuthGate({ children }) {
                 onClick={sendMagicLink}
                 className="w-full py-2.5 rounded-full text-xs font-semibold border border-white/15 text-white/80 hover:bg-white/5 disabled:opacity-60"
               >
-                {mode === "signup" ? t("authMagicLinkSignupButton") : t("authMagicLinkButton")}
+                {t("authMagicLinkButton")}
               </button>
             </>
           )}

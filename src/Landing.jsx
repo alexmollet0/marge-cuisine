@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Receipt, Percent, Printer, Package, QrCode, Camera, Check } from "lucide-react";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING, TIER_COLORS, marginTier } from "./App.jsx";
+import { shouldAskConsent, grantConsent, denyConsent, initPixelIfConsented, trackAdEvent } from "./adPixel.js";
 
 // TVA restauration sur place, valeur par défaut de l'app (settings.vatRate) : le calculateur de
 // démonstration doit donner exactement le même résultat que l'app pour les mêmes chiffres, sinon
@@ -246,8 +247,13 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
   const [offer, setOffer] = useState(null);
   const spots = offer ? offer.remaining : null;
   const launchOfferOpen = !!offer && (spots === null || spots > 0);
+  // Bannière de consentement publicitaire : uniquement pour un visiteur venu d'une campagne, et
+  // uniquement s'il n'a encore rien décidé. Voir src/adPixel.js pour le raisonnement complet.
+  const [askConsent, setAskConsent] = useState(false);
 
   useEffect(() => {
+    initPixelIfConsented();
+    setAskConsent(shouldAskConsent(campaignSource()));
     const stopWatchingVisibility = logViewWhenVisible();
     // Deuxième mesure, plus exigeante : quelqu'un qui reste 3 secondes sur la page l'a vraiment
     // regardée. Comparer "visites" et "3s+" dit immédiatement si le trafic d'une campagne est
@@ -270,6 +276,10 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
 
   function handleStart() {
     logLandingEvent("start_click");
+    // `ClickButton` est l'événement standard TikTok le plus proche d'un "il a commencé le
+    // parcours". La vraie conversion (`CompleteRegistration`) est envoyée depuis src/Auth.jsx,
+    // une fois le compte réellement créé.
+    trackAdEvent("ClickButton", { content_name: "start_signup" });
     onStart();
   }
 
@@ -280,6 +290,42 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
 
   return (
     <div className="min-h-screen font-body" style={{ background: "#1B1815" }}>
+      {/* Bandeau de consentement publicitaire — volontairement en BAS et non bloquant : il ne
+          masque ni le titre, ni le bouton principal, ni le calculateur. Un visiteur qui l'ignore
+          peut faire tout le parcours normalement, simplement sans être mesuré côté régie. */}
+      {askConsent && (
+        <div
+          className="fixed bottom-0 inset-x-0 z-50 px-4 py-3 border-t"
+          style={{ background: "rgba(38,34,28,0.97)", borderColor: "rgba(255,255,255,0.12)" }}
+        >
+          <div className="max-w-2xl mx-auto flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-white/60 text-[11px] leading-relaxed flex-1">
+              {t("consentText")}{" "}
+              <a href="/confidentialite.html" className="underline hover:text-white/80">
+                {t("landingPrivacy")}
+              </a>
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => { denyConsent(); setAskConsent(false); }}
+                className="px-4 py-2 rounded-full text-[11px] font-semibold border border-white/15 text-white/70"
+              >
+                {t("consentRefuse")}
+              </button>
+              <button
+                type="button"
+                onClick={() => { grantConsent(); setAskConsent(false); }}
+                className="px-4 py-2 rounded-full text-[11px] font-semibold text-white"
+                style={{ background: BRAND_GRADIENT }}
+              >
+                {t("consentAccept")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto px-4 py-10 sm:py-16">
         <div className="flex items-center gap-2 justify-center mb-2">
           <Logo size={34} />
@@ -352,7 +398,13 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
         <MarginCalculator
           t={t}
           lang={lang}
-          onEngage={() => logLandingEvent("calc_used")}
+          onEngage={() => {
+            logLandingEvent("calc_used");
+            // Signal d'intérêt intermédiaire, envoyé au pixel : avec zéro inscription, une régie
+            // n'a rien à apprendre d'un événement "compte créé". Un événement atteignable en
+            // volume comme celui-ci lui donne au moins de quoi optimiser.
+            trackAdEvent("ViewContent", { content_name: "margin_calculator" });
+          }}
           onStart={handleStart}
         />
 

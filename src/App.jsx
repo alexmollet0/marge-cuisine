@@ -799,6 +799,7 @@ export const TR = {
     authMagicLinkButton: "Recevoir un lien de connexion par email", authMagicLinkInfo: "Un lien de connexion vient d'être envoyé par email — clique dessus pour te connecter directement, sans mot de passe.",
     authOrDivider: "ou",
     authErrorInvalidCredentials: "Email ou mot de passe incorrect.", authErrorAlreadyRegistered: "Un compte existe déjà avec cet email.",
+    authAlreadyRegisteredGoLogin: "Me connecter avec ce compte",
     authErrorEmailNotConfirmed: "Confirme d'abord ton adresse email avant de te connecter — le lien est parti par mail, pense à vérifier aussi tes spams/courriers indésirables.",
     authResendConfirmationButton: "Renvoyer le mail de confirmation",
     authResendConfirmationSent: "Mail renvoyé ! Vérifie ta boîte de réception ET tes spams.",
@@ -828,18 +829,14 @@ export const TR = {
     calcVerdictMid: "Marge correcte, mais il y a mieux à faire.",
     calcVerdictLow: "Marge trop faible : ce plat te coûte plus qu'il ne te rapporte.",
     calcVatNote: (v) => `Calculé hors taxes, TVA ${v}% (restauration sur place) — exactement comme dans l'app.`,
-    firstRunStep1Title: "Ton plat le plus vendu",
-    firstRunStep1Hint: "On va calculer sa marge tout de suite, sans facture à scanner.",
-    firstRunDishLabel: "Nom du plat", firstRunDishPlaceholder: "Burger maison, salade César…",
+    firstRunTitle: "Ton premier plat",
+    firstRunHint: "On crée sa fiche tout de suite. Tu ajouteras ses ingrédients juste après, et sa marge apparaîtra.",
+    firstRunDishLabel: "Nom du plat",
+    firstRunDishPlaceholder: "Burger maison, salade César…",
     firstRunPriceLabel: "Ton prix de vente, TTC",
-    firstRunStep2Title: "Ses ingrédients principaux",
-    firstRunStep2Hint: "Trois ou quatre suffisent pour commencer. Ajuste les quantités pour une assiette.",
-    firstRunSearchPlaceholder: "Cherche un ingrédient…",
-    firstRunNoPickYet: "Aucun ingrédient pour l'instant — cherche au moins le principal.",
-    firstRunStep3Hint: "Voilà ce que ce plat te rapporte, avec des prix estimés.",
-    firstRunMarginLabel: "Marge estimée", firstRunCostLabel: "Coût des ingrédients", firstRunSellLabel: "Prix de vente",
-    firstRunEstimateNote: "Ces prix sont des moyennes par catégorie, pas les tiens. Scanne une facture depuis l'onglet Scanner et toutes tes marges se recalculent avec tes vrais prix fournisseurs.",
-    firstRunNext: "Continuer", firstRunBack: "Retour", firstRunCreate: "Créer ma fiche recette", firstRunSkip: "Passer, je regarde par moi-même",
+    firstRunPriceHint: "Le prix d'une assiette, tel qu'il est sur ta carte.",
+    firstRunCreate: "Créer ma fiche recette",
+    firstRunSkip: "Passer, je regarde par moi-même",
     calcMoreTitle: "Ça, c'est un plat. Dans Chefup :",
     calcMore1: "Ce coût se remplit tout seul : tu photographies ta facture, les prix se mettent à jour dans tes recettes.",
     calcMore2: "Toute ta carte est recalculée à chaque hausse de prix fournisseur, et tu es alerté quand un plat passe sous ton objectif.",
@@ -848,6 +845,8 @@ export const TR = {
     landingPricingTitle: "Un seul tarif, tout inclus", landingPricingTrial: "7 jours d'essai gratuit, sans carte bancaire",
     landingPricingCta: "Démarrer mon essai gratuit", landingPricingPerMonth: "/ mois",
     landingLegalNotice: "Mentions légales", landingTerms: "CGV", landingPrivacy: "Confidentialité",
+    consentText: "On aimerait mesurer si la publicité qui t'a amené ici fonctionne. Ça implique un traceur TikTok. Tu peux refuser, le site marche exactement pareil.",
+    consentAccept: "Accepter", consentRefuse: "Refuser",
     landingPricingFeature1: "Recettes et marges illimitées", landingPricingFeature2: "Scan de factures par IA",
     landingPricingFeature3: "Fiches techniques & allergènes imprimables", landingPricingFeature4: "Carte digitale avec QR code", landingPricingFeature5: "Résiliable à tout moment",
   },
@@ -1131,6 +1130,7 @@ export const TR = {
     authMagicLinkButton: "Recibir un enlace de acceso por email", authMagicLinkInfo: "Se acaba de enviar un enlace de acceso por email — haz clic para conectarte directamente, sin contraseña.",
     authOrDivider: "o",
     authErrorInvalidCredentials: "Email o contraseña incorrectos.", authErrorAlreadyRegistered: "Ya existe una cuenta con este email.",
+    authAlreadyRegisteredGoLogin: "Iniciar sesión con esta cuenta",
     authErrorEmailNotConfirmed: "Confirma primero tu dirección de email antes de iniciar sesión — el enlace se envió por correo, revisa también tu carpeta de spam.",
     authResendConfirmationButton: "Reenviar el correo de confirmación",
     authResendConfirmationSent: "¡Correo reenviado! Revisa tu bandeja de entrada Y tu carpeta de spam.",
@@ -1160,18 +1160,14 @@ export const TR = {
     calcVerdictMid: "Margen correcto, pero se puede mejorar.",
     calcVerdictLow: "Margen demasiado bajo: este plato te cuesta más de lo que te deja.",
     calcVatNote: (v) => `Calculado sin impuestos, IVA ${v}% (restauración) — igual que en la app.`,
-    firstRunStep1Title: "Tu plato más vendido",
-    firstRunStep1Hint: "Vamos a calcular su margen ahora mismo, sin escanear ninguna factura.",
-    firstRunDishLabel: "Nombre del plato", firstRunDishPlaceholder: "Hamburguesa casera, ensalada César…",
+    firstRunTitle: "Tu primer plato",
+    firstRunHint: "Creamos su ficha ahora mismo. Añadirás sus ingredientes justo después y aparecerá su margen.",
+    firstRunDishLabel: "Nombre del plato",
+    firstRunDishPlaceholder: "Hamburguesa casera, ensalada César…",
     firstRunPriceLabel: "Tu precio de venta, con IVA",
-    firstRunStep2Title: "Sus ingredientes principales",
-    firstRunStep2Hint: "Con tres o cuatro basta para empezar. Ajusta las cantidades para un plato.",
-    firstRunSearchPlaceholder: "Busca un ingrediente…",
-    firstRunNoPickYet: "Aún no hay ingredientes — busca al menos el principal.",
-    firstRunStep3Hint: "Esto es lo que te deja este plato, con precios estimados.",
-    firstRunMarginLabel: "Margen estimado", firstRunCostLabel: "Coste de los ingredientes", firstRunSellLabel: "Precio de venta",
-    firstRunEstimateNote: "Estos precios son medias por categoría, no los tuyos. Escanea una factura desde la pestaña Escáner y todos tus márgenes se recalculan con tus precios reales.",
-    firstRunNext: "Continuar", firstRunBack: "Atrás", firstRunCreate: "Crear mi ficha de receta", firstRunSkip: "Saltar, prefiero mirar por mi cuenta",
+    firstRunPriceHint: "El precio de un plato, tal y como está en tu carta.",
+    firstRunCreate: "Crear mi ficha de receta",
+    firstRunSkip: "Saltar, prefiero mirar por mi cuenta",
     calcMoreTitle: "Esto es un plato. En Chefup:",
     calcMore1: "Este coste se rellena solo: fotografías tu factura y los precios se actualizan en tus recetas.",
     calcMore2: "Toda tu carta se recalcula con cada subida de precio del proveedor, y te avisamos cuando un plato baja de tu objetivo.",
@@ -1180,6 +1176,8 @@ export const TR = {
     landingPricingTitle: "Un único precio, todo incluido", landingPricingTrial: "7 días de prueba gratuita, sin tarjeta bancaria",
     landingPricingCta: "Empezar mi prueba gratuita", landingPricingPerMonth: "/ mes",
     landingLegalNotice: "Aviso legal", landingTerms: "Condiciones", landingPrivacy: "Privacidad",
+    consentText: "Nos gustaría medir si el anuncio que te ha traído aquí funciona. Eso implica un rastreador de TikTok. Puedes rechazarlo, la web funciona exactamente igual.",
+    consentAccept: "Aceptar", consentRefuse: "Rechazar",
     landingPricingFeature1: "Recetas y márgenes ilimitados", landingPricingFeature2: "Escaneo de facturas con IA",
     landingPricingFeature3: "Fichas técnicas y de alérgenos imprimibles", landingPricingFeature4: "Carta digital con código QR", landingPricingFeature5: "Cancelable en cualquier momento",
   },
@@ -1463,6 +1461,7 @@ export const TR = {
     authMagicLinkButton: "Get a one-click login link by email", authMagicLinkInfo: "A login link was just sent by email — click it to log in directly, no password needed.",
     authOrDivider: "or",
     authErrorInvalidCredentials: "Incorrect email or password.", authErrorAlreadyRegistered: "An account already exists with this email.",
+    authAlreadyRegisteredGoLogin: "Log in with this account",
     authErrorEmailNotConfirmed: "Confirm your email address first before logging in — the link was sent by email, remember to check your spam/junk folder too.",
     authResendConfirmationButton: "Resend the confirmation email",
     authResendConfirmationSent: "Email resent! Check your inbox AND your spam folder.",
@@ -1492,18 +1491,14 @@ export const TR = {
     calcVerdictMid: "Decent margin, but you can do better.",
     calcVerdictLow: "Margin too low: this dish costs you more than it earns.",
     calcVatNote: (v) => `Calculated excluding tax, ${v}% VAT (dine-in) — exactly like in the app.`,
-    firstRunStep1Title: "Your best-selling dish",
-    firstRunStep1Hint: "Let us work out its margin right now, with no invoice to scan.",
-    firstRunDishLabel: "Dish name", firstRunDishPlaceholder: "House burger, Caesar salad…",
+    firstRunTitle: "Your first dish",
+    firstRunHint: "Let us create its sheet right now. You will add its ingredients straight after, and its margin will appear.",
+    firstRunDishLabel: "Dish name",
+    firstRunDishPlaceholder: "House burger, Caesar salad…",
     firstRunPriceLabel: "Your selling price, incl. VAT",
-    firstRunStep2Title: "Its main ingredients",
-    firstRunStep2Hint: "Three or four is enough to start. Adjust the amounts for one plate.",
-    firstRunSearchPlaceholder: "Search an ingredient…",
-    firstRunNoPickYet: "No ingredients yet — search at least the main one.",
-    firstRunStep3Hint: "Here is what this dish earns you, using estimated prices.",
-    firstRunMarginLabel: "Estimated margin", firstRunCostLabel: "Ingredient cost", firstRunSellLabel: "Selling price",
-    firstRunEstimateNote: "These prices are category averages, not yours. Scan an invoice from the Scanner tab and every margin is recalculated with your real supplier prices.",
-    firstRunNext: "Continue", firstRunBack: "Back", firstRunCreate: "Create my recipe sheet", firstRunSkip: "Skip, I will look around myself",
+    firstRunPriceHint: "The price of one plate, as it appears on your menu.",
+    firstRunCreate: "Create my recipe sheet",
+    firstRunSkip: "Skip, I will look around myself",
     calcMoreTitle: "That is one dish. Inside Chefup:",
     calcMore1: "This cost fills itself in: photograph your invoice and the prices update across your recipes.",
     calcMore2: "Your whole menu is recalculated on every supplier price rise, and you are alerted when a dish drops below your target.",
@@ -1512,6 +1507,8 @@ export const TR = {
     landingPricingTitle: "One price, everything included", landingPricingTrial: "7-day free trial, no credit card required",
     landingPricingCta: "Start my free trial", landingPricingPerMonth: "/ month",
     landingLegalNotice: "Legal notice", landingTerms: "Terms", landingPrivacy: "Privacy",
+    consentText: "We would like to measure whether the ad that brought you here works. That involves a TikTok tracker. You can refuse — the site works exactly the same.",
+    consentAccept: "Accept", consentRefuse: "Refuse",
     landingPricingFeature1: "Unlimited recipes and margins", landingPricingFeature2: "AI invoice scanning",
     landingPricingFeature3: "Printable spec & allergen sheets", landingPricingFeature4: "Digital menu with QR code", landingPricingFeature5: "Cancel anytime",
   },
@@ -3701,182 +3698,65 @@ function AdminDashboard() {
   );
 }
 
-// Quantité de départ proposée dans le premier lancement guidé, selon l'unité de l'ingrédient.
-// Des ordres de grandeur volontairement plausibles pour une portion (150 g de viande, 10 cl de
-// liquide, 1 pièce) : le chef corrige ensuite, mais il ne part jamais de zéro.
-const FIRST_RUN_DEFAULT_QTY = { kg: 0.15, L: 0.1, pièce: 1 };
-
-// [CHANGEMENT MAJEUR, 2026-08-27] Premier lancement guidé : voir sa première marge en deux minutes,
-// SANS avoir à scanner la moindre facture.
-// Motif : jusqu'ici, un nouveau compte tombait sur une recette de démonstration et un garde-manger
-// de 7 ingrédients d'exemple, et le seul chemin vers de la vraie valeur passait par le scanner —
-// c'est-à-dire par "va chercher une facture fournisseur", l'étape la plus lourde du produit. Le
-// temps entre l'inscription et la première marge personnelle se comptait en dizaines de minutes.
-// Ici : nom du plat, prix de vente, 3-4 ingrédients pris dans le catalogue à prix estimés, et la
-// marge s'affiche. Le scan devient l'étape 2 ("remplace ces estimations par tes vrais prix"),
-// plus le péage d'entrée.
-// Les prix viennent de CATEGORY_ESTIMATE_PRICE et du CATALOG (195 entrées), deux ressources déjà
-// présentes dans le projet et jusqu'ici très peu exploitées.
-function FirstRunWizard({ t, lang, onFinish, onSkip, vatRate, minMargin }) {
-  const [step, setStep] = useState(1);
+// [REFONTE 2026-08-27, après le premier test réel de l'utilisateur] Premier lancement guidé,
+// version à UN SEUL écran : on demande le plat et son prix de vente, on crée la recette, et on
+// dépose le chef directement dans sa VRAIE fiche recette pour qu'il y ajoute ses ingrédients.
+//
+// La version précédente proposait un mini-éditeur d'ingrédients maison en 3 étapes. Elle a été
+// jugée inutilisable au premier test, pour trois raisons qui tenaient toutes à la même erreur —
+// avoir redéveloppé en petit ce que la fiche recette fait déjà en grand :
+//   1. la recherche était limitée au CATALOG (195 entrées) : l'ingrédient du chef n'y était pas,
+//      et rien ne permettait d'en créer un ;
+//   2. rien n'indiquait qu'on pouvait en ajouter plusieurs (le champ de recherche se vidait après
+//      chaque ajout, ce qui donnait l'impression d'être limité à un seul) ;
+//   3. les prix venaient d'estimations par catégorie, non modifiables : avec un seul ingrédient
+//      bon marché, la marge affichée frôlait les 100% et ne voulait plus rien dire.
+//
+// La fiche recette, elle, sait déjà tout faire : chercher un ingrédient, en CRÉER un qui n'existe
+// nulle part (avec catégorie et prix, estimé ou saisi), en ajouter autant qu'on veut, et corriger
+// un prix en place. Dupliquer ça en moins bien était une faute — on y renvoie donc directement.
+// Bonus : le chef apprend la vraie interface tout de suite au lieu d'un formulaire jetable.
+function FirstRunWizard({ t, onFinish, onSkip }) {
   const [dishName, setDishName] = useState("");
   const [sellPrice, setSellPrice] = useState(0);
-  const [query, setQuery] = useState("");
-  const [picks, setPicks] = useState([]);
-
-  const results = query.trim().length >= 2
-    ? CATALOG.filter((c) => textIncludes(c[lang] || c.fr, query) && !picks.some((p) => p.catalogId === c.id)).slice(0, 6)
-    : [];
-
-  const addPick = (c) => {
-    const unit = normUnit(c.unit);
-    setPicks((p) => [...p, { catalogId: c.id, name: c[lang] || c.fr, unit, cat: c.cat, qty: FIRST_RUN_DEFAULT_QTY[unit] ?? 0.1 }]);
-    setQuery("");
-  };
-  const setQty = (id, qty) => setPicks((p) => p.map((x) => (x.catalogId === id ? { ...x, qty } : x)));
-  const removePick = (id) => setPicks((p) => p.filter((x) => x.catalogId !== id));
-
-  // Même formule que l'app (recipeMargin) : coût total des lignes rapporté à UNE portion — ici la
-  // recette créée fait 1 portion, donc le coût des ingrédients EST le coût par portion.
-  const cost = picks.reduce((s, p) => s + (CATEGORY_ESTIMATE_PRICE[p.cat] || 5) * (p.qty || 0), 0);
-  const ht = (sellPrice || 0) / (1 + (vatRate ?? 10) / 100);
-  const margin = ht > 0 ? ((ht - cost) / ht) * 100 : null;
-  const tier = marginTier(margin, minMargin ?? 75);
-  const color = tier ? TIER_COLORS[tier] : "rgba(255,255,255,0.3)";
-
-  const canGoStep2 = dishName.trim().length > 0 && sellPrice > 0;
+  const canCreate = dishName.trim().length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 py-4" style={{ background: "rgba(0,0,0,0.75)" }}>
       <div className="w-full max-w-md rounded-2xl border border-white/10 max-h-full overflow-y-auto" style={{ background: "#26221C" }}>
         <div className="p-5">
-          <div className="flex items-center gap-1.5 mb-4">
-            {[1, 2, 3].map((n) => (
-              <div
-                key={n}
-                className="h-1 flex-1 rounded-full transition-colors"
-                style={{ background: n <= step ? BRAND_SOLID : "rgba(255,255,255,0.12)" }}
-              />
-            ))}
+          <h2 className="font-display uppercase text-white text-sm tracking-wide mb-1">{t("firstRunTitle")}</h2>
+          <p className="text-white/50 text-xs mb-4">{t("firstRunHint")}</p>
+
+          <label className="block text-white/50 text-[11px] mb-1">{t("firstRunDishLabel")}</label>
+          <input
+            value={dishName}
+            onChange={(e) => setDishName(e.target.value)}
+            placeholder={t("firstRunDishPlaceholder")}
+            className="w-full rounded-lg px-3 py-2.5 text-base text-white outline-none mb-3"
+            style={{ background: "rgba(0,0,0,0.25)" }}
+          />
+
+          <label className="block text-white/50 text-[11px] mb-1">{t("firstRunPriceLabel")}</label>
+          <div className="flex items-center gap-1.5 rounded-lg px-3 py-2.5" style={{ background: "rgba(0,0,0,0.25)" }}>
+            <NumField
+              value={sellPrice}
+              onChange={setSellPrice}
+              className="w-full min-w-0 bg-transparent text-white text-base font-semibold outline-none text-right"
+            />
+            <span className="text-white/40 text-sm shrink-0">€</span>
           </div>
+          <p className="text-white/30 text-[10px] mt-1.5">{t("firstRunPriceHint")}</p>
 
-          {step === 1 && (
-            <>
-              <h2 className="font-display uppercase text-white text-sm tracking-wide mb-1">{t("firstRunStep1Title")}</h2>
-              <p className="text-white/50 text-xs mb-4">{t("firstRunStep1Hint")}</p>
-              <label className="block text-white/50 text-[11px] mb-1">{t("firstRunDishLabel")}</label>
-              <input
-                value={dishName}
-                onChange={(e) => setDishName(e.target.value)}
-                placeholder={t("firstRunDishPlaceholder")}
-                className="w-full rounded-lg px-3 py-2.5 text-base text-white outline-none mb-3"
-                style={{ background: "rgba(0,0,0,0.25)" }}
-              />
-              <label className="block text-white/50 text-[11px] mb-1">{t("firstRunPriceLabel")}</label>
-              <div className="flex items-center gap-1.5 rounded-lg px-3 py-2.5" style={{ background: "rgba(0,0,0,0.25)" }}>
-                <NumField
-                  value={sellPrice}
-                  onChange={setSellPrice}
-                  className="w-full min-w-0 bg-transparent text-white text-base font-semibold outline-none text-right"
-                />
-                <span className="text-white/40 text-sm shrink-0">€</span>
-              </div>
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <h2 className="font-display uppercase text-white text-sm tracking-wide mb-1">{t("firstRunStep2Title")}</h2>
-              <p className="text-white/50 text-xs mb-4">{t("firstRunStep2Hint")}</p>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("firstRunSearchPlaceholder")}
-                className="w-full rounded-lg px-3 py-2.5 text-base text-white outline-none mb-2"
-                style={{ background: "rgba(0,0,0,0.25)" }}
-              />
-              {results.length > 0 && (
-                <div className="rounded-lg overflow-hidden mb-3" style={{ background: "rgba(0,0,0,0.25)" }}>
-                  {results.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => addPick(c)}
-                      className="w-full text-left px-3 py-2.5 text-sm text-white/80 hover:bg-white/5 border-b border-white/5 last:border-0"
-                    >
-                      + {c[lang] || c.fr}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="space-y-2">
-                {picks.map((p) => (
-                  <div key={p.catalogId} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.05)" }}>
-                    <span className="flex-1 min-w-0 truncate text-white/85 text-sm">{p.name}</span>
-                    <QtyField
-                      qty={p.qty}
-                      unit={p.unit}
-                      onChange={(v) => setQty(p.catalogId, v)}
-                      className="w-16 bg-black/20 rounded px-1.5 py-1 text-right text-white text-sm outline-none"
-                      t={t}
-                    />
-                    <button type="button" onClick={() => removePick(p.catalogId)} className="text-white/30 hover:text-white shrink-0">
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              {picks.length === 0 && <p className="text-white/30 text-[11px] italic">{t("firstRunNoPickYet")}</p>}
-            </>
-          )}
-
-          {step === 3 && (
-            <>
-              <h2 className="font-display uppercase text-white text-sm tracking-wide mb-1">{dishName}</h2>
-              <p className="text-white/50 text-xs mb-4">{t("firstRunStep3Hint")}</p>
-              <div className="rounded-xl px-4 py-5 text-center" style={{ background: `${color}18`, border: `1px solid ${color}55` }}>
-                <div className="text-white/45 text-[10px] uppercase tracking-widest">{t("firstRunMarginLabel")}</div>
-                <div className="font-display text-5xl leading-none mt-1" style={{ color }}>
-                  {margin === null ? "—" : `${Math.round(margin)}%`}
-                </div>
-              </div>
-              <div className="mt-4 space-y-1.5 text-xs">
-                <div className="flex justify-between text-white/50">
-                  <span>{t("firstRunCostLabel")}</span>
-                  <span className="text-white/80">{cost.toFixed(2)} €</span>
-                </div>
-                <div className="flex justify-between text-white/50">
-                  <span>{t("firstRunSellLabel")}</span>
-                  <span className="text-white/80">{(sellPrice || 0).toFixed(2)} €</span>
-                </div>
-              </div>
-              {/* Honnêteté indispensable : ces prix sont des ordres de grandeur par catégorie, pas
-                  les prix réels du chef. Le dire ici transforme l'estimation en invitation à
-                  scanner, au lieu de laisser croire à un chiffre exact. */}
-              <p className="text-white/40 text-[11px] mt-4 leading-relaxed">{t("firstRunEstimateNote")}</p>
-            </>
-          )}
-
-          <div className="flex gap-2 mt-5">
-            {step > 1 && (
-              <button
-                type="button"
-                onClick={() => setStep((s) => s - 1)}
-                className="px-4 py-3 rounded-full text-xs font-semibold border border-white/15 text-white/70"
-              >
-                {t("firstRunBack")}
-              </button>
-            )}
-            <button
-              type="button"
-              disabled={(step === 1 && !canGoStep2) || (step === 2 && picks.length === 0)}
-              onClick={() => (step === 3 ? onFinish({ dishName: dishName.trim(), sellPrice, picks }) : setStep((s) => s + 1))}
-              className="flex-1 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold disabled:opacity-40"
-              style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
-            >
-              {step === 3 ? t("firstRunCreate") : t("firstRunNext")}
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={!canCreate}
+            onClick={() => onFinish({ dishName: dishName.trim(), sellPrice })}
+            className="w-full mt-5 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold disabled:opacity-40"
+            style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+          >
+            {t("firstRunCreate")}
+          </button>
 
           <button type="button" onClick={onSkip} className="w-full mt-3 text-[11px] text-white/35 hover:text-white/70">
             {t("firstRunSkip")}
@@ -4190,52 +4070,31 @@ export default function App() {
     storage.set("firstRunDone", JSON.stringify(true)).catch(() => {});
   };
 
-  // Crée l'ingrédient manquant pour chaque choix, puis la recette, et ouvre sa fiche. Les formes
-  // d'objet sont volontairement identiques à celles de `createRecipeFromScan` : deux chemins de
-  // création qui divergeraient finiraient par produire des recettes subtilement incompatibles.
-  const finishFirstRun = ({ dishName, sellPrice, picks }) => {
-    const newIngredients = [];
-    const lines = picks.map((p) => {
-      const existing = ingredients.find((i) => i.catalogId === p.catalogId);
-      if (existing) return { ingredientId: existing.id, qty: p.qty || 0, unitAtEntry: existing.unit };
-      const sId = uid();
-      const id = uid();
-      newIngredients.push({
-        id,
-        name: p.name,
-        unit: p.unit,
-        catalogId: p.catalogId,
-        category: p.cat,
-        selectedSupplierId: sId,
-        suppliers: [{ id: sId, name: t("supplier"), price: CATEGORY_ESTIMATE_PRICE[p.cat] || 5, priceSource: "estimate" }],
-        history: [],
-        lastUpdated: today(),
-      });
-      return { ingredientId: id, qty: p.qty || 0, unitAtEntry: p.unit };
-    });
-    if (newIngredients.length) setIngredients((ings) => [...ings, ...newIngredients]);
-
+  // Crée la recette vide (nom + prix de vente) et ouvre sa fiche : c'est là que le chef ajoutera
+  // ses ingrédients, avec la vraie interface — voir le commentaire de FirstRunWizard pour pourquoi
+  // on ne construit plus d'éditeur d'ingrédients séparé. La recette n'a volontairement AUCUNE
+  // ligne : grâce au correctif de , elle n'affiche donc pas de marge tant qu'aucun
+  // ingrédient n'est saisi, au lieu d'un 100% absurde.
+  const finishFirstRun = ({ dishName, sellPrice }) => {
     const newRecipe = {
       id: uid(),
-      name: dishName || t("newRecipeName"),
-      // 1 portion : le chef a saisi le prix de vente d'UNE assiette et les quantités d'UNE assiette.
-      // Lui demander un nombre de portions à ce stade rajouterait une question à laquelle beaucoup
-      // ne savent pas répondre d'emblée — il pourra toujours l'ajuster dans la fiche.
+      name: dishName || t('newRecipeName'),
+      // 1 portion : le chef a saisi le prix de vente d'UNE assiette.
       portions: 1,
       sellPrice: sellPrice || 0,
       targetMargin: settings.minMargin ?? 75,
-      notes: "",
-      allergens: "",
+      notes: '',
+      allergens: '',
       allergensAuto: true,
       createdAt: today(),
-      lines,
+      lines: [],
     };
     setRecipes((rs) => [...rs, newRecipe]);
     setActiveId(newRecipe.id);
-    setActiveTab("recipes");
-    setRecipeSubView("detail");
+    setActiveTab('recipes');
+    setRecipeSubView('detail');
     closeFirstRun();
-    logActivity("recipe_created", { name: newRecipe.name, source: "first_run" });
+    logActivity('recipe_created', { name: newRecipe.name, source: 'first_run' });
   };
 
   // [PONT CARTE DIGITALE → MARGE, 2026-08-27] Transforme un article simple de la carte (nom + prix,
@@ -8664,14 +8523,7 @@ export default function App() {
           uniquement sur un compte encore totalement vierge (voir looksBrandNew) et jamais une
           seconde fois (drapeau firstRunDone, stocké par compte). */}
       {showFirstRun && (
-        <FirstRunWizard
-          t={t}
-          lang={lang}
-          vatRate={settings.vat}
-          minMargin={settings.minMargin}
-          onFinish={finishFirstRun}
-          onSkip={closeFirstRun}
-        />
+        <FirstRunWizard t={t} onFinish={finishFirstRun} onSkip={closeFirstRun} />
       )}
 
       {/* ---------------- NAVIGATION PAR ONGLETS (bas d'écran) ---------------- */}
