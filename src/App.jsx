@@ -8374,7 +8374,22 @@ export default function App() {
                           <NumField
                             value={activeSupplier(ing)?.price || 0}
                             onChange={(v) => updateActiveSupplierPrice(ing.id, v)}
-                            onCommit={(v) => commitActiveSupplierPrice(ing.id, v)}
+                            // [BUG confirmé et corrigé, 2026-08-27] Ce champ affiche/édite le prix
+                            // AU KILO (activeSupplier(ing).price), alors que le même emplacement
+                            // affiche normalement le COÛT DE LA LIGNE (lineCost, prix × quantité)
+                            // — deux nombres différents dans le même slot visuel. Rien ne fermait
+                            // le mode édition après la saisie (seul un second clic sur le crayon le
+                            // faisait) : après avoir tapé "9" pour "9€/kg", le champ restait
+                            // affiché à "9,00€" à côté de "150 g", donnant l'impression fausse que
+                            // 150g coûtaient 9€ — alors que le prix était bien enregistré à 9€/kg
+                            // et le coût réel de la ligne (1,35€) correctement calculé en interne,
+                            // simplement jamais réaffiché. On referme le mode édition dès que la
+                            // saisie est terminée (perte de focus, même moment que onCommit) pour
+                            // que l'écran redonne immédiatement le vrai coût de la ligne.
+                            onCommit={(v) => {
+                              commitActiveSupplierPrice(ing.id, v);
+                              setEditingLinePriceIdx(null);
+                            }}
                             className="w-16 shrink-0 bg-black/5 text-right outline-none rounded px-1 price-field"
                           />
                         ) : (
