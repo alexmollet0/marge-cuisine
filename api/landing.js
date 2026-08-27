@@ -98,17 +98,33 @@ export default async function handler(req, res) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
     try {
-      // `source` peut ne pas encore exister comme colonne (migration manuelle, voir POST plus
-      // haut) : on retente sans elle plutôt que de renvoyer une erreur pour tout le funnel.
+      // [BUG confirmé et corrigé, 2026-08-27] Supabase plafonne toute requête à 1000 lignes par
+      // défaut. Sans tri explicite, quelles lignes survivent à ce plafond n'est PAS garanti — et
+      // depuis la campagne TikTok (884 à 990 vues en une seule journée), `landing_events` dépasse
+      // largement 1000 lignes sur une fenêtre de plusieurs jours. Résultat mesuré : `days=1`
+      // renvoyait 108 événements "engaged", `days=3` (qui contient pourtant ce même jour) en
+      // renvoyait 0 — la troncature avait purement et simplement écarté les événements les plus
+      // récents. C'est très probablement la cause du "compteur figé depuis ce matin" signalé par
+      // l'utilisateur : dès que le volume du jour dépassait 1000 lignes, les événements suivants
+      // n'entraient tout simplement plus dans le décompte.
+      // `.order(..., { ascending: false })` garantit que si troncature il y a, ce sont les lignes
+      // les PLUS RÉCENTES qui sont conservées — le tableau de bord reste à jour même un jour de
+      // forte affluence, au prix d'un sous-comptage possible des jours plus anciens dans une
+      // fenêtre très large (limite connue, pas résolue ici : une vraie somme SQL type `count`
+      // réglerait ça complètement, mais c'est un chantier plus large qu'un simple tri).
       let { data, error } = await supabaseAdmin
         .from("landing_events")
         .select("event_type, source, created_at")
-        .gte("created_at", since);
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(10000);
       if (error) {
         const retry = await supabaseAdmin
           .from("landing_events")
           .select("event_type, created_at")
-          .gte("created_at", since);
+          .gte("created_at", since)
+          .order("created_at", { ascending: false })
+          .limit(10000);
         data = retry.data;
         error = retry.error;
       }

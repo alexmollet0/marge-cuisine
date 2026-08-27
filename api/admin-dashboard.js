@@ -150,7 +150,15 @@ export default async function handler(req, res) {
       // Colonne ajoutée à la main dans Supabase — si elle manque encore sur un projet non migré, la
       // requête échoue et on retombe plus bas sur la version sans elle plutôt que de casser tout le
       // tableau de bord pour une seule colonne.
-      supabaseAdmin.from("landing_events").select("event_type, source, created_at").gte("created_at", since),
+      // [BUG confirmé et corrigé, 2026-08-27] Supabase plafonne toute requête à 1000 lignes sans
+      // tri explicite, et l'ordre des lignes retenues n'est alors pas garanti — depuis la campagne
+      // TikTok, `landing_events` dépasse largement 1000 lignes par jour. Signalé par l'utilisateur :
+      // "le compteur de visites ne bouge plus depuis ce matin". Voir api/landing.js pour la mesure
+      // qui a confirmé le problème (days=1 donnait 108 événements récents, days=3 en donnait 0).
+      // Le tri par date décroissante garantit que les événements les PLUS RÉCENTS sont toujours
+      // conservés en cas de troncature, au prix d'un sous-comptage possible des jours plus anciens
+      // dans une fenêtre large (limite connue, une vraie agrégation SQL réglerait ça complètement).
+      supabaseAdmin.from("landing_events").select("event_type, source, created_at").gte("created_at", since).order("created_at", { ascending: false }).limit(10000),
       // `user_id` sélectionné en plus (2026-08-26) uniquement pour pouvoir écarter les scans de nos
       // propres comptes des statistiques — voir INTERNAL_EMAILS.
       supabaseAdmin.from("scan_events").select("user_id, created_at").gte("created_at", since),
@@ -164,7 +172,9 @@ export default async function handler(req, res) {
       supabaseAdmin.from("activity_events").select("*").order("created_at", { ascending: false }).limit(200),
     ]);
     if (landingRes.error) {
-      const retry = await supabaseAdmin.from("landing_events").select("event_type, created_at").gte("created_at", since);
+      const retry = await supabaseAdmin
+        .from("landing_events").select("event_type, created_at").gte("created_at", since)
+        .order("created_at", { ascending: false }).limit(10000);
       if (retry.error) throw landingRes.error;
       landingRes.data = retry.data;
     }

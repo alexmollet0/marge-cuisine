@@ -1710,18 +1710,24 @@ function QtyField({ qty, unit, onChange, className, t }) {
   const isSmallUnit = unit === "kg" || unit === "L";
   const focusedRef = useRef(false);
 
-  // [SIMPLIFICATION 2026-08-27, demandée par l'utilisateur] TOUJOURS en grammes (ou mL), jamais en
-  // kg/L, et plus aucun bouton de bascule d'unité.
-  // Motif : en test réel, l'utilisateur a dû rebasculer kg → g pour chaque ingrédient d'une
-  // recette ; le bouton était minuscule et ne donnait aucun retour visible ("on ne sait pas si ça
-  // va marcher"). Confirmé ensuite : il raisonne en grammes quasiment tout le temps. Un seuil
-  // automatique à 1 kg, doublé d'une bascule manuelle, c'était deux mécanismes à comprendre pour
-  // un problème qui n'existe pas — une portion se compte en grammes.
-  // 1200 g s'affiche donc "1200 g" et non "1,2 kg" : moins élégant sur les grosses quantités,
-  // mais jamais ambigu et surtout jamais à basculer. Le stockage interne (kg/L) ne change pas.
-  const factor = isSmallUnit ? 1000 : 1;
-  const displayUnit = isSmallUnit ? (unit === "kg" ? "g" : "mL") : unit;
-  const step = isSmallUnit ? 25 : unit === "pièce" ? 1 : 0.1;
+  // [2026-08-27, 2e passe] Retour à un affichage automatique en kg/L au-delà de 1000 g/mL,
+  // demandé par l'utilisateur pour la LECTURE de la fiche recette ("plus facile à lire") — mais
+  // SANS bouton de bascule manuelle : celui-là avait été supprimé le même jour, à raison, pour une
+  // tout autre partie de l'app (la SAISIE rapide, `QuickAddLine`, qui elle reste TOUJOURS en
+  // grammes/mL — un ingrédient qu'on ajoute se pense en grammes, pas en fraction de kilo). Les
+  // deux besoins ne se contredisent pas : l'un est une saisie (toujours petite unité), l'autre un
+  // affichage une fois la ligne déjà dans la recette (bascule automatique selon la grandeur).
+  // L'unité affichée reste GELÉE pendant la frappe dans CE champ (via `smallAtFocus`, capturé une
+  // seule fois au focus) : sans ça, taper "1000" ferait basculer l'affichage de g vers kg au
+  // milieu de la frappe, changeant l'interprétation du texte en cours de saisie — piège déjà
+  // rencontré et évité par le passé sur ce même champ, avant sa simplification temporaire du matin.
+  const autoSmall = isSmallUnit && (qty || 0) < 1;
+  const smallAtFocus = useRef(autoSmall);
+  const displaySmall = focusedRef.current ? smallAtFocus.current : autoSmall;
+
+  const factor = isSmallUnit && displaySmall ? 1000 : 1;
+  const displayUnit = isSmallUnit ? (displaySmall ? (unit === "kg" ? "g" : "mL") : unit) : unit;
+  const step = isSmallUnit ? (displaySmall ? 25 : 0.1) : unit === "pièce" ? 1 : 0.1;
   const rawValue = Math.round((qty || 0) * factor * 1000) / 1000;
 
   const [local, setLocal] = useState(rawValue === 0 ? "" : String(rawValue));
@@ -1751,7 +1757,7 @@ function QtyField({ qty, unit, onChange, className, t }) {
         inputMode="decimal"
         value={local}
         onChange={handleChange}
-        onFocus={(e) => { focusedRef.current = true; e.target.select(); }}
+        onFocus={(e) => { smallAtFocus.current = autoSmall; focusedRef.current = true; e.target.select(); }}
         onBlur={() => { focusedRef.current = false; setLocal(rawValue === 0 ? "" : String(rawValue)); }}
         className={className}
       />
@@ -1780,6 +1786,15 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
   const [amount, setAmount] = useState("");
   const [price, setPrice] = useState("");
   const [picked, setPicked] = useState(null); // id si choisi dans le garde-manger, sinon null
+  // [BUG confirmé et corrigé, 2026-08-27] `picked` ne suffit pas à savoir si une suggestion a été
+  // choisie : un ingrédient qui vient du CATALOGUE (pas encore dans le garde-manger) a un id null
+  // — exactement la même valeur que "rien n'a encore été choisi". Résultat signalé en test réel
+  // ("lait entier" cliqué mais la liste de suggestions ne se refermait jamais, cachant les
+  // pastilles g/mL/pièce juste en dessous) : `!picked` restait vrai après un clic sur une
+  // suggestion du catalogue, donc la liste continuait de se réafficher. Un booléen séparé, qui ne
+  // se soucie que de "une suggestion a-t-elle été cliquée", règle ça sans toucher au sens de
+  // `picked` (toujours utilisé ailleurs comme l'id à transmettre à l'ajout).
+  const [suggestionPicked, setSuggestionPicked] = useState(false);
   const [unit, setUnit] = useState("kg");
   // Vrai dès que l'utilisateur a choisi l'unité lui-même : on cesse alors de la deviner à sa
   // place, sinon on écraserait son choix à la frappe suivante.
@@ -1795,7 +1810,7 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
   // connaît les vrais prix déjà saisis : sans s'en servir, tout était saisi en grammes et un nom
   // inconnu tombait même en "pièce" (cas réel : "croûtons" ajouté à 5€ la pièce).
   useEffect(() => {
-    if (picked || q.length < 3) return;
+    if (suggestionPicked || q.length < 3) return;
     if (!unitTouched.current && guessUnit) {
       const g = guessUnit(q);
       setUnit((u) => (u === g ? u : g));
@@ -1804,10 +1819,10 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
       const gp = guessPrice(q);
       setPrice((cur) => (String(gp) === cur ? cur : gp ? String(gp) : ""));
     }
-  }, [q, picked, guessUnit, guessPrice]);
+  }, [q, suggestionPicked, guessUnit, guessPrice]);
 
   const suggestions =
-    q.length >= 2 && !picked
+    q.length >= 2 && !suggestionPicked
       ? [
           ...ingredients
             .filter((i) => textIncludes(ingredientDisplayName(i), q))
@@ -1838,6 +1853,7 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
     setAmount("");
     setPrice("");
     setPicked(null);
+    setSuggestionPicked(false);
     unitTouched.current = false;
     priceTouched.current = false;
     nameRef.current?.focus();
@@ -1850,7 +1866,7 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
           <input
             ref={nameRef}
             value={name}
-            onChange={(e) => { setName(e.target.value); setPicked(null); }}
+            onChange={(e) => { setName(e.target.value); setPicked(null); setSuggestionPicked(false); }}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); amountRef.current?.focus(); } }}
             placeholder={t("quickAddNamePlaceholder")}
             className="w-full bg-white rounded-lg px-2.5 py-2.5 text-sm text-black outline-none border border-black/15 focus:border-[#8B5CF6]"
@@ -1864,6 +1880,7 @@ function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd, gues
                   onClick={() => {
                     setName(sg.label);
                     setPicked(sg.id);
+                    setSuggestionPicked(true);
                     // Unité ET prix viennent de la source choisie : le garde-manger si
                     // l'ingrédient existe déjà (ses valeurs font foi), le catalogue sinon.
                     unitTouched.current = false;
@@ -4546,14 +4563,6 @@ export default function App() {
     // l'unité de stockage, qui reste le kg/L. Une pièce se prend telle quelle.
     const qty = unit === "kg" || unit === "L" ? (grams || 0) / 1000 : grams || 0;
     applyLinesChange([...active.lines, { ingredientId, qty, unitAtEntry: unit }]);
-  };
-  const resetAllergensAuto = () => {
-    if (!active) return;
-    updateRecipe({
-      allergens: detectAllergens(active.lines, ingredients, lang),
-      allergenCodes: detectAllergenCodes(active.lines, ingredients),
-      allergensAuto: true,
-    });
   };
 
   const addRecipe = () => {
@@ -8597,11 +8606,6 @@ export default function App() {
                         <span className="normal-case tracking-normal text-[9px] px-1 py-0.5 rounded bg-black/10 text-black/40">{t("allergensAutoBadge")}</span>
                       )}
                     </div>
-                    {active.allergensAuto === false && (
-                      <button onClick={resetAllergensAuto} className="text-[9px] uppercase tracking-wide text-black/40 hover:text-black underline print:hidden">
-                        {t("allergensReset")}
-                      </button>
-                    )}
                   </div>
                   <input
                     value={active.allergens || ""}
