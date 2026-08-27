@@ -509,6 +509,26 @@ Vercel redéploie automatiquement à chaque push sur `main`. Variables d'environ
      **⚠️ À faire par l'utilisateur pour l'activer** : créer le pixel dans le gestionnaire de publicités TikTok, puis ajouter `VITE_TIKTOK_PIXEL_ID` sur Vercel et redéployer. Tant que ce n'est pas fait, le code reste totalement inerte.
   **[BUG latent corrigé le même jour]** `recipeMargin` renvoyait 100% pour une recette sans aucune ligne — voir l'entrée « pont carte digitale » ci-dessus. C'est ce correctif qui permet au nouvel assistant de créer une recette vide sans afficher de marge absurde.
 
+- **[BUG confirmé et corrigé, 2026-08-27] Fausse hausse de +70% après avoir BAISSÉ un prix.** Signalé sur "Salade, laitue" : prix corrigé à la baisse depuis une fiche recette, et l'app affichait fièrement une hausse de 70%. **Cause : le champ prix écrivait une entrée d'historique à CHAQUE TOUCHE FRAPPÉE.** `NumField.onChange` se déclenche à chaque caractère, et `updateActiveSupplierPrice` y ajoutait une entrée dès que la valeur différait — taper `1.70` par-dessus `2.50` enregistrait donc successivement `1` puis `1.7`, et `priceVariation` (qui compare les deux dernières entrées) en déduisait +70%. Effet secondaire tout aussi grave : l'historique, plafonné à 15 entrées, se remplissait de valeurs intermédiaires absurdes qui chassaient les vrais prix passés.
+  **Corrigé** : nouveau `onCommit` sur `NumField`, appelé une seule fois à la perte de focus. Le prix affiché continue de se mettre à jour à chaque touche (la marge se recalcule en direct, c'est voulu), mais l'historique n'est écrit qu'à la fin de la saisie, via `commitActiveSupplierPrice` (fiche recette) et `commitSupplierPrice` (garde-manger — **le même bug y existait**, il est corrigé aussi). La comparaison se fait avec la dernière ENTRÉE D'HISTORIQUE du même fournisseur, jamais avec le prix courant : celui-ci a déjà été modifié par la frappe et ne peut plus servir de référence.
+  ⚠️ **Règle générale à retenir** : dans ce fichier, ne jamais brancher sur `onChange` d'un `NumField` une action à effet durable (historique, journalisation, appel réseau). `onChange` = frappe en cours, `onCommit` = saisie terminée.
+- **Bouton « S'abonner » ajouté dans le bandeau d'essai (2026-08-27)**, demandé par l'utilisateur. Jusqu'ici le seul chemin pour s'abonner pendant l'essai passait par une petite icône de l'en-tête → fenêtre « Mon compte » → bouton : trois clics, rien de visible. On annonçait une offre limitée en haut de l'écran sans donner le moyen d'y souscrire à côté.
+
+## 🔴 BACKLOG PRIORITAIRE — demandé par l'utilisateur le 2026-08-27, à ne pas perdre
+
+Liste tenue à jour au fil des sessions. **Cocher au fur et à mesure, ne jamais supprimer une ligne sans qu'elle soit faite ou explicitement abandonnée par l'utilisateur.**
+
+1. ☐ **REFONTE COMPLÈTE DE LA CRÉATION DE RECETTE** — le plus gros morceau, jugé « vraiment chiant » après un vrai test. Griefs précis à traiter :
+   - devoir rebasculer kg → g pour chaque ingrédient ; le bouton de bascule d'unité est minuscule et on ne sait pas s'il a fonctionné (voir `QtyField`, `manualSmall`) ;
+   - l'ajout d'un ingrédient demande trop d'étapes ;
+   - **l'esthétique « ticket de commande » de la fiche recette ne lui plaît plus** : il veut quelque chose de plein écran, plus pratique, plus rapide, « plus ludique ».
+   → Proposer un vrai concept avant de coder (l'utilisateur a demandé de réfléchir à quelque chose de nettement plus rapide).
+2. ☐ **Inscription : encore plus rapide, maximiser la collecte d'adresses email.** Objectif formulé : « le test en 1 seconde ». Réfléchir à un essai qui commence AVANT la création de compte (l'email n'étant demandé qu'au moment de sauvegarder).
+3. ☐ **Landing : nouvelle passe de conversion.** Doute explicite de l'utilisateur : **afficher le prix en gros n'aide peut-être pas** à l'inscription. À tester/retravailler.
+4. ☐ **Reste de l'analyse produit du 2026-08-27 non traité** : découper `src/App.jsx` (8 250+ lignes, source directe de bugs dupliqués), et faire de la carte digitale une vraie porte d'entrée (le pont technique est fait, la mise en avant non).
+5. ✅ Bouton « S'abonner » visible dans le bandeau d'essai (fait le 2026-08-27).
+6. ✅ Fausse hausse de prix de +70% (fait le 2026-08-27).
+
 ## EN COURS
 
 ### ✅ RÉSOLU (2026-08-25) — Mails de confirmation d'inscription qui partaient en spam

@@ -172,12 +172,31 @@ export default function SubscriptionGate({ children }) {
   return (
     <>
       {!status.active && status.inTrial && (
-        <div className="print:hidden text-center text-[11px] py-1.5 px-3 text-white font-semibold" style={{ background: BRAND_GRADIENT }}>
+        <div
+          className="print:hidden flex items-center justify-center gap-3 flex-wrap text-[11px] py-2 px-3 text-white font-semibold"
+          style={{ background: BRAND_GRADIENT }}
+        >
           {/* Pendant l'essai, un fondateur voit ce qu'il a à PERDRE (son tarif à vie) plutôt qu'un
               simple décompte de jours : c'est la même échéance, mais avec un enjeu. */}
-          {status.founder
-            ? t("launchTrialBanner")(status.trialDaysLeft, PRICING.founding)
-            : t("billingTrialBanner")(status.trialDaysLeft)}
+          <span>
+            {status.founder
+              ? t("launchTrialBanner")(status.trialDaysLeft, PRICING.founding)
+              : t("billingTrialBanner")(status.trialDaysLeft)}
+          </span>
+          {/* [AJOUT 2026-08-27] Bouton d'abonnement directement dans le bandeau. Jusqu'ici, le seul
+              chemin pour s'abonner pendant l'essai passait par une petite icône de l'en-tête, puis
+              une fenêtre "Mon compte", puis un bouton — trois clics et rien de visible. On annonce
+              une offre limitée en haut de l'écran sans donner le moyen d'y souscrire à côté :
+              c'était le trou le plus coûteux du produit. */}
+          <button
+            onClick={subscribe}
+            disabled={busy}
+            className="shrink-0 px-3 py-1 rounded-full text-[11px] font-bold disabled:opacity-60 flex items-center gap-1.5"
+            style={{ background: "#fff", color: "#7C3AED" }}
+          >
+            {busy && <Loader2 size={11} className="animate-spin" />}
+            {t("billingSubscribeButton")}
+          </button>
         </div>
       )}
       {children}

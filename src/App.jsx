@@ -1647,7 +1647,12 @@ function logActivity(type, meta) {
   })();
 }
 
-function NumField({ value, onChange, className, allowDecimal = true, ...rest }) {
+// `onCommit` (2026-08-27) : appelé une seule fois, quand le champ perd le focus — c'est-à-dire
+// quand la saisie est VRAIMENT terminée. `onChange`, lui, se déclenche à chaque touche frappée.
+// La distinction est indispensable dès qu'une frappe a un effet durable : voir le bug de
+// l'historique des prix corrigé le même jour (taper "1.70" créait une entrée d'historique "1"
+// puis une entrée "1.7", donc une fausse hausse de +70% affichée sur un prix pourtant baissé).
+function NumField({ value, onChange, onCommit, className, allowDecimal = true, ...rest }) {
   const [local, setLocal] = useState(value === 0 || value === undefined || value === null ? "" : String(value));
   const focusedRef = useRef(false);
 
@@ -1673,7 +1678,11 @@ function NumField({ value, onChange, className, allowDecimal = true, ...rest }) 
     <input
       type="text" inputMode="decimal" value={local} onChange={handleChange}
       onFocus={(e) => { focusedRef.current = true; e.target.select(); }}
-      onBlur={() => { focusedRef.current = false; setLocal(value === 0 || !value ? "" : String(value)); }}
+      onBlur={() => {
+        focusedRef.current = false;
+        setLocal(value === 0 || !value ? "" : String(value));
+        if (onCommit) onCommit(typeof value === "number" ? value : 0);
+      }}
       className={className} {...rest}
     />
   );
@@ -4280,21 +4289,47 @@ export default function App() {
   // ingrédient partagé que le garde-manger, donc le changement s'y répercute automatiquement.
   // Utile en particulier pour corriger vite un prix estimé faux (ex: ingrédient créé par erreur
   // via le scanner de fiche recette) sans devoir naviguer jusqu'au garde-manger.
+  // [BUG confirmé et corrigé, 2026-08-27] Cette fonction écrivait une entrée d'HISTORIQUE à chaque
+  // appel — or elle est branchée sur le `onChange` d'un champ texte, donc appelée à CHAQUE TOUCHE
+  // FRAPPÉE. Taper "1.70" par-dessus "2.50" enregistrait donc successivement 1 puis 1.7, et
+  // `priceVariation` (qui compare les deux dernières entrées) affichait fièrement **+70% de
+  // hausse** sur un prix que l'utilisateur venait pourtant de BAISSER. Cas réel signalé sur
+  // "Salade, laitue". Au passage, ça saturait l'historique (plafonné à 15 entrées) de valeurs
+  // intermédiaires sans aucun sens, effaçant les vrais prix passés.
+  // Le prix affiché continue de se mettre à jour à chaque touche (la marge se recalcule en direct,
+  // c'est voulu) ; seul l'HISTORIQUE attend la fin de la saisie — voir commitActiveSupplierPrice.
   const updateActiveSupplierPrice = (ingredientId, newPrice) => {
     setIngredients((ings) =>
       ings.map((ing) => {
         if (ing.id !== ingredientId) return ing;
         const sup = activeSupplier(ing);
         if (!sup) return ing;
-        const history =
-          newPrice !== sup.price
-            ? [...(ing.history || []), { date: today(), price: newPrice, supplierName: sup.name, supplierId: sup.id }].slice(-15)
-            : ing.history;
         return {
           ...ing,
           suppliers: ing.suppliers.map((s) => (s.id === sup.id ? { ...s, price: newPrice, priceSource: "manual" } : s)),
-          history,
           lastUpdated: today(),
+        };
+      })
+    );
+  };
+
+  // Enregistre le prix dans l'historique, une seule fois, quand la saisie est terminée (perte de
+  // focus). La comparaison se fait avec la DERNIÈRE ENTRÉE D'HISTORIQUE du même fournisseur, et
+  // non avec le prix courant : celui-ci a déjà été modifié en direct par la frappe, il ne peut
+  // donc plus servir de point de comparaison.
+  const commitActiveSupplierPrice = (ingredientId, newPrice) => {
+    setIngredients((ings) =>
+      ings.map((ing) => {
+        if (ing.id !== ingredientId) return ing;
+        const sup = activeSupplier(ing);
+        if (!sup || !(newPrice > 0)) return ing;
+        const hist = ing.history || [];
+        const mine = hist.filter((e) => (e.supplierId ? e.supplierId === sup.id : e.supplierName === sup.name));
+        const last = mine[mine.length - 1];
+        if (last && last.price === newPrice) return ing; // rien de neuf à enregistrer
+        return {
+          ...ing,
+          history: [...hist, { date: today(), price: newPrice, supplierName: sup.name, supplierId: sup.id }].slice(-15),
         };
       })
     );
@@ -4403,19 +4438,33 @@ export default function App() {
       return { ...i, suppliers: [...i.suppliers, ns] };
     }));
   };
+  // Même correctif que updateActiveSupplierPrice (2026-08-27) : ce champ prix est lui aussi
+  // branché sur un `onChange` déclenché à chaque touche, il ne doit donc PLUS écrire l'historique
+  // au fil de la frappe — sinon "1.70" laisse derrière lui une entrée 1 puis une entrée 1.7 et
+  // fabrique une fausse hausse de +70%. L'enregistrement se fait à la fin de la saisie, via
+  // commitSupplierPrice.
   const updateSupplier = (ingId, supId, field, value) => {
     setIngredients((ings) => ings.map((i) => {
       if (i.id !== ingId) return i;
-      let historyPatch = i.history || [];
       const suppliers = i.suppliers.map((s) => {
         if (s.id !== supId) return s;
-        if (field === "price" && value !== s.price) {
-          historyPatch = [...historyPatch, { date: today(), price: value, supplierName: s.name, supplierId: s.id }].slice(-15);
-          return { ...s, price: value, priceSource: "manual" };
-        }
+        if (field === "price") return { ...s, price: value, priceSource: "manual" };
         return { ...s, [field]: value };
       });
-      return { ...i, suppliers, history: historyPatch, lastUpdated: field === "price" ? today() : i.lastUpdated };
+      return { ...i, suppliers, lastUpdated: field === "price" ? today() : i.lastUpdated };
+    }));
+  };
+
+  const commitSupplierPrice = (ingId, supId, newPrice) => {
+    setIngredients((ings) => ings.map((i) => {
+      if (i.id !== ingId || !(newPrice > 0)) return i;
+      const sup = i.suppliers.find((s) => s.id === supId);
+      if (!sup) return i;
+      const hist = i.history || [];
+      const mine = hist.filter((e) => (e.supplierId ? e.supplierId === supId : e.supplierName === sup.name));
+      const last = mine[mine.length - 1];
+      if (last && last.price === newPrice) return i;
+      return { ...i, history: [...hist, { date: today(), price: newPrice, supplierName: sup.name, supplierId: supId }].slice(-15) };
     }));
   };
   const removeSupplier = (ingId, supId) => {
@@ -7960,6 +8009,7 @@ export default function App() {
                           <NumField
                             value={activeSupplier(ing)?.price || 0}
                             onChange={(v) => updateActiveSupplierPrice(ing.id, v)}
+                            onCommit={(v) => commitActiveSupplierPrice(ing.id, v)}
                             className="w-16 shrink-0 bg-black/5 text-right outline-none rounded px-1 price-field"
                           />
                         ) : (
@@ -8480,7 +8530,7 @@ export default function App() {
                                     onChange={(e) => updateSupplier(ing.id, s.id, "name", e.target.value)}
                                     className="flex-1 bg-transparent outline-none border-b border-white/10 focus:border-[#8B5CF6] min-w-0"
                                   />
-                                  <NumField value={s.price} onChange={(v) => updateSupplier(ing.id, s.id, "price", v)} className="w-14 shrink-0 bg-transparent font-mono outline-none border-b border-white/10 focus:border-[#8B5CF6] text-right" />
+                                  <NumField value={s.price} onChange={(v) => updateSupplier(ing.id, s.id, "price", v)} onCommit={(v) => commitSupplierPrice(ing.id, s.id, v)} className="w-14 shrink-0 bg-transparent font-mono outline-none border-b border-white/10 focus:border-[#8B5CF6] text-right" />
                                   <span className="shrink-0">€</span>
                                   {ing.suppliers.length > 1 && (
                                     <button onClick={() => removeSupplier(ing.id, s.id)} className="text-white/25 hover:text-red-400 shrink-0"><Trash2 size={11} /></button>
