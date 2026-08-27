@@ -665,6 +665,8 @@ export const TR = {
     viewDetailsTooltip: "Prix, catégorie, pertes, fournisseurs...", unitToggleTooltip: "Changer d'unité",
     pickerSearchPlaceholder: "Tape 2 lettres…", pickerTypeToSearch: "Tape pour chercher…", pickerNoResults: "Aucun résultat",
     unitPieceLabel: "pièce", unitFieldLabel: "Unité",
+    quickAddNamePlaceholder: "Ajouter un ingrédient…", quickAddKnown: "connu", quickAddButton: "Ajouter",
+    quickAddHint: "Tape le nom, Entrée, la quantité en grammes, Entrée. Ça s'ajoute et tu enchaînes.",
     legacyPantryHint: "Ton garde-manger contient encore l'ancienne liste de démonstration (~200 ingrédients). Charge la nouvelle version allégée (7 ingrédients essentiels) pour repartir sur une base plus claire.",
     legacyPantryButton: "Charger le nouveau garde-manger",
     cancelLabel: "Annuler", resetConfirmButton: "Oui, tout réinitialiser",
@@ -996,6 +998,8 @@ export const TR = {
     viewDetailsTooltip: "Precio, categoría, mermas, proveedores...", unitToggleTooltip: "Cambiar de unidad",
     pickerSearchPlaceholder: "Escribe 2 letras…", pickerTypeToSearch: "Escribe para buscar…", pickerNoResults: "Sin resultados",
     unitPieceLabel: "unidad", unitFieldLabel: "Unidad",
+    quickAddNamePlaceholder: "Añadir un ingrediente…", quickAddKnown: "conocido", quickAddButton: "Añadir",
+    quickAddHint: "Escribe el nombre, Intro, la cantidad en gramos, Intro. Se añade y sigues.",
     legacyPantryHint: "Tu despensa todavía tiene la antigua lista de demostración (~200 ingredientes). Carga la nueva versión reducida (7 ingredientes esenciales) para empezar con una base más clara.",
     legacyPantryButton: "Cargar la nueva despensa",
     cancelLabel: "Cancelar", resetConfirmButton: "Sí, reiniciar todo",
@@ -1327,6 +1331,8 @@ export const TR = {
     viewDetailsTooltip: "Price, category, yield loss, suppliers...", unitToggleTooltip: "Change unit",
     pickerSearchPlaceholder: "Type 2 letters…", pickerTypeToSearch: "Type to search…", pickerNoResults: "No results",
     unitPieceLabel: "piece", unitFieldLabel: "Unit",
+    quickAddNamePlaceholder: "Add an ingredient…", quickAddKnown: "known", quickAddButton: "Add",
+    quickAddHint: "Type the name, Enter, the amount in grams, Enter. It is added and you carry on.",
     legacyPantryHint: "Your pantry still has the old demo list (~200 ingredients). Load the new lean version (7 essential ingredients) to start from a clearer base.",
     legacyPantryButton: "Load the new pantry",
     cancelLabel: "Cancel", resetConfirmButton: "Yes, reset everything",
@@ -1694,20 +1700,22 @@ function NumField({ value, onChange, onCommit, className, allowDecimal = true, .
 // la conversion d'affichage x1000 est appliquée. L'unité affichée (g/mL vs kg/L) ne se
 // recalcule jamais pendant la frappe (focus), pour ne pas changer l'interprétation du texte
 // en cours de saisie ; elle bascule automatiquement au-delà de 1000 (ex : 1000g -> 1 kg).
-function QtyField({ qty, unit, onChange, className, unitToggleTooltip, t }) {
+function QtyField({ qty, unit, onChange, className, t }) {
   const isSmallUnit = unit === "kg" || unit === "L";
   const focusedRef = useRef(false);
 
-  // null = automatique (dérivé de la valeur, seuil à 1) ; true/false = forcé par un clic explicite
-  // sur l'unité. Demande réelle (2026-08) : pouvoir taper "1.5" en pensant kg sans attendre que la
-  // valeur franchisse le seuil automatique, ou inversement rester en g pour une petite quantité.
-  const [manualSmall, setManualSmall] = useState(null);
-  const autoSmall = isSmallUnit && (qty || 0) < 1;
-  const displaySmall = manualSmall !== null ? manualSmall : autoSmall;
-
-  const factor = isSmallUnit && displaySmall ? 1000 : 1;
-  const displayUnit = isSmallUnit ? (displaySmall ? (unit === "kg" ? "g" : "mL") : unit) : unit;
-  const step = isSmallUnit ? (displaySmall ? 25 : 0.1) : unit === "pièce" ? 1 : 0.1;
+  // [SIMPLIFICATION 2026-08-27, demandée par l'utilisateur] TOUJOURS en grammes (ou mL), jamais en
+  // kg/L, et plus aucun bouton de bascule d'unité.
+  // Motif : en test réel, l'utilisateur a dû rebasculer kg → g pour chaque ingrédient d'une
+  // recette ; le bouton était minuscule et ne donnait aucun retour visible ("on ne sait pas si ça
+  // va marcher"). Confirmé ensuite : il raisonne en grammes quasiment tout le temps. Un seuil
+  // automatique à 1 kg, doublé d'une bascule manuelle, c'était deux mécanismes à comprendre pour
+  // un problème qui n'existe pas — une portion se compte en grammes.
+  // 1200 g s'affiche donc "1200 g" et non "1,2 kg" : moins élégant sur les grosses quantités,
+  // mais jamais ambigu et surtout jamais à basculer. Le stockage interne (kg/L) ne change pas.
+  const factor = isSmallUnit ? 1000 : 1;
+  const displayUnit = isSmallUnit ? (unit === "kg" ? "g" : "mL") : unit;
+  const step = isSmallUnit ? 25 : unit === "pièce" ? 1 : 0.1;
   const rawValue = Math.round((qty || 0) * factor * 1000) / 1000;
 
   const [local, setLocal] = useState(rawValue === 0 ? "" : String(rawValue));
@@ -1749,24 +1757,107 @@ function QtyField({ qty, unit, onChange, className, unitToggleTooltip, t }) {
           <ChevronDown size={10} />
         </button>
       </div>
-      {isSmallUnit ? (
+      <span className="text-black/40 text-[11px] shrink-0">{unitDisplayLabel(displayUnit, t)}</span>
+    </div>
+  );
+}
+// [SAISIE EN RAFALE, 2026-08-27] Ligne d'ajout rapide en tête de la liste d'ingrédients.
+// Conçue pour enchaîner sans lever les doigts du clavier : on tape le nom, Entrée passe à la
+// quantité (en grammes), Entrée valide et le focus revient sur le nom pour l'ingrédient suivant.
+// Même principe que la saisie des articles de la carte digitale, que l'utilisateur trouvait
+// rapide — par opposition à l'ancien parcours "créer une ligne vide → ouvrir un sélecteur →
+// choisir → revenir saisir la quantité", jugé "vraiment chiant" en test réel.
+// Les suggestions montrent d'abord le garde-manger (prix déjà connus, donc marge juste) puis le
+// catalogue de référence ; un nom totalement inédit reste acceptable et crée l'ingrédient.
+function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAdd }) {
+  const [name, setName] = useState("");
+  const [grams, setGrams] = useState("");
+  const [picked, setPicked] = useState(null); // id si choisi dans le garde-manger, sinon null
+  const nameRef = useRef(null);
+  const gramsRef = useRef(null);
+
+  const q = name.trim();
+  const suggestions =
+    q.length >= 2 && !picked
+      ? [
+          ...ingredients
+            .filter((i) => textIncludes(ingredientDisplayName(i), q))
+            .slice(0, 4)
+            .map((i) => ({ key: "ing-" + i.id, label: ingredientDisplayName(i), id: i.id, known: true })),
+          ...CATALOG.filter((c) => textIncludes(c[lang] || c.fr, q) && !ingredients.some((i) => i.catalogId === c.id))
+            .slice(0, 3)
+            .map((c) => ({ key: "cat-" + c.id, label: c[lang] || c.fr, id: null, known: false })),
+        ]
+      : [];
+
+  const submit = () => {
+    const g = parseFloat(String(grams).replace(",", "."));
+    if (!q || !Number.isFinite(g) || g <= 0) return;
+    onAdd({ existingId: picked, name: q, grams: g });
+    setName("");
+    setGrams("");
+    setPicked(null);
+    nameRef.current?.focus();
+  };
+
+  return (
+    <div className="print:hidden mb-3">
+      <div className="flex items-center gap-1.5">
+        <div className="flex-1 min-w-0 relative">
+          <input
+            ref={nameRef}
+            value={name}
+            onChange={(e) => { setName(e.target.value); setPicked(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); gramsRef.current?.focus(); } }}
+            placeholder={t("quickAddNamePlaceholder")}
+            className="w-full bg-white/70 rounded-lg px-2.5 py-2 text-sm text-black outline-none border border-black/10 focus:border-[#8B5CF6]"
+          />
+          {suggestions.length > 0 && (
+            <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg overflow-hidden shadow-lg border border-black/10 bg-white">
+              {suggestions.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => { setName(s.label); setPicked(s.id); gramsRef.current?.focus(); }}
+                  className="w-full text-left px-2.5 py-2 text-xs text-black/80 hover:bg-black/5 flex items-center gap-2 border-b border-black/5 last:border-0"
+                >
+                  <span className="flex-1 min-w-0 truncate">{s.label}</span>
+                  {/* Un ingrédient déjà dans le garde-manger a un vrai prix : le signaler évite
+                      d'en recréer un doublon sans s'en rendre compte. */}
+                  {s.known && <span className="text-[9px] uppercase tracking-wide text-[#10B981] shrink-0">{t("quickAddKnown")}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <input
+          ref={gramsRef}
+          value={grams}
+          inputMode="decimal"
+          onChange={(e) => setGrams(e.target.value.replace(/[^0-9.,]/g, ""))}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+          placeholder="150"
+          className="w-16 shrink-0 bg-white/70 rounded-lg px-2 py-2 text-sm text-black text-right outline-none border border-black/10 focus:border-[#8B5CF6]"
+        />
+        <span className="text-black/40 text-xs shrink-0">g</span>
         <button
           type="button"
-          onClick={() => setManualSmall(!displaySmall)}
-          className="text-black/40 text-[11px] shrink-0 underline decoration-dotted hover:text-black print:no-underline"
-          title={unitToggleTooltip}
+          onClick={submit}
+          className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white"
+          style={{ background: BRAND_GRADIENT }}
+          title={t("quickAddButton")}
         >
-          {unitDisplayLabel(displayUnit, t)}
+          <Plus size={16} />
         </button>
-      ) : (
-        <span className="text-black/40 text-[11px] shrink-0">{unitDisplayLabel(displayUnit, t)}</span>
-      )}
+      </div>
+      <p className="text-[10px] text-black/35 mt-1">{t("quickAddHint")}</p>
     </div>
   );
 }
 
 // Sélecteur d'ingrédient avec recherche (remplace un <select> qui deviendrait interminable).
-// Tape au moins 2 lettres pour filtrer, clique une suggestion pour choisir.
+// Tape au moins 2 lettres pour filtrer, clique une suggestion pour choisir. Sert désormais
+// surtout à CORRIGER une ligne existante — l'ajout passe par QuickAddLine ci-dessus.
 function IngredientPicker({
   ingredients, value, displayName, onChange, className, autoOpen, placeholder, onCreateNew, createNewLabel,
   searchPlaceholder = "Tape 2 lettres…", typeToSearchText = "Tape pour chercher…", noResultsText = "Aucun résultat",
@@ -4239,6 +4330,48 @@ export default function App() {
   };
   const changeLineIngredient = (idx, ingredientId) =>
     applyLinesChange(active.lines.map((l, i) => (i === idx ? { ...l, ingredientId, unitAtEntry: ingredientById(ingredientId)?.unit } : l)));
+
+  // [SAISIE EN RAFALE, 2026-08-27] Ajoute une ligne d'un coup : nom + quantité en grammes, sans
+  // passer par "créer une ligne vide puis choisir puis saisir". Modelé sur la saisie des articles
+  // de la carte digitale, que l'utilisateur trouvait justement rapide.
+  // Si l'ingrédient n'existe pas encore dans le garde-manger, il est créé à la volée avec un prix
+  // ESTIMÉ par catégorie (deviné via le catalogue) plutôt que d'interrompre la saisie pour
+  // demander un prix : le badge "estimé" déjà existant signale ces prix, et le chef les corrige
+  // quand il veut — le même compromis que celui déjà retenu pour le scanner de fiche recette.
+  const quickAddLine = ({ existingId, name, grams }) => {
+    if (!active) return;
+    let ingredientId = existingId;
+    let unit = "kg";
+
+    if (!ingredientId) {
+      const guess = guessCatalogEntry(name);
+      const category = guess ? guess.category : "autres";
+      unit = CATEGORY_DEFAULT_UNIT[category] || "kg";
+      const sId = uid();
+      ingredientId = uid();
+      setIngredients((ings) => [
+        ...ings,
+        {
+          id: ingredientId,
+          name: name.trim(),
+          unit,
+          catalogId: guess?.confident ? guess.catalogId : null,
+          category,
+          selectedSupplierId: sId,
+          suppliers: [{ id: sId, name: t("supplier"), price: CATEGORY_ESTIMATE_PRICE[category] || 5, priceSource: "estimate" }],
+          history: [],
+          lastUpdated: today(),
+        },
+      ]);
+    } else {
+      unit = ingredientById(existingId)?.unit || "kg";
+    }
+
+    // La saisie se fait toujours en grammes/mL (voir QtyField) : on reconvertit vers l'unité de
+    // stockage, qui reste le kg/L. Un ingrédient "à la pièce" prend le nombre tel quel.
+    const qty = unit === "kg" || unit === "L" ? (grams || 0) / 1000 : grams || 0;
+    applyLinesChange([...active.lines, { ingredientId, qty, unitAtEntry: unit }]);
+  };
   const resetAllergensAuto = () => {
     if (!active) return;
     updateRecipe({
@@ -7974,6 +8107,15 @@ export default function App() {
                   supplémentaire pour comprendre sa structure. */}
               <div className="text-[10px] uppercase tracking-wide text-black/40 mt-2">{t("ingredientsSectionLabel")}</div>
               <div className="border-t border-b border-dashed border-black/30 py-3 space-y-2">
+                {/* Ajout rapide en TÊTE de liste : c'est le geste le plus fréquent quand on
+                    construit une recette, il doit être le premier sous la main. */}
+                <QuickAddLine
+                  ingredients={ingredients}
+                  ingredientDisplayName={ingredientDisplayName}
+                  lang={lang}
+                  t={t}
+                  onAdd={quickAddLine}
+                />
                 {active.lines.map((line, idx) => {
                   const ing = ingredientById(line.ingredientId);
                   const variation = ing ? priceVariation(ing) : null;
@@ -8001,7 +8143,7 @@ export default function App() {
                           typeToSearchText={t("pickerTypeToSearch")}
                           noResultsText={t("pickerNoResults")}
                         />
-                        <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" unitToggleTooltip={t("unitToggleTooltip")} t={t} />
+                        <QtyField qty={line.qty} unit={ing?.unit} onChange={(v) => updateLineQty(idx, v)} className="w-12 shrink-0 bg-transparent text-right outline-none border-b border-black/20" t={t} />
                         {activeSupplier(ing)?.priceSource === "estimate" && (
                           <span className="w-1.5 h-1.5 rounded-full shrink-0 price-field" style={{ background: TIER_COLORS.mid }} title={t("estimatedPriceHint")} />
                         )}
