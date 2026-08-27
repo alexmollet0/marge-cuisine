@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Receipt, Percent, Printer, Package, QrCode, Camera } from "lucide-react";
+import { Receipt, Percent, Printer, Package, QrCode, Camera, Check } from "lucide-react";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING, TIER_COLORS, marginTier } from "./App.jsx";
 
 // TVA restauration sur place, valeur par défaut de l'app (settings.vatRate) : le calculateur de
@@ -198,6 +198,24 @@ function MarginCalculator({ t, lang, onEngage, onStart }) {
       </div>
 
       <p className="text-white/30 text-[10px] mt-3 text-center leading-relaxed">{t("calcVatNote")(DEMO_VAT_RATE)}</p>
+
+      {/* [AJOUT 2026-08-27] Sans ce bloc, le calculateur donne l'impression que l'app se résume à
+          trois champs et une division — c'est-à-dire à quelque chose qu'on ferait aussi bien sur
+          une calculatrice. Il faut donc dire, à l'endroit exact où le visiteur vient d'obtenir son
+          résultat, ce que l'app fait EN PLUS : remplir ce coût toute seule, le tenir à jour, et
+          tout ce qui en découle. C'est la contrepartie indispensable d'une démo volontairement
+          simplifiée, surtout pour un visiteur qui ne défilera peut-être jamais plus bas. */}
+      <div className="mt-4 pt-4 border-t border-white/10">
+        <div className="text-white/70 text-[11px] font-semibold mb-2">{t("calcMoreTitle")}</div>
+        <ul className="space-y-1.5">
+          {["calcMore1", "calcMore2", "calcMore3"].map((key) => (
+            <li key={key} className="flex items-start gap-2 text-white/50 text-[11px] leading-relaxed">
+              <Check size={12} className="shrink-0 mt-0.5" style={{ color: BRAND_SOLID }} />
+              <span>{t(key)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       <button
         type="button"
