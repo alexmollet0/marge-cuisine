@@ -367,7 +367,15 @@ export default function AuthGate({ children }) {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: window.location.origin },
+        options: {
+          redirectTo: window.location.origin,
+          // `prompt: "select_account"` (2026-08-28, bug réel trouvé par l'utilisateur) : sans ça,
+          // Google saute l'écran de choix de compte dès qu'un seul compte est déjà connecté dans le
+          // navigateur — impossible de reclôre puis choisir un AUTRE compte Google avec ce bouton. Ce
+          // paramètre force l'écran de sélection à chaque clic, quel que soit l'état de connexion
+          // Google déjà en place sur l'appareil.
+          queryParams: { prompt: "select_account" },
+        },
       });
       if (error) throw error;
     } catch (e2) {
