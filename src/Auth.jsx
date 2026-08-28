@@ -48,6 +48,25 @@ function maybeScheduleWelcomeEmail(sess) {
   }).catch(() => {});
 }
 
+// [AJOUT 2026-08-28, connexion Google] `signInWithOAuth` redirige la page ENTIÈREMENT vers Google
+// puis revient — impossible d'y accrocher un `trackAdEvent("CompleteRegistration", ...)` explicite
+// comme pour le mot de passe/le code (voir `submit`/`verifyOtpCode`), qui eux savent directement
+// s'ils viennent de créer un compte. Ici, on le déduit après coup : `app_metadata.provider ===
+// "google"` isole bien ce chemin (jamais "email", donc jamais de double-comptage avec les 2 autres
+// méthodes) et "créé il y a moins de 3 minutes" (même principe que `maybeScheduleWelcomeEmail`,
+// fenêtre plus courte ici car il n'y a aucune saisie manuelle entre la création et le retour sur
+// l'app) distingue une vraie inscription d'une reconnexion Google normale.
+function maybeTrackGoogleRegistration(sess) {
+  if (sess?.user?.app_metadata?.provider !== "google" || !sess?.user?.created_at) return;
+  const accountAgeMs = Date.now() - new Date(sess.user.created_at).getTime();
+  if (accountAgeMs > 3 * 60 * 1000) return;
+  let signupSource = null;
+  try {
+    signupSource = sessionStorage.getItem("chefup:src");
+  } catch (e) {}
+  trackAdEvent("CompleteRegistration", { content_name: signupSource || "direct" });
+}
+
 function guessAuthLang() {
   try {
     const saved = localStorage.getItem(AUTH_LANG_KEY);
@@ -173,6 +192,7 @@ export default function AuthGate({ children }) {
         setLoginKey((k) => k + 1);
         logLoginActivity(sess);
         maybeScheduleWelcomeEmail(sess);
+        maybeTrackGoogleRegistration(sess);
       }
     });
     return () => sub.subscription.unsubscribe();
@@ -327,6 +347,31 @@ export default function AuthGate({ children }) {
       setErr(authErrorKey(e2));
       setOtpCode("");
     } finally {
+      setBusy(false);
+    }
+  }
+
+  // [AJOUT 2026-08-28] "Continuer avec Google" — la page navigue ENTIÈREMENT vers l'écran de
+  // consentement Google puis revient sur `redirectTo` avec une session déjà active (Supabase gère
+  // tout l'échange en arrière-plan). Rien à faire après le retour : `onAuthStateChange` (déjà
+  // branché plus haut) détecte le SIGNED_IN normalement, `maybeTrackGoogleRegistration` s'occupe
+  // de distinguer une vraie inscription d'une simple reconnexion. Provenance de campagne PAS
+  // transmise ici (contrairement au mot de passe/au code) — Google ne permet pas d'injecter des
+  // métadonnées personnalisées à la création du compte via ce flux, seulement les infos de profil
+  // Google (nom, email, photo). Un compte créé par Google atterrit donc en "direct" dans le funnel
+  // par provenance du tableau de bord — limite connue, pas bloquante.
+  async function signInWithGoogle() {
+    setErr("");
+    setInfo("");
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) throw error;
+    } catch (e2) {
+      setErr(authErrorKey(e2));
       setBusy(false);
     }
   }
@@ -544,6 +589,36 @@ export default function AuthGate({ children }) {
             <p className="text-center text-xs text-emerald-400/80 mb-4">{t("authSignupFreeNote")}</p>
           )}
           {mode !== "signup" && <div className="mb-5" />}
+
+          {/* [AJOUT 2026-08-28] "Se connecter en 1 clic" — la seule méthode qui ne demande jamais de
+              taper quoi que ce soit (ni email, ni mot de passe, ni code à recopier depuis une autre
+              appli) pour qui est déjà connecté à Google sur son téléphone, cas très fréquent. En
+              haut du formulaire, avant même le champ email : c'est la voie la plus rapide, les
+              autres restent juste en dessous pour qui préfère. Visible en signup ET en login (le
+              même bouton fait les deux — Supabase crée le compte tout seul au premier passage). */}
+          {mode !== "forgot" && (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={signInWithGoogle}
+                className="w-full py-2.5 rounded-full text-xs font-semibold bg-white text-[#1B1815] hover:bg-white/90 disabled:opacity-60 flex items-center justify-center gap-2.5 mb-4"
+              >
+                <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
+                  <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/>
+                  <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.6 18.9 12 24 12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.6 8.3 6.3 14.7z"/>
+                  <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.5 26.7 36 24 36c-5.2 0-9.6-3.1-11.3-7.5l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+                  <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.6l6.2 5.2C40.9 36.4 44 30.8 44 24c0-1.3-.1-2.7-.4-3.5z"/>
+                </svg>
+                {t("authGoogleButton")}
+              </button>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-[10px] uppercase tracking-wide text-white/30">{t("authOrDivider")}</span>
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+            </>
+          )}
 
           {err && (
             <div className="mb-4 text-xs rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">
