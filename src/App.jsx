@@ -34,6 +34,7 @@ import {
   DigitalMenuModal, ScanItemCard,
 } from "./scannerComponents.jsx";
 import { marginMessage, InstallDiagram, AdminDashboard, FirstRunWizard, SCAN_ERR_CODES } from "./adminAndOnboarding.jsx";
+import { MenuWizard } from "./MenuWizard.jsx";
 import {
   Plus,
   LogOut,
@@ -220,6 +221,10 @@ export default function App() {
     setMenuBannerDismissed(true);
     try { localStorage.setItem("chefup:menuBannerDismissed", "1"); } catch {}
   };
+  // Relance manuelle de l'assistant guidé de carte digitale (voir l'onglet "menu" plus bas) —
+  // état d'écran uniquement, jamais persisté : `menuSettings.setupDone` reste la vraie mémoire
+  // de "cette carte a déjà été mise en place une fois".
+  const [showMenuWizard, setShowMenuWizard] = useState(false);
   const isStandaloneApp =
     typeof window !== "undefined" &&
     (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator?.standalone === true);
@@ -5135,22 +5140,51 @@ export default function App() {
             garde son nom (son contenu interne n'a pas changé) mais son wrapper a été adapté pour
             s'intégrer dans ce conteneur normal au lieu d'un habillage `fixed inset-0` par-dessus
             tout. `onClose` redirige vers l'onglet Recettes plutôt que de fermer une fenêtre. */}
-        {activeTab === "menu" && (
-          <DigitalMenuModal
-            open={true}
-            onClose={() => setActiveTab("recipes")}
+        {/* [2026-08-28] Deux visages pour le même onglet : un assistant guidé en 4 étapes tant que
+            la carte n'a jamais été mise en place (`setupDone`), puis l'écran de réglages complet
+            pour tout affiner ensuite. Motif : l'écran complet affichait TOUT d'un coup
+            (publication, sections, logo, couleur, design, recettes, articles, QR) — jugé "beaucoup
+            trop abstrait et dur à comprendre du premier coup" par l'utilisateur. L'assistant ne
+            remplace pas la gestion, il remplace le premier contact. `showMenuWizard` permet aussi
+            de le relancer à la demande depuis l'écran de réglages. */}
+        {activeTab === "menu" && (menuSettings.setupDone && !showMenuWizard ? (
+          <>
+            <DigitalMenuModal
+              open={true}
+              onClose={() => setActiveTab("recipes")}
+              menuSettings={menuSettings}
+              setMenuSettings={setMenuSettings}
+              recipes={recipes}
+              setRecipes={setRecipes}
+              simpleItems={simpleItems}
+              setSimpleItems={setSimpleItems}
+              onConvertToRecipe={convertSimpleItemToRecipe}
+              userId={menuUserId}
+              lang={lang}
+              t={t}
+            />
+            <button
+              onClick={() => setShowMenuWizard(true)}
+              className="w-full mt-3 text-[11px] text-white/30 hover:text-white/60"
+            >
+              {t("menuWizardRelaunch")}
+            </button>
+          </>
+        ) : (
+          <MenuWizard
             menuSettings={menuSettings}
             setMenuSettings={setMenuSettings}
-            recipes={recipes}
-            setRecipes={setRecipes}
             simpleItems={simpleItems}
             setSimpleItems={setSimpleItems}
-            onConvertToRecipe={convertSimpleItemToRecipe}
             userId={menuUserId}
             lang={lang}
             t={t}
+            onFinish={() => {
+              setMenuSettings((prev) => ({ ...prev, setupDone: true }));
+              setShowMenuWizard(false);
+            }}
           />
-        )}
+        ))}
       </main>
 
       {/* Premier lancement guidé — voir FirstRunWizard. Rendu par-dessus tout le reste, mais
