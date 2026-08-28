@@ -1,0 +1,25 @@
+// Logo Chefup — extrait de App.jsx le 2026-08-28. Composant à part entière (avant seulement
+// dans App.jsx) pour que les autres composants extraits puissent l'importer sans dépendance
+// circulaire vers App.jsx.
+import React, { useId } from "react";
+
+// Logo Chefup : hirondelle en plein vol ascendant, queue fourchue rappelant une
+// fourchette, remplie du dégradé de marque violet -> cyan. Icône libre (sans anneau
+// ni disque), pour rester lisible aussi bien sur le fond ardoise que sur le papier.
+export function Logo({ size = 22 }) {
+  const gradId = useId();
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" style={{ flexShrink: 0, display: "block" }}>
+      <defs>
+        <linearGradient id={`chefup-grad-${gradId}`} x1="5%" y1="100%" x2="95%" y2="5%">
+          <stop offset="0%" stopColor="#7C3AED" />
+          <stop offset="100%" stopColor="#22D3EE" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M 76 28 C 71 27 65 29 60 33 C 55 23 44 16 32 15 C 39 24 46 30 53 36 C 47 39 39 40 31 39 C 36 45 45 47 53 45 C 50 50 46 54 41 57 L 34 58 L 8 66 L 28 64 L 14 90 L 39 66 C 44 68 50 67 54 63 C 57 66 61 68 66 69 C 63 60 62 51 64 43 C 70 43 75 39 78 34 C 80 31 79 29 76 28 Z"
+        fill={`url(#chefup-grad-${gradId})`}
+      />
+    </svg>
+  );
+}
