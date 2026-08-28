@@ -4262,6 +4262,23 @@ export default function App() {
   const active = recipes.find((r) => r.id === activeId) || recipes[0];
   const ingredientById = useCallback((id) => ingredients.find((i) => i.id === id), [ingredients]);
 
+  // [AJOUT 2026-08-28] Renommer était techniquement possible dès l'ouverture (le nom est un champ
+  // texte), mais rien ne le signalait — un gros titre "NOUVELLE RECETTE" en majuscules se lit comme
+  // un titre déjà là, pas comme la toute première chose à faire. Demandé par l'utilisateur ("c'est
+  // la première chose qu'on doit faire quand on crée une recette"). `recipeNameInputRef` + ce
+  // drapeau focalisent le champ ET sélectionnent tout son texte dès l'ouverture d'une recette
+  // FRAÎCHEMENT créée via `addRecipe` (jamais sur la démo, jamais en rouvrant une recette
+  // existante) — la première frappe remplace directement le placeholder, sans avoir à cliquer ni
+  // à comprendre que c'est éditable.
+  const recipeNameInputRef = useRef(null);
+  const [focusNameOnOpen, setFocusNameOnOpen] = useState(false);
+  useEffect(() => {
+    if (!focusNameOnOpen || !recipeNameInputRef.current) return;
+    recipeNameInputRef.current.focus();
+    recipeNameInputRef.current.select();
+    setFocusNameOnOpen(false);
+  }, [focusNameOnOpen, active?.id]);
+
   const lineCost = (line) => {
     const ing = ingredientById(line.ingredientId);
     return ing ? effectiveUnitPrice(ing) * line.qty : 0;
@@ -4586,6 +4603,7 @@ export default function App() {
     setActiveId(nr.id);
     setActiveTab("recipes");
     setRecipeSubView("detail");
+    setFocusNameOnOpen(true);
     logActivity("recipe_created", { name: nr.name });
   };
 
@@ -8288,6 +8306,7 @@ export default function App() {
                 elles ne faisaient que rendre la fiche moins lisible et plus longue à parcourir. */}
             <div className={`ticket px-4 sm:px-8 py-7 sm:py-9 w-full font-body text-[15px] ${hidePricesPrint ? "hide-prices" : ""}`}>
               <input
+                ref={recipeNameInputRef}
                 value={active.name}
                 onChange={(e) => updateRecipe({ name: e.target.value })}
                 className="w-full bg-transparent font-display text-2xl sm:text-3xl uppercase tracking-wide mb-2 outline-none text-center border-b border-black/10 pb-3"
