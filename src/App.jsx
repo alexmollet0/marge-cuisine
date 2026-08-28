@@ -207,6 +207,20 @@ export default function App() {
     setInstallBannerDismissed(true);
     try { localStorage.setItem("chefup:installBannerDismissed", "1"); } catch {}
   };
+  // [AJOUT 2026-08-28] Bandeau "carte digitale" sur l'écran d'accueil, même mécanisme que le
+  // bandeau d'installation ci-dessus (ignorable une bonne fois pour toutes, jamais bloquant) —
+  // demandé par l'utilisateur pour que la carte digitale devienne une vraie "porte d'entrée",
+  // pas juste un petit bouton enfoui dans l'en-tête de l'onglet Recettes (toujours là aussi,
+  // inchangé). Condition volontairement large (`!menuSettings.published`, pas liée au nombre de
+  // recettes/articles) : viser aussi bien un tout nouveau compte qu'un compte déjà actif qui n'a
+  // simplement jamais publié sa carte.
+  const [menuBannerDismissed, setMenuBannerDismissed] = useState(() => {
+    try { return localStorage.getItem("chefup:menuBannerDismissed") === "1"; } catch { return false; }
+  });
+  const dismissMenuBanner = () => {
+    setMenuBannerDismissed(true);
+    try { localStorage.setItem("chefup:menuBannerDismissed", "1"); } catch {}
+  };
   const isStandaloneApp =
     typeof window !== "undefined" &&
     (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator?.standalone === true);
@@ -4200,6 +4214,31 @@ export default function App() {
               </div>
             )}
 
+            {/* Bandeau "carte digitale" (2026-08-28) : voir menuBannerDismissed plus haut pour le
+                raisonnement complet. Design cohérent avec le bandeau d'installation (icône + point
+                cyan animé + croix), mais couleur cyan plutôt que violet pour rester visuellement
+                distinct du bandeau au-dessus quand les deux sont visibles en même temps. */}
+            {!menuSettings.published && !menuBannerDismissed && (
+              <div className="flex items-center gap-2.5 mb-5 rounded-xl pl-3 pr-2 py-2.5 border border-white/10" style={{ background: "#26221C" }}>
+                <div className="relative shrink-0">
+                  <QrCode size={16} className="text-[#22D3EE]" />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-ping" style={{ background: "#22D3EE" }} />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ background: "#22D3EE" }} />
+                </div>
+                <span className="text-white/70 text-xs flex-1 leading-snug">{t("menuBannerText")}</span>
+                <button
+                  onClick={() => setDigitalMenuOpen(true)}
+                  className="text-[11px] font-display uppercase tracking-wide px-3 py-1.5 rounded-full shrink-0 active:scale-95 transition-transform"
+                  style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                >
+                  {t("menuBannerButton")}
+                </button>
+                <button onClick={dismissMenuBanner} className="text-white/30 hover:text-white/60 shrink-0 p-1" title={t("close")}>
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
             <input
               ref={fileInputRecipeLibraryRef}
               type="file"
@@ -5111,13 +5150,28 @@ export default function App() {
           { id: "recipes", label: t("recipes"), icon: Receipt },
           { id: "scanner", label: t("scanTab"), icon: Camera },
           { id: "pantry", label: t("pantry"), icon: Package },
+          // [AJOUT 2026-08-28] "Carte digitale" élevée en onglet de navigation principal — avant,
+          // uniquement un petit bouton gris noyé parmi 3 autres dans l'en-tête de l'onglet Recettes
+          // (liste/grille, fiche allergènes, +Nouvelle recette), donc quasiment invisible pour qui
+          // ne savait pas déjà où chercher. Demandé explicitement par l'utilisateur : en faire une
+          // vraie "porte d'entrée", pas juste une fonctionnalité secondaire enfouie. N'ouvre PAS un
+          // 4e panneau plein écran (le contenu de la carte digitale reste la fenêtre modale
+          // `DigitalMenuModal` déjà existante, inchangée) — juste un accès direct depuis la barre du
+          // bas, au même niveau que Recettes/Scanner/Garde-manger. Le petit bouton dans l'en-tête
+          // Recettes reste en place aussi (accès habituel pour qui le connaît déjà, aucun risque à
+          // le laisser).
+          { id: "menu", label: t("digitalMenuButton"), icon: QrCode, isModal: true },
         ].map((tabDef) => {
           const TabIcon = tabDef.icon;
-          const isActive = activeTab === tabDef.id;
+          const isActive = tabDef.isModal ? digitalMenuOpen : activeTab === tabDef.id;
           return (
             <button
               key={tabDef.id}
-              onClick={() => { setActiveTab(tabDef.id); if (tabDef.id === "recipes") setRecipeSubView("list"); }}
+              onClick={() => {
+                if (tabDef.isModal) { setDigitalMenuOpen(true); return; }
+                setActiveTab(tabDef.id);
+                if (tabDef.id === "recipes") setRecipeSubView("list");
+              }}
               className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:scale-90 transition-transform"
             >
               <TabIcon size={20} color={isActive ? BRAND_SOLID : "rgba(255,255,255,0.4)"} />

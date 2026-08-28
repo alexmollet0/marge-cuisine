@@ -436,6 +436,35 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           </div>
         </div>
 
+        {/* [AJOUT 2026-08-28] Carte digitale mise en avant comme un second point d'entrée, pas
+            juste une ligne parmi 5 dans la grille de fonctionnalités plus bas — demandé par
+            l'utilisateur. Placée après "Comment ça marche" plutôt qu'en haut de page : le
+            calculateur reste LE premier geste demandé au visiteur (voir la refonte du 2026-08-27,
+            un seul CTA avant toute preuve de valeur) ; ceci n'est qu'une porte de sortie alternative
+            pour qui n'a pas encore de facture/coût sous la main mais veut un résultat concret tout
+            de suite. Même bouton `handleStart` que le reste de la page — ce n'est pas un second
+            produit, juste un autre point d'entrée dans le même parcours d'inscription. */}
+        <div
+          className="max-w-2xl mx-auto mb-12 rounded-2xl border border-white/10 px-5 py-5 sm:py-6 flex flex-col sm:flex-row items-center gap-4"
+          style={{ background: "#26221C" }}
+        >
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${BRAND_SOLID}22`, color: BRAND_SOLID }}>
+            <QrCode size={22} />
+          </div>
+          <div className="flex-1 text-center sm:text-left">
+            <h3 className="text-white font-display uppercase text-xs tracking-wide mb-1">{t("landingMenuCalloutTitle")}</h3>
+            <p className="text-white/50 text-xs leading-relaxed">{t("landingMenuCalloutDesc")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleStart}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold shrink-0"
+            style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+          >
+            {t("landingMenuCalloutCta")}
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
           {FEATURES.map(({ icon: Icon, titleKey, descKey }) => (
             <div key={titleKey} className="rounded-2xl p-5 border border-white/10" style={{ background: "#26221C" }}>
