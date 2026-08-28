@@ -106,7 +106,6 @@ export default function App() {
   // publique répond quoi que ce soit (voir api/public-menu.js) — même si des recettes ont
   // `menuIncluded: true`, rien n'est visible tant que ce drapeau n'est pas activé explicitement.
   const [menuSettings, setMenuSettings] = useState({ published: false, design: "classic", restaurantName: "", logo: null, accentColor: MENU_ACCENT_COLORS[0] });
-  const [digitalMenuOpen, setDigitalMenuOpen] = useState(false);
   // Articles simples de la carte digitale (2026-08-19) : boissons/produits revendus tels quels
   // (Coca, Perrier...) — volontairement PAS des recettes (jamais dans `recipes`), pour ne pas
   // polluer l'onglet Recettes/le classement TOP/les fiches imprimées avec des centaines de lignes
@@ -519,7 +518,6 @@ export default function App() {
     setActiveId(newRecipe.id);
     setActiveTab("recipes");
     setRecipeSubView("detail");
-    setDigitalMenuOpen(false);
     logActivity("recipe_created", { name: newRecipe.name, source: "menu_item" });
   };
 
@@ -2950,20 +2948,6 @@ export default function App() {
         </div>
       )}
 
-      <DigitalMenuModal
-        open={digitalMenuOpen}
-        onClose={() => setDigitalMenuOpen(false)}
-        menuSettings={menuSettings}
-        setMenuSettings={setMenuSettings}
-        recipes={recipes}
-        setRecipes={setRecipes}
-        simpleItems={simpleItems}
-        setSimpleItems={setSimpleItems}
-        onConvertToRecipe={convertSimpleItemToRecipe}
-        userId={menuUserId}
-        lang={lang}
-        t={t}
-      />
 
       {contactModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setContactModalOpen(false)}>
@@ -4227,7 +4211,7 @@ export default function App() {
                 </div>
                 <span className="text-white/70 text-xs flex-1 leading-snug">{t("menuBannerText")}</span>
                 <button
-                  onClick={() => setDigitalMenuOpen(true)}
+                  onClick={() => setActiveTab("menu")}
                   className="text-[11px] font-display uppercase tracking-wide px-3 py-1.5 rounded-full shrink-0 active:scale-95 transition-transform"
                   style={{ background: BRAND_GRADIENT, color: "#fff" }}
                 >
@@ -4275,7 +4259,7 @@ export default function App() {
                   {t("allergenSheetLink")}
                 </button>
                 <button
-                  onClick={() => setDigitalMenuOpen(true)}
+                  onClick={() => setActiveTab("menu")}
                   className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/60 hover:text-white px-3 py-1.5 rounded-full border border-white/15 hover:border-white/30 transition-colors"
                 >
                   <QrCode size={12} />
@@ -4668,6 +4652,18 @@ export default function App() {
                   <span>{t("sellPriceHT")} ({t("vat")} {vatRate}%)</span>
                   <span>{sellHT.toFixed(2)}€</span>
                 </div>
+                {/* [AJOUT 2026-08-28] Avertissement quand cette recette est publiée sur la carte
+                    digitale — demandé par l'utilisateur, inquiet qu'un chef qui teste plusieurs prix
+                    ici (pour voir l'effet sur sa marge) oublie que CE prix est aussi celui montré en
+                    direct aux clients qui scannent le QR code. Purement informatif, ne bloque rien
+                    (le prix reste modifiable normalement) — juste visible au bon endroit, au moment
+                    exact où on tape un nouveau chiffre. */}
+                {active.menuIncluded && menuSettings.published && (
+                  <div className="flex items-center gap-1.5 text-[10px] pt-1" style={{ color: TIER_COLORS.mid }}>
+                    <QrCode size={11} className="shrink-0" />
+                    <span>{t("sellPriceMenuWarning")}</span>
+                  </div>
+                )}
                 {active.lines.some((l) => activeSupplier(ingredientById(l.ingredientId))?.priceSource === "estimate") && (
                   <div className="flex items-center justify-end gap-1.5 text-[10px] text-black/40 pt-1 text-right">
                     <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: TIER_COLORS.mid }} />
@@ -5132,6 +5128,29 @@ export default function App() {
             </button>
           </div>
         )}
+
+        {/* [2026-08-28] "Carte digitale" est un vrai onglet maintenant, plus une fenêtre flottante
+            (`digitalMenuOpen`/modal retirés) — demandé par l'utilisateur, qui trouvait la fenêtre
+            incohérente avec les 3 autres onglets qui occupent tout l'écran. `DigitalMenuModal`
+            garde son nom (son contenu interne n'a pas changé) mais son wrapper a été adapté pour
+            s'intégrer dans ce conteneur normal au lieu d'un habillage `fixed inset-0` par-dessus
+            tout. `onClose` redirige vers l'onglet Recettes plutôt que de fermer une fenêtre. */}
+        {activeTab === "menu" && (
+          <DigitalMenuModal
+            open={true}
+            onClose={() => setActiveTab("recipes")}
+            menuSettings={menuSettings}
+            setMenuSettings={setMenuSettings}
+            recipes={recipes}
+            setRecipes={setRecipes}
+            simpleItems={simpleItems}
+            setSimpleItems={setSimpleItems}
+            onConvertToRecipe={convertSimpleItemToRecipe}
+            userId={menuUserId}
+            lang={lang}
+            t={t}
+          />
+        )}
       </main>
 
       {/* Premier lancement guidé — voir FirstRunWizard. Rendu par-dessus tout le reste, mais
@@ -5150,25 +5169,22 @@ export default function App() {
           { id: "recipes", label: t("recipes"), icon: Receipt },
           { id: "scanner", label: t("scanTab"), icon: Camera },
           { id: "pantry", label: t("pantry"), icon: Package },
-          // [AJOUT 2026-08-28] "Carte digitale" élevée en onglet de navigation principal — avant,
-          // uniquement un petit bouton gris noyé parmi 3 autres dans l'en-tête de l'onglet Recettes
-          // (liste/grille, fiche allergènes, +Nouvelle recette), donc quasiment invisible pour qui
-          // ne savait pas déjà où chercher. Demandé explicitement par l'utilisateur : en faire une
-          // vraie "porte d'entrée", pas juste une fonctionnalité secondaire enfouie. N'ouvre PAS un
-          // 4e panneau plein écran (le contenu de la carte digitale reste la fenêtre modale
-          // `DigitalMenuModal` déjà existante, inchangée) — juste un accès direct depuis la barre du
-          // bas, au même niveau que Recettes/Scanner/Garde-manger. Le petit bouton dans l'en-tête
-          // Recettes reste en place aussi (accès habituel pour qui le connaît déjà, aucun risque à
-          // le laisser).
-          { id: "menu", label: t("digitalMenuButton"), icon: QrCode, isModal: true },
+          // [AJOUT 2026-08-28, devenu un vrai onglet le même jour après retour utilisateur] "Carte
+          // digitale" élevée en onglet de navigation principal — avant, uniquement un petit bouton
+          // gris noyé parmi 3 autres dans l'en-tête de l'onglet Recettes (liste/grille, fiche
+          // allergènes, +Nouvelle recette), donc quasiment invisible pour qui ne savait pas déjà où
+          // chercher. Un premier essai la gardait comme fenêtre modale par-dessus l'app, jugé
+          // incohérent avec les 3 autres onglets qui occupent tout l'écran — c'est maintenant un
+          // vrai onglet au même niveau que Recettes/Scanner/Garde-manger (voir plus bas dans
+          // `<main>`). Le petit bouton dans l'en-tête Recettes reste en place aussi.
+          { id: "menu", label: t("digitalMenuButton"), icon: QrCode },
         ].map((tabDef) => {
           const TabIcon = tabDef.icon;
-          const isActive = tabDef.isModal ? digitalMenuOpen : activeTab === tabDef.id;
+          const isActive = activeTab === tabDef.id;
           return (
             <button
               key={tabDef.id}
               onClick={() => {
-                if (tabDef.isModal) { setDigitalMenuOpen(true); return; }
                 setActiveTab(tabDef.id);
                 if (tabDef.id === "recipes") setRecipeSubView("list");
               }}

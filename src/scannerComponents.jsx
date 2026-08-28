@@ -302,8 +302,35 @@ export function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
 // que le "0" est suivi du point, `parseFloat("0.")` vaut 0 et l'affichage revient à "0", effaçant
 // le point) : bug réel signalé par l'utilisateur. `NumField` garde un texte local pendant la frappe
 // et ne resynchronise qu'au blur, donc n'a pas ce problème.
+// [AJOUT 2026-08-28] Un article simple (boisson, etc.) n'avait jusqu'ici aucun suivi de prix,
+// contrairement à un ingrédient (`ing.history`) ou une recette (variation affichée sur la fiche) —
+// remonté par l'utilisateur comme un vrai manque : rien n'indiquait qu'un prix venait de changer.
+// Même logique que `priceVariation` (pricing.js), appliquée à `item.priceHistory` au lieu de
+// `ing.history`/`activeSupplier` — gardée séparée (pas réutilisée telle quelle) car les articles
+// simples n'ont pas de fournisseur actif, juste un historique de prix plat.
+function simpleItemPriceVariation(item) {
+  const h = item.priceHistory || [];
+  if (h.length < 2) return null;
+  const previous = h[h.length - 2].price;
+  const current = h[h.length - 1].price;
+  if (!previous) return null;
+  const pct = ((current - previous) / previous) * 100;
+  if (Math.abs(pct) < 1) return null; // variation négligeable, pas de bruit visuel
+  return { pct: Math.round(Math.abs(pct)), dir: pct > 0 ? "up" : "down" };
+}
+
 export function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove, onConvert }) {
   const [showCost, setShowCost] = useState(item.cost != null);
+  // `onCommit` (pas `onChange`, qui se déclenche à chaque touche) — même règle que partout ailleurs
+  // dans ce projet depuis le bug "+70%" du 2026-08-27 (voir CLAUDE.md) : un historique de prix ne
+  // doit s'écrire qu'une fois la saisie VRAIMENT terminée, jamais à chaque caractère tapé.
+  const commitSellPrice = (newPrice) => {
+    const history = item.priceHistory || [];
+    const last = history[history.length - 1];
+    if (last && last.price === newPrice) return;
+    onUpdate({ priceHistory: [...history, { date: new Date().toISOString().slice(0, 10), price: newPrice }].slice(-15) });
+  };
+  const variation = simpleItemPriceVariation(item);
 
   // Traduction automatique du nom (2026-08-19), même principe débouncé que la description d'une
   // recette (`MenuRecipeRow`) — le nom est ici tapé en direct (contrairement à celui d'une
@@ -342,12 +369,22 @@ export function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove, o
         <NumField
           value={item.sellPrice}
           onChange={(v) => onUpdate({ sellPrice: v })}
+          onCommit={commitSellPrice}
           className="w-14 bg-black/20 text-white text-[11px] rounded px-1.5 py-1 outline-none text-right shrink-0"
         />
         <button onClick={onRemove} className="shrink-0 text-white/30 hover:text-[#EF4444]">
           <X size={12} />
         </button>
       </div>
+      {/* Variation depuis le dernier prix enregistré (2026-08-28) — même code couleur que partout
+          ailleurs dans l'app (vert = baisse, orange/rouge = hausse). Discret, sous la ligne, jamais
+          affiché tant qu'il n'y a pas au moins 2 prix connus. */}
+      {variation && (
+        <div className="flex items-center gap-1 mt-1 pl-0.5 text-[10px]" style={{ color: variation.dir === "up" ? TIER_COLORS.mid : "#10B981" }}>
+          {variation.dir === "up" ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+          <span>{variation.pct}%</span>
+        </div>
+      )}
       {showCost ? (
         <div className="flex items-center gap-1.5 mt-1.5 pl-0.5">
           <span className="text-[10px] text-white/30 shrink-0">{t("digitalMenuSimpleItemCostLabel")}</span>
@@ -589,19 +626,17 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={onClose}>
-      <div
-        className="rounded-2xl p-5 w-full max-w-md max-h-[85vh] flex flex-col font-body border border-white/10"
-        style={{ background: "#26221C" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <QrCode size={16} style={{ color: BRAND_SOLID }} className="shrink-0" />
-          <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("digitalMenuTitle")}</h3>
-        </div>
-        <p className="text-white/50 text-xs mb-4 leading-relaxed">{t("digitalMenuHint")}</p>
+    // [2026-08-28] Devenu un vrai onglet plutôt qu'une fenêtre flottante (voir App.jsx) : plus de
+    // `fixed inset-0`/fond noir/limite de hauteur — le contenu suit le défilement normal de la
+    // page, comme les 3 autres onglets. Le reste du contenu ci-dessous est inchangé.
+    <div className="rounded-2xl p-5 flex flex-col font-body border border-white/10 print:hidden" style={{ background: "#26221C" }}>
+      <div className="flex items-center gap-2 mb-1">
+        <QrCode size={16} style={{ color: BRAND_SOLID }} className="shrink-0" />
+        <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("digitalMenuTitle")}</h3>
+      </div>
+      <p className="text-white/50 text-xs mb-4 leading-relaxed">{t("digitalMenuHint")}</p>
 
-        <div className="overflow-y-auto pr-0.5 space-y-4">
+      <div className="space-y-4">
           <label className="flex items-start gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -801,12 +836,7 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
 
           <SimpleItemsSection items={simpleItems} setItems={setSimpleItems} categories={categories} lang={lang} t={t} onConvert={onConvertToRecipe} />
         </div>
-
-        <button onClick={onClose} className="w-full mt-4 text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] shrink-0">
-          {t("close")}
-        </button>
       </div>
-    </div>
   );
 }
 
