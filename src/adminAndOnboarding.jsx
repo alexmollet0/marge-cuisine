@@ -6,6 +6,7 @@ import {
   Smartphone, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
+import { TR } from "./translations.js";
 import { TIER_COLORS, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW } from "./brand.js";
 import { NumField } from "./formComponents.jsx";
 

@@ -2,7 +2,8 @@
 // extrait de App.jsx le 2026-08-28.
 import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, ChevronUp, Plus, Search } from "lucide-react";
-import { CATALOG, CATEGORY_ESTIMATE_PRICE, textIncludes } from "./catalog.js";
+import { CATALOG, CATEGORY_ESTIMATE_PRICE, textIncludes, normUnit, unitDisplayLabel } from "./catalog.js";
+import { activeSupplier } from "./pricing.js";
 import { BRAND_SOLID, BRAND_GRADIENT } from "./brand.js";
 
 export function NumField({ value, onChange, onCommit, className, allowDecimal = true, ...rest }) {
