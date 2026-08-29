@@ -5,10 +5,6 @@
 export const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 // Couleurs du badge de classement des recettes (TOP1/2/3), volontairement distinctes des
 // TIER_COLORS ci-dessus qui ne servent qu'à la marge — or / argent / bronze, un rang = une couleur.
-// Couleur de marque Chefup (2026-07-31), dégradé violet -> cyan, à ne jamais confondre avec
-// TIER_COLORS/les indicateurs de statut (confiant/importé/prix en baisse = vert, à surveiller
-// = orange, problème = rouge) qui restent inchangés — seul le chrome interactif générique
-// (boutons, focus, sélection, onglets) passe à cette nouvelle couleur.
 // Tarifs affichés (2026-08-26). Point unique de vérité pour tout ce qui est MONTRÉ à l'utilisateur
 // (landing, écran de fin d'essai, emails) — ce qui est réellement facturé vient toujours de Stripe
 // via STRIPE_PRICE_ID / STRIPE_FOUNDING_PRICE_ID sur Vercel. Les deux doivent rester cohérents :
@@ -16,10 +12,17 @@ export const TIER_COLORS = { low: "#EF4444", mid: "#F59E0B", high: "#10B981" };
 // `founding` = offre de lancement, 50 places, verrouillé à vie (voir api/_lib.js, FOUNDING_SPOTS).
 export const PRICING = { standard: 49, founding: 29 };
 
-export const BRAND_SOLID = "#8B5CF6";
-export const BRAND_SOLID_PAPER = "#6D28D9";
-export const BRAND_GRADIENT = "linear-gradient(135deg, #7C3AED 0%, #22D3EE 100%)";
-export const BRAND_SHADOW = "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(124,58,237,0.35)";
+// Identité "Ardoise de cuisine" (2026-08-29) — remplace le dégradé violet->cyan (jugé par
+// l'utilisateur "trop appli IA générique") par du cuivre/laiton chaud, cohérent avec le fond
+// ardoise déjà en place. Seul le chrome interactif générique (boutons, focus, sélection,
+// onglets) utilise ces couleurs — TIER_COLORS/les indicateurs de statut (confiant/importé/prix
+// en baisse = vert, à surveiller = orange, problème = rouge) restent inchangés, jamais confondus
+// avec la couleur de marque. `BRAND_SOLID_PAPER` reste un cuivre plus foncé pour rester lisible
+// sur le ticket recette imprimé (fond blanc/clair, voir la contrainte `.ticket` dans App.jsx).
+export const BRAND_SOLID = "#C9793B";
+export const BRAND_SOLID_PAPER = "#9C5B28";
+export const BRAND_GRADIENT = "linear-gradient(135deg, #C9793B 0%, #E0A050 100%)";
+export const BRAND_SHADOW = "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(201,121,59,0.35)";
 export const TOP_BADGE_COLORS = ["#D4AF37", "#B4B8BC", "#C97F3F"];
 
 // Sections de la carte digitale publique (2026-08, v2) : le restaurateur définit lui-même ses

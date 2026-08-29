@@ -224,7 +224,7 @@ export function MenuWizard({ menuSettings, setMenuSettings, simpleItems, setSimp
             onChange={(e) => setMenuSettings((prev) => ({ ...prev, restaurantName: e.target.value }))}
             onKeyDown={(e) => { if (e.key === "Enter" && canNext) setStep(1); }}
             placeholder={t("menuWizardNamePlaceholder")}
-            className="w-full rounded-xl px-4 py-3 text-base text-white text-center outline-none border border-white/10 focus:border-[#8B5CF6]"
+            className="w-full rounded-xl px-4 py-3 text-base text-white text-center outline-none border border-white/10 focus:border-[#C9793B]"
             style={{ background: "rgba(0,0,0,0.25)" }}
           />
         )}
@@ -266,7 +266,7 @@ export function MenuWizard({ menuSettings, setMenuSettings, simpleItems, setSimp
                 onChange={(e) => setNewSection(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSection(); } }}
                 placeholder={t("menuWizardNewSectionPlaceholder")}
-                className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none border border-white/10 focus:border-[#8B5CF6]"
+                className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none border border-white/10 focus:border-[#C9793B]"
                 style={{ background: "rgba(0,0,0,0.2)" }}
               />
               <button
@@ -286,7 +286,7 @@ export function MenuWizard({ menuSettings, setMenuSettings, simpleItems, setSimp
                 onChange={(e) => setDishName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addDish(); } }}
                 placeholder={t("menuWizardDishPlaceholder")}
-                className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-base text-white outline-none border border-white/10 focus:border-[#8B5CF6]"
+                className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-base text-white outline-none border border-white/10 focus:border-[#C9793B]"
                 style={{ background: "rgba(0,0,0,0.25)" }}
               />
               <input
@@ -295,7 +295,7 @@ export function MenuWizard({ menuSettings, setMenuSettings, simpleItems, setSimp
                 onChange={(e) => setDishPrice(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addDish(); } }}
                 placeholder="€"
-                className="w-20 rounded-xl px-3 py-2.5 text-base text-white text-right outline-none border border-white/10 focus:border-[#8B5CF6]"
+                className="w-20 rounded-xl px-3 py-2.5 text-base text-white text-right outline-none border border-white/10 focus:border-[#C9793B]"
                 style={{ background: "rgba(0,0,0,0.25)" }}
               />
               <button

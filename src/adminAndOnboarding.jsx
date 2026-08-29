@@ -37,7 +37,7 @@ export function marginMessage(roundedMargin, effectiveTarget, tier, lang) {
 // qu'une vraie capture d'écran (qui se périmerait au moindre changement d'interface du navigateur).
 export function InstallDiagram({ sourceIcon: SourceIcon, sourceLabel, targetLabel }) {
   return (
-    <div className="flex items-center justify-center gap-3 my-4 py-4 rounded-xl" style={{ background: "#1B1815" }}>
+    <div className="flex items-center justify-center gap-3 my-4 py-4 rounded-xl" style={{ background: "#16130F" }}>
       <div className="flex flex-col items-center gap-1.5">
         <div className="relative">
           <div className="w-11 h-11 rounded-xl border border-white/20 flex items-center justify-center">
@@ -373,7 +373,7 @@ export function AdminDashboard() {
     <div className="pb-6">
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">Tableau de bord</h2>
-        <div className="flex items-center gap-1 rounded-full p-1" style={{ background: "#1B1815" }}>
+        <div className="flex items-center gap-1 rounded-full p-1" style={{ background: "#16130F" }}>
           <TabButton id="comptes" label="Comptes" />
           <TabButton id="apercu" label="Aperçu" />
         </div>
@@ -394,7 +394,7 @@ export function AdminDashboard() {
               };
               const initial = (u.email[0] || "?").toUpperCase();
               return (
-                <div key={u.email} className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#26221C" }}>
+                <div key={u.email} className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#201B15" }}>
                   <button
                     onClick={() => setExpandedEmail(isOpen ? null : u.email)}
                     className="w-full flex items-center gap-3 p-3 text-left"
@@ -409,7 +409,7 @@ export function AdminDashboard() {
                       {isLive && (
                         <span
                           className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2"
-                          style={{ background: "#10B981", borderColor: "#26221C" }}
+                          style={{ background: "#10B981", borderColor: "#201B15" }}
                           title="En ligne (actif il y a moins de 5 min)"
                         />
                       )}
@@ -594,7 +594,7 @@ export function AdminDashboard() {
           {(kpis.unconfirmedEmails > 0 || unlockEmailResult) && (
             <div
               className="rounded-xl p-3 mb-4 flex items-center justify-between gap-3 flex-wrap"
-              style={{ background: "#26221C", border: `1px solid ${TIER_COLORS.low}40` }}
+              style={{ background: "#201B15", border: `1px solid ${TIER_COLORS.low}40` }}
             >
               <div className="flex items-center gap-2 text-white/70 text-xs">
                 <MailWarning size={14} style={{ color: TIER_COLORS.low }} />
@@ -621,7 +621,7 @@ export function AdminDashboard() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
             {kpiCards.map((c) => (
-              <div key={c.label} className="rounded-xl p-3 border border-white/10" style={{ background: "#26221C" }}>
+              <div key={c.label} className="rounded-xl p-3 border border-white/10" style={{ background: "#201B15" }}>
                 <div className="text-white text-xl font-display">{c.value}</div>
                 <div className="text-white/40 text-[10px] uppercase tracking-wide mt-0.5">{c.label}</div>
               </div>
@@ -635,7 +635,7 @@ export function AdminDashboard() {
               MAIS AUSSI ses propres visites s'il n'a pas ouvert le site avec `?notrack=1` au moins
               une fois sur cet appareil — d'où le rappel affiché juste en dessous. */}
           {bySource.length > 0 && (
-            <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#26221C" }}>
+            <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#201B15" }}>
               <div className="text-white/50 text-[10px] uppercase tracking-wide mb-3">Provenance — bilan complet</div>
               {/* Tableau plutôt qu'une liste : avec 5 chiffres par ligne, l'alignement en colonnes
                   est le seul moyen de comparer deux sources d'un coup d'œil. `overflow-x-auto` pour
@@ -709,7 +709,7 @@ export function AdminDashboard() {
             </div>
           )}
 
-          <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#26221C" }}>
+          <div className="rounded-xl p-4 border border-white/10 mb-5" style={{ background: "#201B15" }}>
             <div className="text-white/50 text-[10px] uppercase tracking-wide mb-2">Visites par jour</div>
             <DailyBarChart series={dailySeries.map((d) => ({ date: d.date, value: d.views }))} color={BRAND_SOLID} />
           </div>
@@ -717,7 +717,7 @@ export function AdminDashboard() {
           {/* Détail jour par jour (2026-08-19) — le graphique seul ne suffisait pas pour savoir
               précisément "ma vidéo TikTok du 19 août m'a rapporté combien de visites", demandé
               explicitement par l'utilisateur. Un chiffre exact par ligne, pas une barre à interpréter. */}
-          <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#26221C" }}>
+          <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "#201B15" }}>
             <div className="text-white/50 text-[10px] uppercase tracking-wide p-4 pb-2">Détail par jour</div>
             <div className="overflow-x-auto max-h-64 overflow-y-auto">
               <table className="w-full text-xs">
@@ -775,7 +775,7 @@ export function FirstRunWizard({ t, onFinish, onSkip }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 py-4" style={{ background: "rgba(0,0,0,0.75)" }}>
-      <div className="w-full max-w-md rounded-2xl border border-white/10 max-h-full overflow-y-auto" style={{ background: "#26221C" }}>
+      <div className="w-full max-w-md rounded-2xl border border-white/10 max-h-full overflow-y-auto" style={{ background: "#201B15" }}>
         <div className="p-5">
           <h2 className="font-display uppercase text-white text-sm tracking-wide mb-1">{t("firstRunTitle")}</h2>
           <p className="text-white/50 text-xs mb-4">{t("firstRunHint")}</p>

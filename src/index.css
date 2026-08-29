@@ -1,6 +1,18 @@
+/* Polices Chefup (2026-08-29, identité "Ardoise de cuisine") — @import doit être la toute première
+   règle du fichier (avant même @tailwind), sinon Vite/les navigateurs l'ignorent silencieusement.
+   Déplacé ici depuis le <style> inline de App.jsx : ce fichier est le seul chargé AVANT la
+   connexion (main.jsx l'importe globalement), alors que le <style> de App.jsx ne rend jamais tant
+   qu'aucune session n'existe — les écrans Landing/Auth utilisaient donc .font-display/.font-body
+   sans jamais avoir chargé la bonne police (bug latent corrigé au passage). */
+@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.font-display { font-family: 'Big Shoulders Display', sans-serif; font-weight: 900; }
+.font-body { font-family: 'Work Sans', sans-serif; }
+.font-mono { font-family: 'JetBrains Mono', monospace; }
 
 body {
   margin: 0;

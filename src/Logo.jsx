@@ -12,8 +12,8 @@ export function Logo({ size = 22 }) {
     <svg width={size} height={size} viewBox="0 0 100 100" style={{ flexShrink: 0, display: "block" }}>
       <defs>
         <linearGradient id={`chefup-grad-${gradId}`} x1="5%" y1="100%" x2="95%" y2="5%">
-          <stop offset="0%" stopColor="#7C3AED" />
-          <stop offset="100%" stopColor="#22D3EE" />
+          <stop offset="0%" stopColor="#C9793B" />
+          <stop offset="100%" stopColor="#E0A050" />
         </linearGradient>
       </defs>
       <path

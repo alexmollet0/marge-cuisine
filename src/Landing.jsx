@@ -174,7 +174,7 @@ function MarginCalculator({ t, lang, onEngage, onStart }) {
   };
 
   return (
-    <div className="max-w-sm mx-auto rounded-2xl p-5 border border-white/10 mb-12" style={{ background: "#26221C" }}>
+    <div className="max-w-sm mx-auto rounded-2xl p-5 border border-white/10 mb-12" style={{ background: "#201B15" }}>
       <div className="text-center mb-4">
         <div className="font-display uppercase text-xs tracking-widest text-white/90">{t("calcTitle")}</div>
         <div className="text-white/40 text-[11px] mt-1">{t("calcSubtitle")}</div>
@@ -289,7 +289,7 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
   }
 
   return (
-    <div className="min-h-screen font-body" style={{ background: "#1B1815" }}>
+    <div className="min-h-screen font-body" style={{ background: "#16130F" }}>
       {/* Bandeau de consentement publicitaire — volontairement en BAS et non bloquant : il ne
           masque ni le titre, ni le bouton principal, ni le calculateur. Un visiteur qui l'ignore
           peut faire tout le parcours normalement, simplement sans être mesuré côté régie. */}
@@ -446,7 +446,7 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
             produit, juste un autre point d'entrée dans le même parcours d'inscription. */}
         <div
           className="max-w-2xl mx-auto mb-12 rounded-2xl border border-white/10 px-5 py-5 sm:py-6 flex flex-col sm:flex-row items-center gap-4"
-          style={{ background: "#26221C" }}
+          style={{ background: "#201B15" }}
         >
           <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${BRAND_SOLID}22`, color: BRAND_SOLID }}>
             <QrCode size={22} />
@@ -467,7 +467,7 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
           {FEATURES.map(({ icon: Icon, titleKey, descKey }) => (
-            <div key={titleKey} className="rounded-2xl p-5 border border-white/10" style={{ background: "#26221C" }}>
+            <div key={titleKey} className="rounded-2xl p-5 border border-white/10" style={{ background: "#201B15" }}>
               <div
                 className="w-9 h-9 rounded-lg flex items-center justify-center mb-3"
                 style={{ background: `${BRAND_SOLID}22`, color: BRAND_SOLID }}
@@ -488,7 +488,7 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
 
         <div
           className="max-w-sm mx-auto rounded-2xl p-6 border-2 text-center"
-          style={{ background: "#26221C", borderColor: BRAND_SOLID }}
+          style={{ background: "#201B15", borderColor: BRAND_SOLID }}
         >
           <h3 className="font-display uppercase text-white text-sm tracking-wide mb-3">{t("landingPricingTitle")}</h3>
           {launchOfferOpen && (

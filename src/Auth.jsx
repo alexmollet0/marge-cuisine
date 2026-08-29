@@ -9,7 +9,7 @@ import { trackAdEvent } from "./adPixel.js";
 // automatiquement l'écran au focus d'un champ, et ne rezooment pas toujours
 // proprement après — gênant comme toute première impression de l'app.
 const inputClass =
-  "w-full rounded-lg px-3 py-2 text-base text-white bg-white/5 border border-white/10 outline-none focus:border-[#8B5CF6]";
+  "w-full rounded-lg px-3 py-2 text-base text-white bg-white/5 border border-white/10 outline-none focus:border-[#C9793B]";
 
 const AUTH_LANG_KEY = "chefup:authLang";
 
@@ -411,7 +411,7 @@ export default function AuthGate({ children }) {
 
   if (session === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#1B1815" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#16130F" }}>
         <Loader2 className="animate-spin" style={{ color: BRAND_SOLID }} size={28} />
       </div>
     );
@@ -419,11 +419,11 @@ export default function AuthGate({ children }) {
 
   if (recoveryMode) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 font-body" style={{ background: "#1B1815" }}>
+      <div className="min-h-screen flex items-center justify-center px-4 font-body" style={{ background: "#16130F" }}>
         <form
           onSubmit={submitReset}
           className="w-full max-w-sm rounded-2xl p-6 border border-white/10"
-          style={{ background: "#26221C" }}
+          style={{ background: "#201B15" }}
         >
           <div className="flex items-center gap-2 justify-center mb-6">
             <Logo size={30} />
@@ -496,8 +496,8 @@ export default function AuthGate({ children }) {
   // bouton supplémentaire à chercher, c'est le point qui rend ce chemin vraiment "hyper rapide".
   if (!session && otpFlow) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 font-body" style={{ background: "#1B1815" }}>
-        <div className="w-full max-w-sm rounded-2xl p-6 border border-white/10" style={{ background: "#26221C" }}>
+      <div className="min-h-screen flex items-center justify-center px-4 font-body" style={{ background: "#16130F" }}>
+        <div className="w-full max-w-sm rounded-2xl p-6 border border-white/10" style={{ background: "#201B15" }}>
           <div className="flex items-center gap-2 justify-center mb-2">
             <Logo size={30} />
             <h1 className="font-display text-white text-lg tracking-wide uppercase">Chefup</h1>
@@ -571,11 +571,11 @@ export default function AuthGate({ children }) {
 
   if (!session) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 font-body" style={{ background: "#1B1815" }}>
+      <div className="min-h-screen flex items-center justify-center px-4 font-body" style={{ background: "#16130F" }}>
         <form
           onSubmit={submit}
           className="w-full max-w-sm rounded-2xl p-6 border border-white/10"
-          style={{ background: "#26221C" }}
+          style={{ background: "#201B15" }}
         >
           <button
             type="button"
@@ -610,7 +610,7 @@ export default function AuthGate({ children }) {
                 type="button"
                 disabled={busy}
                 onClick={signInWithGoogle}
-                className="w-full py-2.5 rounded-full text-xs font-semibold bg-white text-[#1B1815] hover:bg-white/90 disabled:opacity-60 flex items-center justify-center gap-2.5 mb-4"
+                className="w-full py-2.5 rounded-full text-xs font-semibold bg-white text-[#16130F] hover:bg-white/90 disabled:opacity-60 flex items-center justify-center gap-2.5 mb-4"
               >
                 <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
                   <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/>

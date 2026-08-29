@@ -211,7 +211,7 @@ export function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAd
             onChange={(e) => { setName(e.target.value); setPicked(null); setSuggestionPicked(false); }}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); amountRef.current?.focus(); } }}
             placeholder={t("quickAddNamePlaceholder")}
-            className="w-full bg-white rounded-lg px-2.5 py-2.5 text-sm text-black outline-none border border-black/15 focus:border-[#8B5CF6]"
+            className="w-full bg-white rounded-lg px-2.5 py-2.5 text-sm text-black outline-none border border-black/15 focus:border-[#C9793B]"
           />
           {suggestions.length > 0 && (
             <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg overflow-hidden shadow-lg border border-black/10 bg-white">
@@ -249,7 +249,7 @@ export function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAd
           onChange={(e) => setAmount(e.target.value.replace(/[^0-9.,]/g, ""))}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
           placeholder={placeholderAmount}
-          className="w-14 shrink-0 bg-white rounded-lg px-2 py-2.5 text-sm text-black text-right outline-none border border-black/15 focus:border-[#8B5CF6]"
+          className="w-14 shrink-0 bg-white rounded-lg px-2 py-2.5 text-sm text-black text-right outline-none border border-black/15 focus:border-[#C9793B]"
         />
         <button
           type="button"
@@ -294,7 +294,7 @@ export function QuickAddLine({ ingredients, ingredientDisplayName, lang, t, onAd
             onChange={(e) => { priceTouched.current = true; setPrice(e.target.value.replace(/[^0-9.,]/g, "")); }}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
             placeholder="0"
-            className="w-14 bg-white rounded px-1.5 py-1 text-[12px] text-black text-right outline-none border border-black/15 focus:border-[#8B5CF6]"
+            className="w-14 bg-white rounded px-1.5 py-1 text-[12px] text-black text-right outline-none border border-black/15 focus:border-[#C9793B]"
           />
           <span className="text-[10px] text-black/35">€{priceUnitLabel}</span>
         </div>
@@ -346,7 +346,7 @@ export function IngredientPicker({
         {current ? displayName(current) : <span className="opacity-40">{placeholder || "…"}</span>}
       </button>
       {open && (
-        <div className="absolute z-30 top-full left-0 mt-1 w-56 max-w-[80vw] rounded-xl overflow-hidden shadow-xl border border-white/10" style={{ background: "#26221C" }}>
+        <div className="absolute z-30 top-full left-0 mt-1 w-56 max-w-[80vw] rounded-xl overflow-hidden shadow-xl border border-white/10" style={{ background: "#201B15" }}>
           <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-white/10">
             <Search size={12} className="text-white/40 shrink-0" />
             <input
@@ -363,7 +363,7 @@ export function IngredientPicker({
               <button
                 key={i.id}
                 onMouseDown={(e) => { e.preventDefault(); onChange(i.id); setOpen(false); }}
-                className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-white/10 ${i.id === value ? "text-[#8B5CF6]" : "text-white/80"}`}
+                className={`w-full text-left px-2.5 py-1.5 text-xs hover:bg-white/10 ${i.id === value ? "text-[#C9793B]" : "text-white/80"}`}
               >
                 {displayName(i)}
               </button>
@@ -378,7 +378,7 @@ export function IngredientPicker({
             <button
               type="button"
               onMouseDown={(e) => { e.preventDefault(); onCreateNew(query.trim()); setOpen(false); }}
-              className="w-full text-left px-2.5 py-2 text-xs text-[#8B5CF6] hover:bg-white/10 border-t border-white/10 flex items-center gap-1.5"
+              className="w-full text-left px-2.5 py-2 text-xs text-[#C9793B] hover:bg-white/10 border-t border-white/10 flex items-center gap-1.5"
             >
               <Plus size={12} className="shrink-0" /> {createNewLabel}
             </button>

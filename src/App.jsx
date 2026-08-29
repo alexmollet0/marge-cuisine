@@ -2704,13 +2704,11 @@ export default function App() {
   const hasOrangeZone = effectiveGreenTarget > CRITICAL_MARGIN;
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: "#1B1815", maxWidth: "100vw" }}>
+    <div className="min-h-screen w-full overflow-x-hidden" style={{ background: "#16130F", maxWidth: "100vw" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+        /* Import de police + .font-display/.font-body/.font-mono : déplacés dans src/index.css
+           (2026-08-29) pour être chargés même avant la connexion — voir le commentaire là-bas. */
         * { box-sizing: border-box; }
-        .font-display { font-family: 'Oswald', sans-serif; }
-        .font-body { font-family: 'Manrope', sans-serif; }
-        .font-mono { font-family: 'JetBrains Mono', monospace; }
         /* [REFONTE 2026-08-27] La fiche recette ne ressemble plus à un ticket de caisse.
            L'utilisateur ne voulait plus de cette métaphore : bords dentelés, papier crème étroit,
            police à chasse fixe. Elle devient une vraie fiche de travail — pleine largeur, coins
@@ -2726,7 +2724,7 @@ export default function App() {
           border-radius: 18px; box-shadow: 0 4px 24px rgba(0,0,0,0.28);
           max-width: 100%;
         }
-        .stamp { border: 3px solid currentColor; transform: rotate(-6deg); font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.9; }
+        .stamp { border: 3px solid currentColor; transform: rotate(-6deg); font-family: 'Big Shoulders Display', sans-serif; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.9; }
         @media print {
           body * { visibility: hidden; }
           .ticket, .ticket *, .allergen-sheet, .allergen-sheet * { visibility: visible; }
@@ -2769,7 +2767,7 @@ export default function App() {
         }
       `}</style>
 
-      <header className="px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-2 print:hidden" style={{ background: "#26221C", borderBottom: "1px solid rgba(201,154,85,0.25)" }}>
+      <header className="px-4 sm:px-5 py-4 flex flex-wrap items-center justify-between gap-2 print:hidden" style={{ background: "#201B15", borderBottom: "1px solid rgba(201,154,85,0.25)" }}>
         <div className="flex items-center gap-2">
           <Logo size={26} />
           <h1 className="font-display text-white text-base sm:text-lg tracking-wide uppercase">{t("appTitle")}</h1>
@@ -2782,13 +2780,13 @@ export default function App() {
               <Check size={14} color="#10B981" /> {t("saved")}
             </span>
           )}
-          <button onClick={() => setAccountMenuOpen(true)} className="text-white/60 hover:text-[#8B5CF6]" title={t("myAccount")}>
+          <button onClick={() => setAccountMenuOpen(true)} className="text-white/60 hover:text-[#C9793B]" title={t("myAccount")}>
             <User size={16} />
           </button>
-          <button onClick={() => setShowSettings(true)} className="text-white/60 hover:text-[#8B5CF6]" title={t("settings")}>
+          <button onClick={() => setShowSettings(true)} className="text-white/60 hover:text-[#C9793B]" title={t("settings")}>
             <SettingsIcon size={16} />
           </button>
-          <button onClick={() => supabase.auth.signOut()} className="text-white/60 hover:text-[#8B5CF6]" title={t("logout")}>
+          <button onClick={() => supabase.auth.signOut()} className="text-white/60 hover:text-[#C9793B]" title={t("logout")}>
             <LogOut size={16} />
           </button>
           <div className="flex items-center gap-1">
@@ -2801,7 +2799,7 @@ export default function App() {
 
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setShowSettings(false)}>
-          <div className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10" style={{ background: "#26221C" }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10" style={{ background: "#201B15" }} onClick={(e) => e.stopPropagation()}>
             <h3 className="font-display text-white uppercase tracking-wide text-sm mb-4">{t("settings")}</h3>
             <label className="text-xs text-white/60 block mb-1">{t("defaultVat")}</label>
             <select
@@ -2845,7 +2843,7 @@ export default function App() {
               </span>
             </label>
 
-            <button onClick={() => setShowSettings(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]">
+            <button onClick={() => setShowSettings(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]">
               {t("close")}
             </button>
             <button onClick={clearAll} className="w-full text-center mt-3 text-[11px] text-white/30 hover:text-[#B23A2E] underline">
@@ -2857,7 +2855,7 @@ export default function App() {
 
       {accountMenuOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setAccountMenuOpen(false)}>
-          <div className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10" style={{ background: "#26221C" }} onClick={(e) => e.stopPropagation()}>
+          <div className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10" style={{ background: "#201B15" }} onClick={(e) => e.stopPropagation()}>
             <h3 className="font-display text-white uppercase tracking-wide text-sm mb-4">{t("myAccount")}</h3>
 
             {portalErr && (
@@ -2874,14 +2872,14 @@ export default function App() {
             </button>
             <button
               onClick={() => { setAccountMenuOpen(false); setContactModalOpen(true); setContactSent(false); setContactErr(null); }}
-              className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] flex items-center justify-center gap-2 mb-2"
+              className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B] flex items-center justify-center gap-2 mb-2"
             >
               <Mail size={12} /> {t("contactButton")}
             </button>
             {isAdmin && (
               <button
                 onClick={() => { setAccountMenuOpen(false); setAdminDashboardOpen(true); }}
-                className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] flex items-center justify-center gap-2 mb-2"
+                className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B] flex items-center justify-center gap-2 mb-2"
               >
                 <TrendingUp size={12} /> Admin
               </button>
@@ -2892,14 +2890,14 @@ export default function App() {
                 className={
                   installPromptReady
                     ? "w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full flex items-center justify-center gap-2 mb-2"
-                    : "w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] flex items-center justify-center gap-2 mb-2"
+                    : "w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B] flex items-center justify-center gap-2 mb-2"
                 }
                 style={installPromptReady ? { background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW } : undefined}
               >
                 <Smartphone size={12} /> {t("installAppButton")}
               </button>
             )}
-            <button onClick={() => setAccountMenuOpen(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]">
+            <button onClick={() => setAccountMenuOpen(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]">
               {t("close")}
             </button>
           </div>
@@ -2910,11 +2908,11 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setInstallInstructionsOpen(false)}>
           <div
             className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10"
-            style={{ background: "#26221C" }}
+            style={{ background: "#201B15" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 mb-1">
-              <Smartphone size={16} className="text-[#8B5CF6]" />
+              <Smartphone size={16} className="text-[#C9793B]" />
               <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("installModalTitle")}</h3>
             </div>
             <InstallDiagram
@@ -2932,7 +2930,7 @@ export default function App() {
             {!isIOSDevice && <p className="text-white/40 text-xs mb-5">{t("installInstructionsGeneric")}</p>}
             <button
               onClick={() => setInstallInstructionsOpen(false)}
-              className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+              className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]"
             >
               {t("close")}
             </button>
@@ -2942,13 +2940,13 @@ export default function App() {
 
       {adminDashboardOpen && isAdmin && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col print:hidden">
-          <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-white/10" style={{ background: "#26221C" }}>
+          <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b border-white/10" style={{ background: "#201B15" }}>
             <span className="text-white font-display uppercase text-sm tracking-wide">Tableau de bord</span>
             <button onClick={() => setAdminDashboardOpen(false)} className="text-white/60 hover:text-white p-1">
               <X size={20} />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-4" style={{ background: "#1B1815" }}>
+          <div className="flex-1 overflow-y-auto p-4" style={{ background: "#16130F" }}>
             <AdminDashboard />
           </div>
         </div>
@@ -2959,7 +2957,7 @@ export default function App() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setContactModalOpen(false)}>
           <div
             className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10"
-            style={{ background: "#26221C" }}
+            style={{ background: "#201B15" }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="font-display text-white uppercase tracking-wide text-sm mb-3">{t("contactModalTitle")}</h3>
@@ -2968,7 +2966,7 @@ export default function App() {
                 <p className="text-white/70 text-sm mb-5">{t("contactSuccessMessage")}</p>
                 <button
                   onClick={() => setContactModalOpen(false)}
-                  className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                  className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]"
                 >
                   {t("close")}
                 </button>
@@ -3018,7 +3016,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setContactModalOpen(false)}
-                  className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                  className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]"
                 >
                   {t("close")}
                 </button>
@@ -3032,7 +3030,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setResetConfirmOpen(false)}>
           <div
             className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10"
-            style={{ background: "#26221C" }}
+            style={{ background: "#201B15" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 mb-3" style={{ color: TIER_COLORS.low }}>
@@ -3063,7 +3061,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setBulkDeleteConfirmOpen(false)}>
           <div
             className="rounded-2xl p-5 w-full max-w-xs font-body border border-white/10"
-            style={{ background: "#26221C" }}
+            style={{ background: "#201B15" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-2 mb-3" style={{ color: TIER_COLORS.low }}>
@@ -3094,7 +3092,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setLossModalOpen(false)}>
           <div
             className="rounded-2xl p-5 w-full max-w-sm max-h-[80vh] flex flex-col font-body border border-white/10"
-            style={{ background: "#26221C" }}
+            style={{ background: "#201B15" }}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("declareLossesTitle")}</h3>
@@ -3104,7 +3102,7 @@ export default function App() {
                 .map((ingId) => ingredientById(ingId))
                 .filter(Boolean)
                 .map((ing) => (
-                  <div key={ing.id} className="flex items-center gap-2 text-xs rounded-lg px-3 py-2" style={{ background: "#1B1815" }}>
+                  <div key={ing.id} className="flex items-center gap-2 text-xs rounded-lg px-3 py-2" style={{ background: "#16130F" }}>
                     <span className="flex-1 min-w-0 text-white truncate">{ingredientDisplayName(ing)}</span>
                     <NumField
                       value={ing.lossPercent || 0}
@@ -3118,7 +3116,7 @@ export default function App() {
             </div>
             <button
               onClick={() => setLossModalOpen(false)}
-              className="w-full mt-4 text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6] shrink-0"
+              className="w-full mt-4 text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B] shrink-0"
             >
               {t("close")}
             </button>
@@ -3130,7 +3128,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeScanRecipe}>
           <div
             className="rounded-2xl p-5 w-full max-w-xl max-h-[85vh] overflow-y-auto font-body border border-white/10"
-            style={{ background: "#26221C" }}
+            style={{ background: "#201B15" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -3152,7 +3150,7 @@ export default function App() {
                 <div className="text-[#B23A2E] text-sm mb-3">{t("scanError")} : {scanRecipeErr}</div>
                 <button
                   onClick={() => fileInputRecipeLibraryRef.current?.click()}
-                  className="text-xs uppercase tracking-wide px-3 py-1.5 rounded border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                  className="text-xs uppercase tracking-wide px-3 py-1.5 rounded border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]"
                 >
                   {t("scanRetry")}
                 </button>
@@ -3204,7 +3202,7 @@ export default function App() {
                             <input
                               value={line.name}
                               onChange={(e) => updateScanRecipeLine(idx, { name: e.target.value })}
-                              className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#8B5CF6] pb-0.5"
+                              className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#C9793B] pb-0.5"
                             />
                             <div className="text-[11px] text-white/45 mt-1 truncate">{line.rawText}</div>
                           </div>
@@ -3299,7 +3297,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={() => { if (!scanning) closeScan(); }}>
           <div
             className="rounded-2xl p-5 w-full max-w-xl max-h-[85vh] overflow-y-auto font-body border border-white/10"
-            style={{ background: "#26221C" }}
+            style={{ background: "#201B15" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -3425,13 +3423,13 @@ export default function App() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => fileInputLibraryRef.current?.click()}
-                      className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                      className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]"
                     >
                       {t("scanRetryOtherFile")}
                     </button>
                     <button
                       onClick={() => reportScanProblem()}
-                      className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                      className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]"
                     >
                       {t("scanReportProblem")}
                     </button>
@@ -3465,7 +3463,7 @@ export default function App() {
                 )}
 
                 {scanResult.excludedItems && scanResult.excludedItems.length > 0 && (
-                  <div className="rounded-lg p-2.5 mb-3 text-[11px]" style={{ background: "#26221C", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <div className="rounded-lg p-2.5 mb-3 text-[11px]" style={{ background: "#201B15", border: "1px solid rgba(255,255,255,0.1)" }}>
                     <div className="text-white/50">{t("scanNonFoodExcluded")(scanResult.excludedItems.length)}</div>
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {scanResult.excludedItems.map((nf, i) => (
@@ -3513,13 +3511,13 @@ export default function App() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => fileInputLibraryRef.current?.click()}
-                          className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                          className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]"
                         >
                           {t("scanRetryOtherFile")}
                         </button>
                         <button
                           onClick={() => reportScanProblem("no_items")}
-                          className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#8B5CF6] hover:text-[#8B5CF6]"
+                          className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]"
                         >
                           {t("scanReportProblem")}
                         </button>
@@ -3610,7 +3608,7 @@ export default function App() {
                                   key={i}
                                   className="absolute inset-x-0 rounded-2xl border border-white/10 px-4 py-3 pointer-events-none"
                                   style={{
-                                    background: "#26221C",
+                                    background: "#201B15",
                                     top: `${(i + 1) * 14}px`,
                                     transform: `scale(${1 - (i + 1) * 0.045})`,
                                     opacity: 0.6 - i * 0.18,
@@ -3645,7 +3643,7 @@ export default function App() {
                               ) : (
                                 <div
                                   className="rounded-xl border p-4"
-                                  style={{ background: "#1B1815", borderColor: `${TIER_COLORS.mid}80` }}
+                                  style={{ background: "#16130F", borderColor: `${TIER_COLORS.mid}80` }}
                                 >
                                   {/* Avant ce correctif, tout ce qui n'était pas "nouveau" affichait le
                                       même badge orange "à vérifier" — un rapprochement pourtant confiant
@@ -3742,7 +3740,7 @@ export default function App() {
                                     <NumField
                                       value={current.item.unitPriceHT || 0}
                                       onChange={(v) => updateScanItem(current.idx, { unitPriceHT: v })}
-                                      className="flex-1 min-w-0 bg-transparent text-white text-base font-semibold text-right outline-none border-b border-white/15 focus:border-[#8B5CF6]"
+                                      className="flex-1 min-w-0 bg-transparent text-white text-base font-semibold text-right outline-none border-b border-white/15 focus:border-[#C9793B]"
                                     />
                                     <span className="text-white/50 text-sm shrink-0">€/{unitDisplayLabel(current.item.unit, t)}</span>
                                     <button
@@ -3864,9 +3862,9 @@ export default function App() {
                             </div>
                             <div className="space-y-1">
                               {skipped.map(({ item, idx }) => (
-                                <div key={idx} className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 opacity-50" style={{ background: "#1B1815" }}>
+                                <div key={idx} className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 opacity-50" style={{ background: "#16130F" }}>
                                   <span className="text-white/60 text-xs truncate">{item.name}</span>
-                                  <button onClick={() => unskipScanItem(idx)} className="text-[10px] text-white/40 hover:text-[#8B5CF6] underline shrink-0">
+                                  <button onClick={() => unskipScanItem(idx)} className="text-[10px] text-white/40 hover:text-[#C9793B] underline shrink-0">
                                     {t("scanUndoSkip")}
                                   </button>
                                 </div>
@@ -3906,7 +3904,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8" onClick={() => setAllergenSheetOpen(false)}>
           <div
             className="rounded-2xl p-5 w-full max-w-lg max-h-[85vh] overflow-y-auto font-body border border-white/10"
-            style={{ background: "#26221C" }}
+            style={{ background: "#201B15" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
@@ -3960,7 +3958,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeAddWizard}>
           <div
             className="rounded-2xl p-5 w-full max-w-sm font-body border border-white/10 overflow-hidden"
-            style={{ background: "#26221C" }}
+            style={{ background: "#201B15" }}
             onClick={(e) => e.stopPropagation()}
           >
             {wizardStep !== "success" && (
@@ -3986,7 +3984,7 @@ export default function App() {
             {wizardStep === 1 && (
               <div key="step1" style={{ animation: "wizardStepIn 0.25s ease" }}>
                 <h3 className="font-display text-white uppercase tracking-wide text-sm mb-3">{t("wizardStep1Title")}</h3>
-                <div className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 border border-white/10 mb-2" style={{ background: "#1B1815" }}>
+                <div className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 border border-white/10 mb-2" style={{ background: "#16130F" }}>
                   <Search size={13} className="text-white/40 shrink-0" />
                   <input
                     autoFocus
@@ -4001,10 +3999,10 @@ export default function App() {
                   <p className="text-white/30 text-xs px-1 py-3">{t("wizardSearchHint")}</p>
                 )}
                 {wizardQuery.trim() && (
-                  <div className="max-h-64 overflow-y-auto rounded-xl border border-white/10" style={{ background: "#1B1815" }}>
+                  <div className="max-h-64 overflow-y-auto rounded-xl border border-white/10" style={{ background: "#16130F" }}>
                     {wizardExistingSuggestions.length > 0 && (
                       <>
-                        <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[#8B5CF6]/80">{t("wizardExistingSection")}</div>
+                        <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-[#C9793B]/80">{t("wizardExistingSection")}</div>
                         {wizardExistingSuggestions.map((ing) => {
                           const sup = activeSupplier(ing);
                           return (
@@ -4037,7 +4035,7 @@ export default function App() {
                     )}
                     <button
                       onClick={() => pickWizardCustom(wizardQuery.trim())}
-                      className="w-full text-left px-3 py-2.5 text-xs text-[#8B5CF6] hover:bg-white/10 border-t border-white/10"
+                      className="w-full text-left px-3 py-2.5 text-xs text-[#C9793B] hover:bg-white/10 border-t border-white/10"
                     >
                       {t("createCustom")(wizardQuery.trim())}
                     </button>
@@ -4061,7 +4059,7 @@ export default function App() {
                       className="rounded-xl py-3 px-2 text-xs font-semibold border-2 transition"
                       style={{
                         borderColor: wizardData.category === c.id ? BRAND_SOLID : "rgba(255,255,255,0.12)",
-                        background: wizardData.category === c.id ? `${BRAND_SOLID}22` : "#1B1815",
+                        background: wizardData.category === c.id ? `${BRAND_SOLID}22` : "#16130F",
                         color: wizardData.category === c.id ? BRAND_SOLID : "rgba(255,255,255,0.6)",
                       }}
                     >
@@ -4084,7 +4082,7 @@ export default function App() {
               <div key="step3" style={{ animation: "wizardStepIn 0.25s ease" }}>
                 <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("wizardPriceStepTitle")}</h3>
                 <p className="text-white/40 text-xs mb-4 truncate">{wizardData.name}</p>
-                <div className="flex items-center gap-2 rounded-xl px-3 py-3 border border-white/10 mb-1.5" style={{ background: "#1B1815" }}>
+                <div className="flex items-center gap-2 rounded-xl px-3 py-3 border border-white/10 mb-1.5" style={{ background: "#16130F" }}>
                   <NumField
                     value={wizardData.price}
                     onChange={(v) => setWizardData((d) => ({ ...d, price: v, isEstimate: false }))}
@@ -4111,7 +4109,7 @@ export default function App() {
                       className="rounded-xl py-3 text-sm font-bold border-2 transition"
                       style={{
                         borderColor: wizardData.unit === u ? BRAND_SOLID : "rgba(255,255,255,0.12)",
-                        background: wizardData.unit === u ? `${BRAND_SOLID}22` : "#1B1815",
+                        background: wizardData.unit === u ? `${BRAND_SOLID}22` : "#16130F",
                         color: wizardData.unit === u ? BRAND_SOLID : "rgba(255,255,255,0.6)",
                       }}
                     >
@@ -4167,11 +4165,11 @@ export default function App() {
                 enfoui dans "Mon compte" — demandé explicitement par l'utilisateur, qui trouvait
                 l'ancien emplacement pas assez visible. Discret et ignorable (juste une croix). */}
             {!isStandaloneApp && !installBannerDismissed && (
-              <div className="flex items-center gap-2.5 mb-4 rounded-xl pl-3 pr-2 py-2.5 border border-white/10" style={{ background: "#26221C" }}>
+              <div className="flex items-center gap-2.5 mb-4 rounded-xl pl-3 pr-2 py-2.5 border border-white/10" style={{ background: "#201B15" }}>
                 <div className="relative shrink-0">
-                  <Smartphone size={16} className="text-[#8B5CF6]" />
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-ping" style={{ background: "#22D3EE" }} />
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ background: "#22D3EE" }} />
+                  <Smartphone size={16} className="text-[#C9793B]" />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-ping" style={{ background: "#E0A050" }} />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ background: "#E0A050" }} />
                 </div>
                 <span className="text-white/70 text-xs flex-1 leading-snug">{t("installBannerText")}</span>
                 <button
@@ -4192,7 +4190,7 @@ export default function App() {
                 utilisateur ne connaît pas encore) — demandé explicitement par l'utilisateur : la
                 toute première chose vue doit dire quoi faire, pas juste constater un état. */}
             {ingredients.length > 0 && ingredients.every((i) => activeSupplier(i)?.priceSource === "estimate") && (
-              <div className="rounded-2xl p-4 mb-5 border border-white/10" style={{ background: "#26221C" }}>
+              <div className="rounded-2xl p-4 mb-5 border border-white/10" style={{ background: "#201B15" }}>
                 <p className="text-white/70 text-sm leading-relaxed mb-3">{t("welcomeBannerText")}</p>
                 <button
                   onClick={() => setActiveTab("scanner")}
@@ -4209,11 +4207,11 @@ export default function App() {
                 cyan animé + croix), mais couleur cyan plutôt que violet pour rester visuellement
                 distinct du bandeau au-dessus quand les deux sont visibles en même temps. */}
             {!menuSettings.published && !menuBannerDismissed && (
-              <div className="flex items-center gap-2.5 mb-5 rounded-xl pl-3 pr-2 py-2.5 border border-white/10" style={{ background: "#26221C" }}>
+              <div className="flex items-center gap-2.5 mb-5 rounded-xl pl-3 pr-2 py-2.5 border border-white/10" style={{ background: "#201B15" }}>
                 <div className="relative shrink-0">
-                  <QrCode size={16} className="text-[#22D3EE]" />
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-ping" style={{ background: "#22D3EE" }} />
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ background: "#22D3EE" }} />
+                  <QrCode size={16} className="text-[#E0A050]" />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-ping" style={{ background: "#E0A050" }} />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ background: "#E0A050" }} />
                 </div>
                 <span className="text-white/70 text-xs flex-1 leading-snug">{t("menuBannerText")}</span>
                 <button
@@ -4293,7 +4291,7 @@ export default function App() {
                       key={r.id}
                       onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossModalOpen(false); }}
                       className="relative aspect-square rounded-2xl p-2 flex flex-col items-center justify-center gap-1.5 text-center font-body transition hover:brightness-110 hover:-translate-y-0.5 hover:shadow-lg border border-white/10 active:scale-95"
-                      style={{ background: "#26221C" }}
+                      style={{ background: "#201B15" }}
                     >
                       {topRecipeIds.includes(r.id) && (
                         <span
@@ -4337,7 +4335,7 @@ export default function App() {
                     <div
                       key={r.id}
                       className="rounded-2xl px-4 py-3.5 flex items-center gap-2 font-body transition hover:brightness-110 hover:-translate-y-0.5 hover:shadow-lg border border-white/10"
-                      style={{ background: "#26221C" }}
+                      style={{ background: "#201B15" }}
                     >
                       <button
                         onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossModalOpen(false); }}
@@ -4405,10 +4403,10 @@ export default function App() {
                 <ArrowLeft size={14} /> {t("recipes")}
               </button>
               <div className="flex items-center gap-2.5">
-                <button onClick={() => setLossModalOpen(true)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#8B5CF6] font-display uppercase tracking-wide">
+                <button onClick={() => setLossModalOpen(true)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#C9793B] font-display uppercase tracking-wide">
                   <Percent size={13} /> {t("declareLossesButton")}
                 </button>
-                <button onClick={() => duplicateRecipe(active)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#8B5CF6] font-display uppercase tracking-wide">
+                <button onClick={() => duplicateRecipe(active)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#C9793B] font-display uppercase tracking-wide">
                   <Copy size={13} /> {t("duplicate")}
                 </button>
                 <div className="relative">
@@ -4421,7 +4419,7 @@ export default function App() {
                   {printMenuOpen && (
                     <div
                       className="absolute right-0 top-full mt-1.5 w-56 rounded-xl overflow-hidden shadow-xl border border-white/10 z-30"
-                      style={{ background: "#26221C" }}
+                      style={{ background: "#201B15" }}
                     >
                       <button
                         onClick={() => { setPrintMenuOpen(false); handlePrint(); }}
@@ -4479,7 +4477,7 @@ export default function App() {
                     allowDecimal={false}
                     value={scaleTarget}
                     onChange={setScaleTarget}
-                    className="w-11 bg-white rounded px-1.5 py-1 text-center text-sm text-black outline-none border border-black/15 focus:border-[#8B5CF6]"
+                    className="w-11 bg-white rounded px-1.5 py-1 text-center text-sm text-black outline-none border border-black/15 focus:border-[#C9793B]"
                   />
                   <button
                     type="button"
@@ -4822,20 +4820,20 @@ export default function App() {
                 navigateur — le bug WebKit qui justifiait ce blocage ne peut simplement plus se
                 produire, plus besoin de distinguer les appareils. */}
             <input ref={fileInputLibraryRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleScanFile} />
-            <div className="rounded-2xl p-8 flex flex-col items-center gap-3 text-center font-body border border-white/10" style={{ background: "#26221C" }}>
+            <div className="rounded-2xl p-8 flex flex-col items-center gap-3 text-center font-body border border-white/10" style={{ background: "#201B15" }}>
               <svg viewBox="0 0 120 120" width="104" height="104" className="mb-1">
                 <rect x="30" y="14" width="60" height="86" rx="4" fill="#F3EBDA" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
                 {[26, 34, 42, 50, 58, 66, 74].map((y, i) => (
                   <rect key={i} x="38" y={y} width={i % 3 === 0 ? 30 : 44} height="3" rx="1.5" fill="#2B262022" />
                 ))}
-                <rect x="38" y="84" width="44" height="4" rx="2" fill="#8B5CF655" />
+                <rect x="38" y="84" width="44" height="4" rx="2" fill="#C9793B55" />
                 <g style={{ transformOrigin: "60px 57px", animation: "scanPulse 2.2s ease-in-out infinite" }}>
-                  <rect x="26" y="53" width="68" height="3" rx="1.5" fill="#8B5CF6" opacity="0.9" />
+                  <rect x="26" y="53" width="68" height="3" rx="1.5" fill="#C9793B" opacity="0.9" />
                 </g>
                 <g style={{ animation: "scanFlash 2.2s ease-in-out infinite" }}>
-                  <circle cx="94" cy="100" r="17" fill="#8B5CF6" />
-                  <rect x="86" y="93" width="16" height="12" rx="2.5" fill="#1B1815" />
-                  <circle cx="94" cy="99" r="3.4" fill="#8B5CF6" />
+                  <circle cx="94" cy="100" r="17" fill="#C9793B" />
+                  <rect x="86" y="93" width="16" height="12" rx="2.5" fill="#16130F" />
+                  <circle cx="94" cy="99" r="3.4" fill="#C9793B" />
                 </g>
               </svg>
               <h2 className="font-display text-white uppercase tracking-wide text-sm mt-1">{t("scanInvoice")}</h2>
@@ -4868,7 +4866,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="rounded-2xl p-4 mt-3 text-xs leading-relaxed border border-white/10" style={{ background: "#26221C" }}>
+            <div className="rounded-2xl p-4 mt-3 text-xs leading-relaxed border border-white/10" style={{ background: "#201B15" }}>
               <p className="text-white/70 font-semibold mb-1">{t("scanTipTitle")}</p>
               <p className="text-white/45">{t("scanTipBody")}</p>
             </div>
@@ -4895,7 +4893,7 @@ export default function App() {
                 (>20 ingrédients ET tous encore au prix "estimé") pour ne jamais se déclencher sur
                 un vrai garde-manger déjà utilisé, même partiellement. */}
             {ingredients.length > 20 && ingredients.every((i) => activeSupplier(i)?.priceSource === "estimate") && (
-              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 mb-3 text-xs" style={{ background: "#8B5CF618", color: "#C4B5FD" }}>
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 mb-3 text-xs" style={{ background: "#C9793B18", color: "#E0B98A" }}>
                 <AlertTriangle size={14} className="shrink-0" />
                 <span className="flex-1">{t("legacyPantryHint")}</span>
                 <button
@@ -4909,7 +4907,7 @@ export default function App() {
             )}
 
             {uncategorizedIngredients.length > 0 && (
-              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 mb-3 text-xs" style={{ background: "#8B5CF618", color: "#C4B5FD" }}>
+              <div className="flex items-center gap-2 rounded-xl px-3 py-2.5 mb-3 text-xs" style={{ background: "#C9793B18", color: "#E0B98A" }}>
                 <Tags size={14} className="shrink-0" />
                 <span className="flex-1">{t("pantryReclassifyHint")(uncategorizedIngredients.length)}</span>
                 <button
@@ -4922,7 +4920,7 @@ export default function App() {
               </div>
             )}
 
-            <div className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 mb-2 border border-white/10" style={{ background: "#26221C" }}>
+            <div className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 mb-2 border border-white/10" style={{ background: "#201B15" }}>
               <Search size={13} className="text-white/40 shrink-0" />
               <input
                 value={pantryQuery}
@@ -4940,7 +4938,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setPantryCategory((c) => (c === "all" ? "none" : "all"))}
-                className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === "all" ? "bg-[#8B5CF6] text-white border-[#8B5CF6]" : "text-white/50 border-white/15 hover:border-white/40"}`}
+                className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === "all" ? "bg-[#C9793B] text-white border-[#C9793B]" : "text-white/50 border-white/15 hover:border-white/40"}`}
               >
                 {t("allCategories")}
               </button>
@@ -4948,7 +4946,7 @@ export default function App() {
                 <button
                   key={c.id}
                   onClick={() => setPantryCategory((cur) => (cur === c.id ? "none" : c.id))}
-                  className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === c.id ? "bg-[#8B5CF6] text-white border-[#8B5CF6]" : "text-white/50 border-white/15 hover:border-white/40"}`}
+                  className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded-full border ${pantryCategory === c.id ? "bg-[#C9793B] text-white border-[#C9793B]" : "text-white/50 border-white/15 hover:border-white/40"}`}
                 >
                   {c[lang]}
                 </button>
@@ -4978,7 +4976,7 @@ export default function App() {
               </div>
             )}
 
-            <div className="rounded-xl overflow-hidden font-body border border-white/10" style={{ background: "#26221C" }}>
+            <div className="rounded-xl overflow-hidden font-body border border-white/10" style={{ background: "#201B15" }}>
               {(() => {
                 const displayGroups = pantryCategory === "recent" ? recentGrouped || [] : pantryGrouped;
                 if (displayGroups.length === 0) {
@@ -4994,7 +4992,7 @@ export default function App() {
                 }
                 return displayGroups.map(({ label, items }) => (
                   <div key={label}>
-                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/40" style={{ background: "#1B1815" }}>
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/40" style={{ background: "#16130F" }}>
                       {label}
                     </div>
                     {items.map((ing) => {
@@ -5039,11 +5037,11 @@ export default function App() {
                         </div>
 
                         {isOpen && (
-                          <div className="px-3 pb-3" style={{ background: "#1B1815" }}>
+                          <div className="px-3 pb-3" style={{ background: "#16130F" }}>
                             <input
                               value={ingredientDisplayName(ing)}
                               onChange={(e) => updateIngredientName(ing.id, e.target.value)}
-                              className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#8B5CF6] pb-1 pt-2 mb-2"
+                              className="w-full bg-transparent text-white text-sm font-medium outline-none border-b border-white/10 focus:border-[#C9793B] pb-1 pt-2 mb-2"
                             />
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-[10px] uppercase tracking-wide text-white/40">{t("unitFieldLabel")}</span>
@@ -5095,16 +5093,16 @@ export default function App() {
                                   <input
                                     value={s.name}
                                     onChange={(e) => updateSupplier(ing.id, s.id, "name", e.target.value)}
-                                    className="flex-1 bg-transparent outline-none border-b border-white/10 focus:border-[#8B5CF6] min-w-0"
+                                    className="flex-1 bg-transparent outline-none border-b border-white/10 focus:border-[#C9793B] min-w-0"
                                   />
-                                  <NumField value={s.price} onChange={(v) => updateSupplier(ing.id, s.id, "price", v)} onCommit={(v) => commitSupplierPrice(ing.id, s.id, v)} className="w-14 shrink-0 bg-transparent font-mono outline-none border-b border-white/10 focus:border-[#8B5CF6] text-right" />
+                                  <NumField value={s.price} onChange={(v) => updateSupplier(ing.id, s.id, "price", v)} onCommit={(v) => commitSupplierPrice(ing.id, s.id, v)} className="w-14 shrink-0 bg-transparent font-mono outline-none border-b border-white/10 focus:border-[#C9793B] text-right" />
                                   <span className="shrink-0">€</span>
                                   {ing.suppliers.length > 1 && (
                                     <button onClick={() => removeSupplier(ing.id, s.id)} className="text-white/25 hover:text-red-400 shrink-0"><Trash2 size={11} /></button>
                                   )}
                                 </div>
                               ))}
-                              <button onClick={() => addSupplier(ing.id)} className="text-[10px] uppercase tracking-wide text-white/40 hover:text-[#8B5CF6] flex items-center gap-1">
+                              <button onClick={() => addSupplier(ing.id)} className="text-[10px] uppercase tracking-wide text-white/40 hover:text-[#C9793B] flex items-center gap-1">
                                 <Plus size={10} /> {t("supplier")}
                               </button>
                             </div>
@@ -5129,7 +5127,7 @@ export default function App() {
               })()}
             </div>
 
-            <button onClick={() => openAddWizard()} className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-xl border border-dashed border-white/25 text-white/60 hover:text-[#8B5CF6] hover:border-[#8B5CF6] active:scale-95 transition">
+            <button onClick={() => openAddWizard()} className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-xl border border-dashed border-white/25 text-white/60 hover:text-[#C9793B] hover:border-[#C9793B] active:scale-95 transition">
               <Plus size={14} /> {t("addIngredient")}
             </button>
           </div>
@@ -5223,7 +5221,7 @@ export default function App() {
               className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 active:scale-90 transition-transform"
             >
               <TabIcon size={20} color={isActive ? BRAND_SOLID : "rgba(255,255,255,0.4)"} />
-              <span className={`text-[10px] font-display uppercase tracking-wide ${isActive ? "text-[#8B5CF6]" : "text-white/40"}`}>{tabDef.label}</span>
+              <span className={`text-[10px] font-display uppercase tracking-wide ${isActive ? "text-[#C9793B]" : "text-white/40"}`}>{tabDef.label}</span>
             </button>
           );
         })}

@@ -252,7 +252,7 @@ export function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
   }, [r.name, lang, r.menuNameI18n?._src]);
 
   return (
-    <div className="rounded-lg p-2.5" style={{ background: "#1B1815" }}>
+    <div className="rounded-lg p-2.5" style={{ background: "#16130F" }}>
       <label className="flex items-center gap-2 cursor-pointer">
         <input
           type="checkbox"
@@ -347,7 +347,7 @@ export function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove, o
   }, [item.name, lang, item.menuNameI18n?._src]);
 
   return (
-    <div className="rounded-lg p-2" style={{ background: "#1B1815" }}>
+    <div className="rounded-lg p-2" style={{ background: "#16130F" }}>
       <div className="flex items-center gap-1.5">
         <input
           type="text"
@@ -518,7 +518,7 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
     // Import dynamique (comme pdfjs-dist/tesseract.js ailleurs dans ce fichier) : cette librairie
     // ne doit peser sur le chargement de l'app que pour les restaurateurs qui ouvrent cette fenêtre.
     import("qrcode")
-      .then((mod) => (mod.default || mod).toDataURL(publicUrl, { width: 240, margin: 1, color: { dark: "#1B1815", light: "#ffffff" } }))
+      .then((mod) => (mod.default || mod).toDataURL(publicUrl, { width: 240, margin: 1, color: { dark: "#16130F", light: "#ffffff" } }))
       .then((url) => { if (!cancelled) setQrDataUrl(url); })
       .catch(() => { if (!cancelled) setQrDataUrl(null); })
       .finally(() => { if (!cancelled) setQrBusy(false); });
@@ -629,7 +629,7 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
     // [2026-08-28] Devenu un vrai onglet plutôt qu'une fenêtre flottante (voir App.jsx) : plus de
     // `fixed inset-0`/fond noir/limite de hauteur — le contenu suit le défilement normal de la
     // page, comme les 3 autres onglets. Le reste du contenu ci-dessous est inchangé.
-    <div className="rounded-2xl p-5 flex flex-col font-body border border-white/10 print:hidden" style={{ background: "#26221C" }}>
+    <div className="rounded-2xl p-5 flex flex-col font-body border border-white/10 print:hidden" style={{ background: "#201B15" }}>
       <div className="flex items-center gap-2 mb-1">
         <QrCode size={16} style={{ color: BRAND_SOLID }} className="shrink-0" />
         <h3 className="font-display text-white uppercase tracking-wide text-sm">{t("digitalMenuTitle")}</h3>
@@ -667,7 +667,7 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
                 <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuLogoLabel")}</label>
                 <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoFile} />
                 <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 overflow-hidden" style={{ background: "#1B1815" }}>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 overflow-hidden" style={{ background: "#16130F" }}>
                     {menuSettings.logo ? <img src={menuSettings.logo} alt="" className="w-full h-full object-contain" /> : <Logo size={18} />}
                   </div>
                   <button
@@ -723,7 +723,7 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
                 </div>
               </div>
 
-              <div className="rounded-lg p-3 flex flex-col items-center gap-2" style={{ background: "#1B1815" }}>
+              <div className="rounded-lg p-3 flex flex-col items-center gap-2" style={{ background: "#16130F" }}>
                 {qrBusy ? (
                   <div className="w-[140px] h-[140px] flex items-center justify-center">
                     <Loader2 size={20} className="animate-spin text-white/40" />
@@ -885,7 +885,7 @@ export function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, in
   return (
     <div
       className={`rounded-xl border ${item.imported ? "opacity-40" : ""}`}
-      style={{ background: "#1B1815", borderColor: hasIdentityIssue ? `${TIER_COLORS.mid}80` : "rgba(255,255,255,0.1)" }}
+      style={{ background: "#16130F", borderColor: hasIdentityIssue ? `${TIER_COLORS.mid}80` : "rgba(255,255,255,0.1)" }}
     >
       {/* Ligne compacte : toujours visible, sans clic — le nom qui sera vraiment utilisé saute aux yeux */}
       <div className="px-2.5 py-2">

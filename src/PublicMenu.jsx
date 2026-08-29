@@ -8,7 +8,12 @@ import { Logo, BRAND_SOLID, ALLERGEN_LABELS, categoryLabel, TR } from "./App.jsx
 // publique (pas dans le reste de l'app), même technique que les pages légales statiques
 // (`public/mentions-legales.html`) : un `@import` Google Fonts, jamais bloquant si indisponible
 // (repli sur les polices système déjà prévues par Tailwind).
-const FONT_IMPORT = "@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Fredoka:wght@500;600;700&display=swap');";
+// [2026-08-29] "Oswald" ajouté ici explicitement — jusqu'ici cette page dépendait silencieusement
+// de l'import Oswald fait par App.jsx pour son propre usage (jamais garanti sur une page publique
+// qui ne charge jamais App.jsx). Depuis la refonte identité "Ardoise de cuisine", App.jsx n'importe
+// plus Oswald du tout (remplacé par Big Shoulders Display) — sans cet ajout, les designs
+// classic/modern auraient silencieusement perdu leur police de titre.
+const FONT_IMPORT = "@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Fredoka:wght@500;600;700&display=swap');";
 
 // Petits pictogrammes emoji plutôt qu'une icône lucide dédiée par allergène : lucide n'a pas
 // d'icône fiable pour la moitié de ces allergènes (sulfites, céleri, fruits à coque...), alors

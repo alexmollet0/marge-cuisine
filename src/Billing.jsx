@@ -108,7 +108,7 @@ export default function SubscriptionGate({ children }) {
 
   if (status === undefined) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#1B1815" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#16130F" }}>
         <Loader2 className="animate-spin" style={{ color: BRAND_SOLID }} size={28} />
       </div>
     );
@@ -116,8 +116,8 @@ export default function SubscriptionGate({ children }) {
 
   if (!status.active && !status.inTrial) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 font-body" style={{ background: "#1B1815" }}>
-        <div className="w-full max-w-sm rounded-2xl p-6 border border-white/10 text-center" style={{ background: "#26221C" }}>
+      <div className="min-h-screen flex items-center justify-center px-4 font-body" style={{ background: "#16130F" }}>
+        <div className="w-full max-w-sm rounded-2xl p-6 border border-white/10 text-center" style={{ background: "#201B15" }}>
           <div className="flex items-center gap-2 justify-center mb-4">
             <Logo size={30} />
             <h1 className="font-display text-white text-lg tracking-wide uppercase">Chefup</h1>
@@ -192,7 +192,7 @@ export default function SubscriptionGate({ children }) {
             onClick={subscribe}
             disabled={busy}
             className="shrink-0 px-3 py-1 rounded-full text-[11px] font-bold disabled:opacity-60 flex items-center gap-1.5"
-            style={{ background: "#fff", color: "#7C3AED" }}
+            style={{ background: "#fff", color: "#C9793B" }}
           >
             {busy && <Loader2 size={11} className="animate-spin" />}
             {t("billingSubscribeButton")}
