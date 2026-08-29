@@ -76,7 +76,7 @@ Liste tenue à jour au fil des sessions. **Cocher au fur et à mesure, ne jamais
 9. ✅ Assistant "Ton premier plat" revalidé — 2026-08-28.
 10. ✅ Connexion Google en 1 clic — 2026-08-28. Limite connue : provenance de campagne (`?src=`) non attribuable pour ces comptes.
 11. ✅ Template email Magic Link brandé (doublon du point 2) — 2026-08-28.
-12. ⏳ **Supprimer tous les comptes de test** — outil livré le 2026-08-29 : bouton "Supprimer ce compte" dans le tableau de bord admin (onglet Comptes, par fiche compte), armé-puis-confirmé, jamais disponible pour `alexmollet0@gmail.com`/`contact.ttra@gmail.com` (protégés client ET serveur). L'utilisateur doit maintenant l'utiliser lui-même compte par compte (`chefuptest01/02/03...`, `contactchefup.app@gmail.com`, `otptest12345@example.com` s'il existe) — pas encore fait au moment de la livraison de l'outil.
+12. ✅ **Comptes de test supprimés** (2026-08-29) — via le bouton "Supprimer ce compte" du tableau de bord admin (livré le même jour). Outil réutilisable pour tout futur ménage de comptes de test.
 13. ☐ **🎯 REFONTE ESTHÉTIQUE COMPLÈTE — chantier prioritaire d'un chat dédié** (2026-08-28). L'utilisateur trouve que l'app "ressemble trop à une appli créée par Claude" (ex: "Bonjour Chef", ton générique) et veut une vraie identité de marque, "un énorme changement". **Commencer par clarifier le brief avant d'écrire du code** : quels écrans en priorité, quelles références visuelles, ce qui dérange précisément (couleurs/typo/mise en page/ton des textes). Ne pas supposer que les éléments de marque actuels (dégradé violet-cyan, fond ardoise, Manrope, logo hirondelle) doivent rester — à valider avec l'utilisateur.
 14. ✅ Bug lenteur page de paiement Stripe (`listUsers` non caché, appelé 2x) — 2026-08-27.
 
