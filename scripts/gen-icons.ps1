@@ -14,7 +14,7 @@ function New-ChefupIcon {
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
 
-    $bgColor = [System.Drawing.ColorTranslator]::FromHtml("#1B1815")
+    $bgColor = [System.Drawing.ColorTranslator]::FromHtml("#16130F")
     $bgBrush = New-Object System.Drawing.SolidBrush $bgColor
     if ($RoundedBg) {
         $radius = $Size * 0.22
@@ -79,8 +79,8 @@ function New-ChefupIcon {
     $gp.CloseFigure()
 
     # Dégradé violet -> cyan, bas-gauche vers haut-droit (même orientation que le SVG source).
-    $c1 = [System.Drawing.ColorTranslator]::FromHtml("#7C3AED")
-    $c2 = [System.Drawing.ColorTranslator]::FromHtml("#22D3EE")
+    $c1 = [System.Drawing.ColorTranslator]::FromHtml("#C9793B")
+    $c2 = [System.Drawing.ColorTranslator]::FromHtml("#E0A050")
     $ptA = New-Object System.Drawing.PointF $margin, ($Size - $margin)
     $ptB = New-Object System.Drawing.PointF ($Size - $margin), $margin
     $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush($ptA, $ptB, $c1, $c2)

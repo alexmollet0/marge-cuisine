@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
     <linearGradient id="chefup-favicon-grad" x1="5%" y1="100%" x2="95%" y2="5%">
-      <stop offset="0%" stop-color="#7C3AED" />
-      <stop offset="100%" stop-color="#22D3EE" />
+      <stop offset="0%" stop-color="#C9793B" />
+      <stop offset="100%" stop-color="#E0A050" />
     </linearGradient>
   </defs>
   <path
