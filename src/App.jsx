@@ -4894,7 +4894,10 @@ export default function App() {
                 navigateur — le bug WebKit qui justifiait ce blocage ne peut simplement plus se
                 produire, plus besoin de distinguer les appareils. */}
             <input ref={fileInputLibraryRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleScanFile} />
-            <div className="rounded-2xl p-8 flex flex-col items-center gap-3 text-center font-body border border-white/10" style={{ background: "#201B15" }}>
+            <div
+              className="rounded-2xl p-8 flex flex-col items-center gap-3 text-center font-body border border-white/10"
+              style={{ background: "#201B15", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 10px 26px rgba(0,0,0,0.28)" }}
+            >
               <svg viewBox="0 0 120 120" width="104" height="104" className="mb-1">
                 <rect x="30" y="14" width="60" height="86" rx="4" fill="#F3EBDA" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
                 {[26, 34, 42, 50, 58, 66, 74].map((y, i) => (
@@ -4940,7 +4943,10 @@ export default function App() {
               </button>
             </div>
 
-            <div className="rounded-2xl p-4 mt-3 text-xs leading-relaxed border border-white/10" style={{ background: "#201B15" }}>
+            <div
+              className="rounded-2xl p-4 mt-3 text-xs leading-relaxed border border-white/10"
+              style={{ background: "#201B15", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 6px 18px rgba(0,0,0,0.22)" }}
+            >
               <p className="text-white/70 font-semibold mb-1">{t("scanTipTitle")}</p>
               <p className="text-white/45">{t("scanTipBody")}</p>
             </div>
@@ -5050,7 +5056,10 @@ export default function App() {
               </div>
             )}
 
-            <div className="rounded-xl overflow-hidden font-body border border-white/10" style={{ background: "#201B15" }}>
+            <div
+              className="rounded-2xl overflow-hidden font-body border border-white/10"
+              style={{ background: "#201B15", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 6px 18px rgba(0,0,0,0.22)" }}
+            >
               {(() => {
                 const displayGroups = pantryCategory === "recent" ? recentGrouped || [] : pantryGrouped;
                 if (displayGroups.length === 0) {
@@ -5066,7 +5075,11 @@ export default function App() {
                 }
                 return displayGroups.map(({ label, items }) => (
                   <div key={label}>
-                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/40" style={{ background: "#16130F" }}>
+                    <div
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/45"
+                      style={{ background: "#16130F" }}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#C9793B" }} />
                       {label}
                     </div>
                     {items.map((ing) => {
@@ -5098,7 +5111,7 @@ export default function App() {
                               </span>
                             )}
                             <span className="text-white/40 text-[11px] shrink-0">{unitDisplayLabel(ing.unit, t)}</span>
-                            <span className="text-white/80 text-xs font-mono shrink-0 w-16 text-right">{(sup?.price || 0).toFixed(2)}€</span>
+                            <span className="text-white text-sm font-mono font-semibold shrink-0 w-16 text-right">{(sup?.price || 0).toFixed(2)}€</span>
                           </button>
                           <button
                             onClick={() => setExpandedIngId(isOpen ? null : ing.id)}
