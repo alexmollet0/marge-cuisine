@@ -202,6 +202,13 @@ export function AdminDashboard() {
   const [resetTrialArmed, setResetTrialArmed] = useState(null); // email en attente de confirmation
   const [resetTrialBusy, setResetTrialBusy] = useState(null); // email en cours de traitement
   const [resetTrialDone, setResetTrialDone] = useState({}); // { email: true } une fois confirmé cette session
+  // Suppression de compte (2026-08-29) : nettoyage des comptes de test (chefuptest01/02/03...,
+  // comptes créés par Claude pour tester OTP/Google). Même pattern "armé puis confirmé" que
+  // resetTrial, mais irréversible — le compte disparaît de la liste locale dès le succès plutôt
+  // que d'attendre le prochain rafraîchissement auto (25s).
+  const [deleteArmed, setDeleteArmed] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
   // Mail de déblocage groupé (2026-08-25) : même pattern "armé puis confirmé" que resetTrial,
   // mais pour un seul envoi global (tous les comptes jamais confirmés d'un coup), pas par compte.
   const [unlockEmailArmed, setUnlockEmailArmed] = useState(false);
@@ -252,6 +259,34 @@ export function AdminDashboard() {
       alert("Erreur : " + (e.message || "échec de la réinitialisation."));
     } finally {
       setResetTrialBusy(null);
+    }
+  };
+  const deleteAccount = async (email) => {
+    if (deleteArmed !== email) {
+      setDeleteArmed(email);
+      setDeleteError(null);
+      setTimeout(() => setDeleteArmed((cur) => (cur === email ? null : cur)), 4000);
+      return;
+    }
+    setDeleteArmed(null);
+    setDeleteBusy(email);
+    setDeleteError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/admin-dashboard", {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "delete_account", email }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "échec");
+      // Retrait immédiat de la liste locale plutôt que d'attendre le prochain rafraîchissement
+      // auto (25s) — le compte n'existe plus, pas de raison de continuer à l'afficher.
+      setState((s) => ({ ...s, data: { ...s.data, users: s.data.users.filter((u) => u.email !== email) } }));
+      setExpandedEmail((cur) => (cur === email ? null : cur));
+    } catch (e) {
+      setDeleteError({ email, message: e.message || "échec de la suppression." });
+    } finally {
+      setDeleteBusy(null);
     }
   };
 
@@ -458,6 +493,36 @@ export function AdminDashboard() {
                           </button>
                         )}
                       </div>
+                      {/* Suppression de compte (2026-08-29) : jamais affiché pour un compte interne
+                          (garde-fou double, ici ET côté serveur) — pour nettoyer les comptes de
+                          test sans risque de toucher un vrai compte par erreur. Irréversible :
+                          armé au premier clic (4s pour changer d'avis), exécuté au second. */}
+                      {!u.internal && (
+                        <div className="flex items-center justify-between gap-2 mb-3 pb-3 border-b border-white/10">
+                          <span className="text-white/40 text-[11px]">Compte de test à nettoyer ?</span>
+                          <button
+                            onClick={(ev) => { ev.stopPropagation(); deleteAccount(u.email); }}
+                            disabled={deleteBusy === u.email}
+                            className="text-[11px] font-medium px-2.5 py-1 rounded-full disabled:opacity-50"
+                            style={
+                              deleteArmed === u.email
+                                ? { background: `${TIER_COLORS.low}45`, color: TIER_COLORS.low }
+                                : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }
+                            }
+                          >
+                            {deleteBusy === u.email
+                              ? "…"
+                              : deleteArmed === u.email
+                              ? "Confirmer ? (supprime tout)"
+                              : "Supprimer ce compte"}
+                          </button>
+                        </div>
+                      )}
+                      {deleteError && deleteError.email === u.email && (
+                        <div className="text-[11px] mb-3 -mt-2" style={{ color: TIER_COLORS.low }}>
+                          Erreur : {deleteError.message}
+                        </div>
+                      )}
                       {timeline.length === 0 ? (
                         <div className="text-white/30 text-xs py-3 text-center">
                           Aucune action enregistrée pour ce compte pour l'instant.

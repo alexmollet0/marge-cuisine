@@ -9,6 +9,13 @@
 // existant proche, voir la note dans CLAUDE.md ("Fichiers clés").
 import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml, isInternalEmail, landingEventsSummary } from "./_lib.js";
 
+// Suppression de compte (2026-08-29), demandée par l'utilisateur pour nettoyer les comptes de test
+// (chefuptest01/02/03..., comptes créés par Claude pour tester le flux OTP/Google) sans jamais
+// pouvoir toucher un compte interne par erreur — isInternalEmail() est vérifié ici en plus du
+// client, c'est la vraie protection puisque le client peut toujours être falsifié. Supprime
+// d'abord les données liées (kv_store/scan_events/activity_events/subscriptions, aucune n'a de
+// suppression en cascade automatique), puis le compte Auth lui-même en dernier.
+
 const ADMIN_EMAIL = "alexmollet0@gmail.com";
 const TRIAL_DAYS = 7;
 
@@ -133,6 +140,30 @@ export default async function handler(req, res) {
           results.push({ email: u.email, sent: true });
         }
         return res.status(200).json({ ok: true, sentCount: results.filter((r) => r.sent).length, total: targets.length, results });
+      } catch (e) {
+        return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+      }
+    }
+
+    if (action === "delete_account") {
+      if (!email) return res.status(400).json({ error: "Requête invalide." });
+      if (isInternalEmail(email)) return res.status(403).json({ error: "Ce compte est protégé, il ne peut pas être supprimé depuis ici." });
+      try {
+        const { data: usersRes, error: usersErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+        if (usersErr) throw usersErr;
+        const target = (usersRes?.users || []).find((u) => u.email?.toLowerCase() === email.toLowerCase());
+        if (!target) return res.status(404).json({ error: "Compte introuvable." });
+        // Double vérification côté serveur (jamais uniquement l'email envoyé par le client) : même
+        // si un email interne passait le premier garde-fou d'une façon ou d'une autre, on revérifie
+        // ici sur le VRAI email résolu depuis Supabase avant de supprimer quoi que ce soit.
+        if (isInternalEmail(target.email)) return res.status(403).json({ error: "Ce compte est protégé, il ne peut pas être supprimé depuis ici." });
+        for (const table of ["kv_store", "scan_events", "activity_events", "subscriptions"]) {
+          const { error: delErr } = await supabaseAdmin.from(table).delete().eq("user_id", target.id);
+          if (delErr) throw new Error(`${table}: ${delErr.message}`);
+        }
+        const { error: authDelErr } = await supabaseAdmin.auth.admin.deleteUser(target.id);
+        if (authDelErr) throw authDelErr;
+        return res.status(200).json({ ok: true });
       } catch (e) {
         return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
       }
