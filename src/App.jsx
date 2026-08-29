@@ -4159,7 +4159,27 @@ export default function App() {
               <Logo size={18} />
               <span className="font-display text-white/50 text-[11px] uppercase tracking-widest">{t("appTitle")}</span>
             </div>
-            <h1 className="font-display text-white text-xl mb-5">{t("greeting")}</h1>
+            <h1 className="font-display text-white text-2xl mb-1">{t("greeting")}</h1>
+            {/* [2026-08-29] Repère chiffré sous le titre, demandé par l'utilisateur pour renforcer
+                la hiérarchie visuelle de l'écran d'accueil (jugé trop plat) — un coup d'œil sur
+                l'état général avant même de scroller vers la liste. N'affiche rien tant qu'aucune
+                marge n'est calculable (pas de division par zéro sur un garde-manger vide). */}
+            {recipes.length > 0 && (() => {
+              const margins = recipes.map((r) => recipeMargin(r)).filter((m) => m !== null);
+              const avgMargin = margins.length ? Math.round(margins.reduce((s, m) => s + m, 0) / margins.length) : null;
+              const avgTier = avgMargin !== null ? marginTier(avgMargin, settings.minMargin) : null;
+              return (
+                <div className="flex items-center gap-1.5 mb-5">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: avgTier ? TIER_COLORS[avgTier] : "rgba(255,255,255,0.3)" }} />
+                  <span className="text-white/45 text-xs">
+                    {recipes.length} {recipes.length > 1 ? t("recipes").toLowerCase() : t("recipes").toLowerCase().replace(/s$/, "")}
+                    {avgMargin !== null && (
+                      <> · {t("avgMarginLabel")} <span className="font-semibold" style={{ color: TIER_COLORS[avgTier] }}>{avgMargin}%</span></>
+                    )}
+                  </span>
+                </div>
+              );
+            })()}
 
             {/* Bandeau "Installer l'app" (2026-08-23) : visible dès l'écran d'accueil, pas juste
                 enfoui dans "Mon compte" — demandé explicitement par l'utilisateur, qui trouvait
@@ -4335,7 +4355,7 @@ export default function App() {
                     <div
                       key={r.id}
                       className="rounded-2xl px-4 py-3.5 flex items-center gap-2 font-body transition hover:brightness-110 hover:-translate-y-0.5 hover:shadow-lg border border-white/10"
-                      style={{ background: "#201B15" }}
+                      style={{ background: "#201B15", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 6px 18px rgba(0,0,0,0.22)" }}
                     >
                       <button
                         onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossModalOpen(false); }}
@@ -4359,15 +4379,24 @@ export default function App() {
                               <AlertTriangle size={12} className="shrink-0" style={{ color: TIER_COLORS.mid }} title={t("recipeUnitMismatchHint")} />
                             )}
                           </div>
+                          {/* [2026-08-29] Étiquette de section (si renseignée pour la carte digitale)
+                              affichée aussi ici — sert de repère de catégorie dans la liste, sans
+                              rien inventer : n'apparaît que si r.menuCategory est déjà réglé. */}
+                          {r.menuCategory && MENU_CATEGORY_LABELS[r.menuCategory] && (
+                            <div className="text-white/35 text-[10px] mt-0.5">
+                              {MENU_CATEGORY_LABELS[r.menuCategory][lang] || MENU_CATEGORY_LABELS[r.menuCategory].fr}
+                            </div>
+                          )}
                           <div className="text-white/40 text-[11px] font-mono mt-1">
                             {cpp.toFixed(2)}€ &rarr; {(r.sellPrice || 0).toFixed(2)}€
                           </div>
                         </div>
                         {m !== null ? (
                           <span
-                            className="shrink-0 text-xs font-mono font-semibold px-2.5 py-1 rounded-full"
+                            className="shrink-0 flex items-center gap-1.5 text-xs font-mono font-semibold px-2.5 py-1 rounded-full"
                             style={{ color: TIER_COLORS[rt], background: `${TIER_COLORS[rt]}22` }}
                           >
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: TIER_COLORS[rt] }} />
                             {Math.round(m)}%
                           </span>
                         ) : (
@@ -4438,6 +4467,51 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {/* [2026-08-29] Panneau chiffres en un coup d'œil, demandé par l'utilisateur pour
+                renforcer la hiérarchie visuelle de la fiche (jugée "pas assez travaillée") — les 3
+                nombres qui comptent le plus (coût, prix, marge) avant même de dérouler les
+                ingrédients, plutôt que noyés plus bas dans le bloc marge existant (conservé
+                inchangé plus bas, avec sa légende/suggestion — ce panneau est un résumé, pas un
+                remplacement). print:hidden : la fiche imprimée a déjà son propre bloc marge. */}
+            {margin !== null && (
+              <div
+                className="print:hidden rounded-2xl p-4 mb-4 flex items-center gap-4 border border-white/10"
+                style={{ background: "#201B15", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 22px rgba(0,0,0,0.25)" }}
+              >
+                <div className="relative w-[72px] h-[72px] shrink-0">
+                  <svg width="72" height="72" viewBox="0 0 72 72">
+                    <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" />
+                    <circle
+                      cx="36" cy="36" r="30" fill="none" stroke={TIER_COLORS[tier]} strokeWidth="7" strokeLinecap="round"
+                      strokeDasharray="188.5"
+                      strokeDashoffset={188.5 * (1 - Math.max(0, Math.min(100, margin)) / 100)}
+                      transform="rotate(-90 36 36)"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="font-display font-black text-lg leading-none" style={{ color: TIER_COLORS[tier] }}>{Math.round(margin)}%</span>
+                    <span className="text-[7px] uppercase tracking-wide text-white/30 mt-0.5">{t("marginLabel")}</span>
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col gap-2 min-w-0">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-white/45">{t("costPerPortion")}</span>
+                    <span className="text-white font-semibold font-mono">{costPerPortion.toFixed(2)}€</span>
+                  </div>
+                  <div className="h-px bg-white/[0.07]" />
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-white/45">{t("sellPriceTTC")}</span>
+                    <span className="text-white font-semibold font-mono">{(active.sellPrice || 0).toFixed(2)}€</span>
+                  </div>
+                  <div className="h-px bg-white/[0.07]" />
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-white/45">{t("portions")}</span>
+                    <span className="text-white font-semibold font-mono">{active.portions}</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Pleine largeur et police du corps de l'app à la place de `max-w-md` + `font-mono` :
                 la chasse fixe et la colonne étroite étaient là pour imiter un ticket de caisse,
