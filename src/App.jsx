@@ -221,10 +221,11 @@ export default function App() {
     setMenuBannerDismissed(true);
     try { localStorage.setItem("chefup:menuBannerDismissed", "1"); } catch {}
   };
-  // Relance manuelle de l'assistant guidé de carte digitale (voir l'onglet "menu" plus bas) —
-  // état d'écran uniquement, jamais persisté : `menuSettings.setupDone` reste la vraie mémoire
-  // de "cette carte a déjà été mise en place une fois".
-  const [showMenuWizard, setShowMenuWizard] = useState(false);
+  // Onglet carte digitale : l'éditeur guidé (MenuWizard) est la vue par défaut, l'écran de
+  // réglages complet (logo, couleur d'accent, recettes sur la carte, traductions) devient un
+  // "mode avancé" à la demande. État d'écran uniquement, jamais persisté — on repart toujours
+  // sur la vue simple, qui couvre le geste courant (ajouter/modifier des plats).
+  const [showMenuAdvanced, setShowMenuAdvanced] = useState(false);
   const isStandaloneApp =
     typeof window !== "undefined" &&
     (window.matchMedia?.("(display-mode: standalone)").matches || window.navigator?.standalone === true);
@@ -5147,7 +5148,7 @@ export default function App() {
             trop abstrait et dur à comprendre du premier coup" par l'utilisateur. L'assistant ne
             remplace pas la gestion, il remplace le premier contact. `showMenuWizard` permet aussi
             de le relancer à la demande depuis l'écran de réglages. */}
-        {activeTab === "menu" && (menuSettings.setupDone && !showMenuWizard ? (
+        {activeTab === "menu" && (showMenuAdvanced ? (
           <>
             <DigitalMenuModal
               open={true}
@@ -5164,10 +5165,10 @@ export default function App() {
               t={t}
             />
             <button
-              onClick={() => setShowMenuWizard(true)}
-              className="w-full mt-3 text-[11px] text-white/30 hover:text-white/60"
+              onClick={() => setShowMenuAdvanced(false)}
+              className="w-full mt-3 text-[11px] text-white/40 hover:text-white/70"
             >
-              {t("menuWizardRelaunch")}
+              {t("menuWizardBackToSimple")}
             </button>
           </>
         ) : (
@@ -5179,10 +5180,7 @@ export default function App() {
             userId={menuUserId}
             lang={lang}
             t={t}
-            onFinish={() => {
-              setMenuSettings((prev) => ({ ...prev, setupDone: true }));
-              setShowMenuWizard(false);
-            }}
+            onOpenAdvanced={() => setShowMenuAdvanced(true)}
           />
         ))}
       </main>

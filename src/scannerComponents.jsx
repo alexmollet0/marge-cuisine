@@ -191,7 +191,7 @@ async function compressLogoFile(file) {
 // d'un plat) et DigitalMenuModal (nom d'une section personnalisée). Sans `targetLang`, traduit vers
 // les 2 langues restantes d'un coup. Renvoie null en cas d'échec (réseau, IA indisponible...) —
 // jamais d'exception qui remonterait jusqu'à casser l'UI pour une simple traduction manquée.
-async function translateMenuText(text, sourceLang, targetLang) {
+export async function translateMenuText(text, sourceLang, targetLang) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const res = await fetch("/api/translate-menu-description", {
