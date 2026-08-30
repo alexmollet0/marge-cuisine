@@ -129,7 +129,24 @@ export default function App() {
     });
   }, []);
   const [activeId, setActiveId] = useState("r1");
-  const [activeTab, setActiveTab] = useState("recipes"); // 'recipes' | 'scanner' | 'pantry'
+  // [BUG confirmé et corrigé, 2026-08-30] "Voir la carte" (ou tout autre retour déclenchant un
+  // vrai rechargement complet, ex: bouton retour du navigateur après une navigation hors SPA)
+  // ramenait TOUJOURS sur l'onglet Recettes, quel que soit l'onglet actif au moment du
+  // rechargement — cet état n'a jamais vécu que dans un simple useState, jamais persisté nulle
+  // part. Signalé par l'utilisateur : "je suis sur ma carte, je fais retour, je me retrouve à
+  // l'accueil, je dois tout refaire". Même mécanisme que `recipeListLayout` juste en dessous
+  // (préférence d'affichage locale, pas une donnée métier partagée entre appareils).
+  const [activeTab, setActiveTab] = useState(() => {
+    try { return localStorage.getItem("chefup:activeTab") || "recipes"; } catch { return "recipes"; }
+  }); // 'recipes' | 'scanner' | 'pantry' | 'menu'
+  useEffect(() => {
+    try { localStorage.setItem("chefup:activeTab", activeTab); } catch {}
+  }, [activeTab]);
+  // Message de succès temporaire (2026-08-30) après avoir poussé un nouveau prix sur la carte
+  // digitale (voir bouton juste sous le prix de vente, fiche recette) — id de la recette plutôt
+  // qu'un simple booléen, pour ne jamais afficher le message sur la mauvaise recette si on
+  // navigue vite entre deux fiches juste après avoir cliqué.
+  const [menuPricePushedId, setMenuPricePushedId] = useState(null);
   const [hidePricesPrint, setHidePricesPrint] = useState(false);
   const [allergenSheetOpen, setAllergenSheetOpen] = useState(false);
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
@@ -164,6 +181,20 @@ export default function App() {
   useEffect(() => { setSelectedRecentIds(new Set()); }, [pantryCategory]);
   const [autoOpenIdx, setAutoOpenIdx] = useState(null);
   const [lossModalOpen, setLossModalOpen] = useState(false);
+  // Ajout à la carte digitale depuis la fiche recette (2026-08-30) — voir le bouton dans l'en-tête
+  // de la fiche. `menuCategories` = les sections de la carte, mêmes valeurs par défaut que
+  // DigitalMenuModal/MenuWizard si le compte n'en a jamais créé.
+  const menuCategories = menuSettings.customCategories?.length ? menuSettings.customCategories : defaultMenuCategories();
+  const [addToMenuModalOpen, setAddToMenuModalOpen] = useState(false);
+  const [addToMenuSection, setAddToMenuSection] = useState(null);
+  const addRecipeToMenu = () => {
+    if (!active) return;
+    // Snapshot du prix au moment de l'ajout (voir `menuPrice`, plus bas dans la fiche) — c'est la
+    // règle explicite de l'utilisateur : le prix suit automatiquement UNIQUEMENT à l'ajout, jamais
+    // ensuite (il faut repasser par le bouton dédié pour pousser un changement de prix).
+    updateRecipe({ menuIncluded: true, menuCategory: addToMenuSection, menuPrice: active.sellPrice });
+    setAddToMenuModalOpen(false);
+  };
   const [showQtyHint, setShowQtyHint] = useState(false);
   // Index de la ligne de recette dont le prix (du fournisseur actif) est en cours d'édition
   // directement depuis la fiche recette — demandé par l'utilisateur pour corriger rapidement un
@@ -3124,6 +3155,51 @@ export default function App() {
         </div>
       )}
 
+      {addToMenuModalOpen && active && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={() => setAddToMenuModalOpen(false)}>
+          <div
+            className="rounded-2xl p-5 w-full max-w-sm font-body border border-white/10"
+            style={{ background: "#201B15" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("addToMenuTitle")}</h3>
+            <p className="text-white/50 text-xs mb-4 leading-relaxed">{t("addToMenuHint")(active.name)}</p>
+            <span className="text-[10px] uppercase tracking-wide text-white/40 block mb-1.5">{t("menuSectionPickLabel")}</span>
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {menuCategories.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setAddToMenuSection(c.id)}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
+                  style={
+                    addToMenuSection === c.id
+                      ? { background: BRAND_GRADIENT, color: "#fff" }
+                      : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)" }
+                  }
+                >
+                  {categoryLabel(c, lang)}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAddToMenuModalOpen(false)}
+                className="flex-1 text-xs font-display uppercase tracking-wide py-2.5 rounded border border-white/20 text-white/70 hover:border-white/40"
+              >
+                {t("cancelLabel")}
+              </button>
+              <button
+                onClick={addRecipeToMenu}
+                className="flex-1 text-xs font-display uppercase tracking-wide py-2.5 rounded-full"
+                style={{ background: BRAND_GRADIENT, color: "#fff" }}
+              >
+                {t("addToMenuConfirm")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {scanRecipeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeScanRecipe}>
           <div
@@ -4432,6 +4508,23 @@ export default function App() {
                 <ArrowLeft size={14} /> {t("recipes")}
               </button>
               <div className="flex items-center gap-2.5">
+                {/* [AJOUT 2026-08-30] Demandé par l'utilisateur : ajouter une recette à la carte
+                    digitale directement depuis sa fiche, sans passer par la longue liste à cocher
+                    de l'onglet Carte digitale. Ouvre une petite confirmation (choix de section)
+                    plutôt qu'un ajout silencieux en un clic — même prudence que partout ailleurs
+                    dans l'app pour une action qui rend quelque chose public. */}
+                {active.menuIncluded ? (
+                  <span className="flex items-center gap-1.5 text-xs font-display uppercase tracking-wide" style={{ color: "#10B981" }}>
+                    <QrCode size={13} /> {t("onMenuLabel")}
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => { setAddToMenuSection(menuCategories[0]?.id || null); setAddToMenuModalOpen(true); }}
+                    className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#C9793B] font-display uppercase tracking-wide"
+                  >
+                    <QrCode size={13} /> {t("addToMenuButton")}
+                  </button>
+                )}
                 <button onClick={() => setLossModalOpen(true)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#C9793B] font-display uppercase tracking-wide">
                   <Percent size={13} /> {t("declareLossesButton")}
                 </button>
@@ -4730,16 +4823,41 @@ export default function App() {
                   <span>{t("sellPriceHT")} ({t("vat")} {vatRate}%)</span>
                   <span>{sellHT.toFixed(2)}€</span>
                 </div>
-                {/* [AJOUT 2026-08-28] Avertissement quand cette recette est publiée sur la carte
-                    digitale — demandé par l'utilisateur, inquiet qu'un chef qui teste plusieurs prix
-                    ici (pour voir l'effet sur sa marge) oublie que CE prix est aussi celui montré en
-                    direct aux clients qui scannent le QR code. Purement informatif, ne bloque rien
-                    (le prix reste modifiable normalement) — juste visible au bon endroit, au moment
-                    exact où on tape un nouveau chiffre. */}
-                {active.menuIncluded && menuSettings.published && (
-                  <div className="flex items-center gap-1.5 text-[10px] pt-1" style={{ color: TIER_COLORS.mid }}>
-                    <QrCode size={11} className="shrink-0" />
-                    <span>{t("sellPriceMenuWarning")}</span>
+                {/* [REFONTE 2026-08-30] Le simple avertissement passif ("attention, ce prix est
+                    aussi celui affiché en direct") est remplacé par un vrai bouton d'action —
+                    demandé explicitement par l'utilisateur : tester plusieurs prix pour voir
+                    l'effet sur la marge ne doit JAMAIS pousser quoi que ce soit sur la carte
+                    publique tant qu'on ne l'a pas décidé. `menuPrice` (nouveau champ recette) est
+                    désormais le prix RÉELLEMENT affiché sur la carte digitale (voir
+                    api/public-menu.js) — décorrélé de `sellPrice`, mis à jour uniquement ici, sur
+                    ce bouton, jamais automatiquement. `sellPrice` reste le prix de vente "normal"
+                    utilisé partout ailleurs (marge, fiche, impression). Snapshotté à `sellPrice`
+                    au moment où la recette rejoint la carte pour la première fois (voir
+                    `addRecipeToMenu` et `MenuRecipeRow`), donc rien à faire tant qu'on ne
+                    retouche pas le prix après coup. */}
+                {active.menuIncluded && active.sellPrice !== active.menuPrice && (
+                  <div className="flex items-center justify-between gap-2 pt-1.5">
+                    <span className="flex items-center gap-1.5 text-[10px]" style={{ color: TIER_COLORS.mid }}>
+                      <QrCode size={11} className="shrink-0" />
+                      {t("menuPriceOutdatedHint")}
+                    </span>
+                    <button
+                      onClick={() => {
+                        updateRecipe({ menuPrice: active.sellPrice });
+                        setMenuPricePushedId(active.id);
+                        setTimeout(() => setMenuPricePushedId(null), 3000);
+                      }}
+                      className="shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full"
+                      style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                    >
+                      {t("menuPricePushButton")}
+                    </button>
+                  </div>
+                )}
+                {menuPricePushedId === active.id && (
+                  <div className="flex items-center gap-1.5 text-[10px] pt-1" style={{ color: "#10B981" }}>
+                    <Check size={11} className="shrink-0" />
+                    {t("menuPricePushSuccess")}
                   </div>
                 )}
                 {active.lines.some((l) => activeSupplier(ingredientById(l.ingredientId))?.priceSource === "estimate") && (

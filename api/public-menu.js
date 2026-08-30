@@ -57,7 +57,15 @@ export default async function handler(req, res) {
         id: r.id,
         name: r.name || "",
         menuNameI18n: r.menuNameI18n && typeof r.menuNameI18n === "object" ? r.menuNameI18n : {},
-        sellPrice: typeof r.sellPrice === "number" ? r.sellPrice : 0,
+        // [CHANGEMENT 2026-08-30] Le prix affiché sur la carte publique n'est plus synchronisé en
+        // direct sur le prix de vente de la recette (`sellPrice`) — demandé explicitement par
+        // l'utilisateur : tester un prix pour voir l'effet sur sa marge ne doit jamais le pousser
+        // publiquement tout seul. `menuPrice` est le SNAPSHOT réellement affiché, mis à jour
+        // uniquement via le bouton dédié (fiche recette, src/App.jsx) ou au moment où la recette
+        // rejoint la carte pour la première fois. Repli sur `sellPrice` uniquement pour les
+        // recettes déjà sur une carte AVANT ce changement (menuPrice pas encore renseigné) — pour
+        // ne jamais faire disparaître un prix déjà publié.
+        sellPrice: typeof r.menuPrice === "number" ? r.menuPrice : (typeof r.sellPrice === "number" ? r.sellPrice : 0),
         allergens: r.allergens || "",
         allergenCodes: Array.isArray(r.allergenCodes) ? r.allergenCodes : [],
         menuDescription: r.menuDescription && typeof r.menuDescription === "object" ? r.menuDescription : {},

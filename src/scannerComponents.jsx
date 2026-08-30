@@ -2,8 +2,8 @@
 // prix, éditeurs de menu, carte de vérification scan) — extrait de App.jsx le 2026-08-28.
 import React, { useState, useEffect, useRef } from "react";
 import {
-  AlertTriangle, Check, ChevronDown, ChevronUp, Globe, Info, Loader2, Package, Pencil,
-  Percent, QrCode, Tags, TrendingDown, TrendingUp, X,
+  AlertTriangle, Check, ChefHat, ChevronDown, ChevronUp, Info, Loader2, Package, Palette,
+  Pencil, Percent, Plus, QrCode, Search, Tags, TrendingDown, TrendingUp, X,
 } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { unitDisplayLabel } from "./catalog.js";
@@ -217,9 +217,16 @@ export async function translateMenuText(text, sourceLang, targetLang) {
 // `useDebouncedSave` (sauvegarde des données), mais local au composant : l'effet se relance à
 // chaque frappe et l'ancien minuteur est annulé par le cleanup, donc un seul appel part réellement
 // une fois la frappe arrêtée.
-export function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
+// [REFONTE 2026-08-30] Une recette n'arrive plus ici que si elle est DÉJÀ sur la carte
+// (menuIncluded, ajoutée soit depuis sa fiche — voir App.jsx — soit via le sélecteur de recette
+// existante, RecipePickerButton plus bas) : plus de case à cocher, cette ligne ne fait plus que
+// gérer sa section/description et proposer de la retirer (croix), exactement comme une ligne
+// d'article simple — même style, pour que les deux se lisent comme UNE seule liste de plats,
+// plus deux systèmes séparés (retour direct de l'utilisateur : "trop compliqué").
+export function MenuRecipeRow({ r, lang, t, categories, onUpdate, onRemove }) {
   const [translating, setTranslating] = useState(false);
   const [translateErr, setTranslateErr] = useState(false);
+  const [showDescription, setShowDescription] = useState(!!r.menuDescription?.[lang]);
   const description = r.menuDescription?.[lang] || "";
 
   useEffect(() => {
@@ -252,29 +259,28 @@ export function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
   }, [r.name, lang, r.menuNameI18n?._src]);
 
   return (
-    <div className="rounded-lg p-2.5" style={{ background: "#16130F" }}>
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={!!r.menuIncluded}
-          onChange={(e) => onUpdate({ menuIncluded: e.target.checked })}
-          className="shrink-0"
-        />
-        <span className="flex-1 min-w-0 text-white text-xs truncate">{r.name}</span>
-      </label>
-      {r.menuIncluded && (
-        <div className="mt-2 space-y-2 pl-6">
-          <select
-            value={r.menuCategory || ""}
-            onChange={(e) => onUpdate({ menuCategory: e.target.value || null })}
-            className="bg-black/20 text-white/80 text-[11px] rounded px-2 py-1 outline-none"
-            style={{ colorScheme: "dark" }}
-          >
-            <option value="">{t("digitalMenuCategoryNone")}</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{categoryLabel(c, lang)}</option>
-            ))}
-          </select>
+    <div className="rounded-lg p-2" style={{ background: "#16130F" }}>
+      <div className="flex items-center gap-1.5">
+        <ChefHat size={12} className="shrink-0 text-white/25" title={t("digitalMenuFromRecipeHint")} />
+        <span className="flex-1 min-w-0 text-white text-[11px] truncate">{r.name}</span>
+        <select
+          value={r.menuCategory || ""}
+          onChange={(e) => onUpdate({ menuCategory: e.target.value || null })}
+          className="bg-black/20 text-white/60 text-[10px] rounded px-1 py-1 outline-none shrink-0"
+          style={{ colorScheme: "dark" }}
+        >
+          <option value="">{t("digitalMenuCategoryNone")}</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>{categoryLabel(c, lang)}</option>
+          ))}
+        </select>
+        <span className="text-white text-[11px] font-mono shrink-0 w-14 text-right">{(r.menuPrice ?? r.sellPrice ?? 0).toFixed(2)}€</span>
+        <button onClick={onRemove} className="shrink-0 text-white/30 hover:text-[#EF4444]" title={t("digitalMenuRemoveFromMenu")}>
+          <X size={12} />
+        </button>
+      </div>
+      {showDescription ? (
+        <div className="mt-1.5">
           <textarea
             value={description}
             onChange={(e) => onUpdate({ menuDescription: { ...(r.menuDescription || {}), [lang]: e.target.value } })}
@@ -283,12 +289,16 @@ export function MenuRecipeRow({ r, lang, t, categories, onUpdate }) {
             className="w-full bg-black/20 text-white/80 text-[11px] rounded px-2 py-1.5 outline-none resize-none"
           />
           {translating && (
-            <span className="flex items-center gap-1 text-[10px] text-white/40">
+            <span className="flex items-center gap-1 text-[10px] text-white/40 mt-0.5">
               <Loader2 size={10} className="animate-spin" /> {t("digitalMenuTranslating")}
             </span>
           )}
-          {translateErr && <p className="text-[10px] text-[#EF4444]">{t("digitalMenuTranslateError")}</p>}
+          {translateErr && <p className="text-[10px] text-[#EF4444] mt-0.5">{t("digitalMenuTranslateError")}</p>}
         </div>
+      ) : (
+        <button onClick={() => setShowDescription(true)} className="text-[10px] text-white/25 hover:text-white/50 mt-1 ml-4">
+          + {t("digitalMenuDescriptionPlaceholder")}
+        </button>
       )}
     </div>
   );
@@ -455,14 +465,14 @@ export function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove, o
   );
 }
 
-// Articles simples de la carte digitale (2026-08-19) : ajout ultra-rapide pour les produits
-// revendus tels quels (Coca, Perrier, chips...) sans passer par la création d'une recette —
-// demandé explicitement par l'utilisateur ("il peut y en avoir des centaines, ça va polluer la
-// section recette"). Volontairement séparés de `recipes` (nouvelle clé de stockage `simpleItems`,
-// `src/App.jsx`) : n'apparaissent jamais dans l'onglet Recettes, le classement TOP, les fiches
-// imprimées ou allergènes — seulement sur la carte publique. Champ nom + prix suffisent pour
-// ajouter ; la ligne se vide et le focus revient sur le nom pour enchaîner rapidement.
-export function SimpleItemsSection({ items, setItems, categories, lang, t, onConvert }) {
+// [REFONTE 2026-08-30] Devenue LA section "plats" unique de la carte digitale — jusqu'ici deux
+// systèmes côte à côte (une longue liste de recettes à cocher, puis plus bas les "articles
+// simples") que l'utilisateur a jugés trop compliqués à gérer ensemble, d'autant que les
+// articles simples ont depuis gagné une description/traduction comme les recettes ("ce ne sont
+// plus des articles SIMPLES"). Une seule liste mélange maintenant les deux (recettes déjà
+// ajoutées + articles créés ici), avec DEUX façons d'ajouter un plat : la saisie rapide
+// (toujours là) et le nouveau sélecteur de recette existante juste en dessous.
+export function SimpleItemsSection({ items, setItems, recipes, updateRecipe, categories, lang, t, onConvert }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   // [BUG confirmé et corrigé, 2026-08-30] Sans pastille de section active, `addItem` posait
@@ -472,8 +482,11 @@ export function SimpleItemsSection({ items, setItems, categories, lang, t, onCon
   // `groupByCategory`, PublicMenu.jsx — indépendant de l'ordre des sections). Cas réel signalé :
   // "j'ai ajouté 4 boissons, seulement 2 ont suivi la section, les 2 autres sont restées à la
   // fin" — les 2 oubliées avaient tout simplement `menuCategory: null`. Même pastille de section
-  // que l'assistant guidé (MenuWizard.jsx, `activeCat`), pour un comportement identique partout.
+  // que l'assistant guidé (MenuWizard.jsx, `activeCat`), pour un comportement identique partout,
+  // réutilisée aussi par le sélecteur de recette existante juste en dessous.
   const [activeCat, setActiveCat] = useState(categories[0]?.id || null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState("");
   const nameRef = useRef(null);
 
   const addItem = () => {
@@ -489,28 +502,59 @@ export function SimpleItemsSection({ items, setItems, categories, lang, t, onCon
   const updateItem = (id, patch) => setItems(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
   const removeItem = (id) => setItems(items.filter((it) => it.id !== id));
 
+  const includedRecipes = recipes.filter((r) => r.menuIncluded);
+  // Une seule liste, plats mélangés (recettes + articles), triée par nom — plus de "deux blocs
+  // l'un sous l'autre" comme avant.
+  const dishRows = [
+    ...includedRecipes.map((r) => ({ type: "recipe", key: `r_${r.id}`, name: r.name, data: r })),
+    ...items.map((it) => ({ type: "simple", key: `s_${it.id}`, name: it.name, data: it })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+
+  const pickableRecipes = recipes
+    .filter((r) => !r.menuIncluded)
+    .filter((r) => r.name.toLowerCase().includes(pickerQuery.trim().toLowerCase()));
+
+  const addExistingRecipe = (r) => {
+    // Même règle que l'ajout depuis la fiche recette (voir App.jsx) : le prix suit tel quel
+    // UNIQUEMENT à l'ajout, jamais ensuite.
+    updateRecipe(r.id, { menuIncluded: true, menuCategory: activeCat, menuPrice: r.sellPrice });
+    setPickerQuery("");
+    setPickerOpen(false);
+  };
+
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-1">
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
         <Package size={11} />
-        {t("digitalMenuSimpleItemsLabel")}
+        {t("digitalMenuDishesLabel")}
       </div>
-      <p className="text-[10px] text-white/30 mb-2">{t("digitalMenuSimpleItemsHint")}</p>
 
-      {items.length > 0 && (
-        <div className="space-y-1.5 mb-2 max-h-48 overflow-y-auto pr-0.5">
-          {items.map((it) => (
-            <SimpleItemRow
-              key={it.id}
-              item={it}
-              categories={categories}
-              lang={lang}
-              t={t}
-              onUpdate={(patch) => updateItem(it.id, patch)}
-              onRemove={() => removeItem(it.id)}
-              onConvert={onConvert ? () => onConvert(it) : null}
-            />
-          ))}
+      {dishRows.length > 0 && (
+        <div className="space-y-1.5 mb-3 max-h-72 overflow-y-auto pr-0.5">
+          {dishRows.map((row) =>
+            row.type === "recipe" ? (
+              <MenuRecipeRow
+                key={row.key}
+                r={row.data}
+                lang={lang}
+                t={t}
+                categories={categories}
+                onUpdate={(patch) => updateRecipe(row.data.id, patch)}
+                onRemove={() => updateRecipe(row.data.id, { menuIncluded: false })}
+              />
+            ) : (
+              <SimpleItemRow
+                key={row.key}
+                item={row.data}
+                categories={categories}
+                lang={lang}
+                t={t}
+                onUpdate={(patch) => updateItem(row.data.id, patch)}
+                onRemove={() => removeItem(row.data.id)}
+                onConvert={onConvert ? () => onConvert(row.data) : null}
+              />
+            )
+          )}
         </div>
       )}
 
@@ -532,6 +576,7 @@ export function SimpleItemsSection({ items, setItems, categories, lang, t, onCon
           ))}
         </div>
       )}
+      <p className="text-[10px] text-white/30 mb-1.5">{t("digitalMenuSimpleItemsHint")}</p>
       <div className="flex items-center gap-1.5">
         <input
           ref={nameRef}
@@ -558,6 +603,51 @@ export function SimpleItemsSection({ items, setItems, categories, lang, t, onCon
           {t("digitalMenuCategoryAdd")}
         </button>
       </div>
+
+      {/* [AJOUT 2026-08-30] "Sélection de recette déjà existante" — demandé explicitement pour ne
+          plus avoir à faire défiler une longue liste de recettes à cocher (ancien comportement) :
+          un simple champ de recherche parmi les recettes pas encore sur la carte, un clic ajoute. */}
+      <div className="mt-2">
+        {pickerOpen ? (
+          <div className="rounded-lg p-2 border border-white/10" style={{ background: "#16130F" }}>
+            <input
+              autoFocus
+              type="text"
+              value={pickerQuery}
+              onChange={(e) => setPickerQuery(e.target.value)}
+              placeholder={t("digitalMenuRecipeFilterPlaceholder")}
+              className="w-full bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none mb-1.5"
+            />
+            {pickableRecipes.length === 0 ? (
+              <p className="text-white/25 text-[10px] px-1 py-1.5">{t("digitalMenuNoPickableRecipes")}</p>
+            ) : (
+              <div className="max-h-40 overflow-y-auto space-y-0.5">
+                {pickableRecipes.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => addExistingRecipe(r)}
+                    className="w-full flex items-center gap-1.5 text-left text-[11px] text-white/80 hover:bg-white/10 rounded px-2 py-1.5"
+                  >
+                    <ChefHat size={11} className="shrink-0 text-white/25" />
+                    <span className="flex-1 min-w-0 truncate">{r.name}</span>
+                    <Plus size={11} className="shrink-0 text-white/30" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <button onClick={() => { setPickerOpen(false); setPickerQuery(""); }} className="text-[10px] text-white/30 hover:text-white/60 mt-1.5">
+              {t("cancelLabel")}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/50 hover:text-white"
+          >
+            <Search size={11} /> {t("digitalMenuPickRecipeButton")}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -573,11 +663,10 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
   const [copied, setCopied] = useState(false);
   const [logoErr, setLogoErr] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
-  // Filtre texte sur la longue liste de recettes (2026-08-30), demandé par l'utilisateur — sans
-  // lui, il fallait défiler toutes les recettes cochées pour atteindre l'ajout rapide d'article
-  // plus bas (déplacé au-dessus, voir plus bas dans ce composant, mais une carte avec beaucoup de
-  // recettes reste longue à parcourir pour en régler UNE seule).
-  const [recipeFilter, setRecipeFilter] = useState("");
+  // [REFONTE 2026-08-30] Nom/logo/design/couleur repliés derrière un bouton "Personnalisation" —
+  // jugés par l'utilisateur trop mélangés avec la gestion des plats ("basta, je ne veux pas que
+  // ce soit compliqué"). Fermé par défaut : ce n'est pas ce qu'on vient régler le plus souvent.
+  const [personalizationOpen, setPersonalizationOpen] = useState(false);
   // Jeton de session pour l'aperçu d'une carte NON publiée (2026-08-30, voir api/public-menu.js) —
   // récupéré une seule fois à l'ouverture, jamais affiché, seulement collé dans le lien "Voir la
   // carte" quand la carte n'est pas encore publiée.
@@ -730,14 +819,24 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
             </span>
           </label>
 
-          {/* [BUG confirmé et corrigé, 2026-08-30] Ce bloc entier (nom, logo, design, QR, aperçu)
-              n'était rendu QUE si la carte était déjà publiée — impossible de rien configurer (ni
-              même prévisualiser) avant de publier, ce qui est exactement l'inverse de l'ordre
-              logique (on règle, on vérifie, PUIS on publie). Rendu désormais dans tous les cas ;
-              seule la génération du QR code lui-même reste conditionnée à la publication (voir
-              plus bas) — un QR qui ne mène nulle part pour un vrai client n'aurait aucun intérêt
-              avant publication. */}
-          <>
+          {/* [AJOUT 2026-08-30] Nom/logo/design/couleur repliés derrière ce bouton — demandé
+              explicitement par l'utilisateur pour que l'écran principal ne montre que ce qu'on
+              règle le plus souvent (les plats), pas les réglages d'apparence à côté. */}
+          <button
+            onClick={() => setPersonalizationOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded-lg border border-white/15 text-white/70 hover:border-white/30 w-full justify-center"
+          >
+            <Palette size={13} /> {t("digitalMenuPersonalizeButton")}
+            <ChevronDown size={12} className={`transition-transform ${personalizationOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {/* [BUG confirmé et corrigé, 2026-08-30] Ce bloc (nom, logo, design) n'était rendu QUE
+              si la carte était déjà publiée — impossible de rien configurer avant de publier, ce
+              qui est exactement l'inverse de l'ordre logique (on règle, on vérifie, PUIS on
+              publie). Rendu désormais dès qu'on ouvre "Personnalisation", peu importe l'état de
+              publication. */}
+          {personalizationOpen && (
+            <>
               <div>
                 <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuRestaurantNameLabel")}</label>
                 <input
@@ -816,6 +915,8 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
                   ))}
                 </div>
               </div>
+            </>
+          )}
 
               <div className="rounded-lg p-3 flex flex-col items-center gap-2" style={{ background: "#16130F" }}>
                 {qrBusy ? (
@@ -863,7 +964,6 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
                   )}
                 </div>
               </div>
-          </>
 
           <div>
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
@@ -915,44 +1015,20 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
             </div>
           </div>
 
-          {/* [RÉORDONNÉ, 2026-08-30] L'ajout rapide d'article (boissons, etc.) passe AVANT la
-              liste des recettes — l'utilisateur devait jusqu'ici défiler toute la liste (parfois
-              longue) pour l'atteindre à chaque fois. */}
-          <SimpleItemsSection items={simpleItems} setItems={setSimpleItems} categories={categories} lang={lang} t={t} onConvert={onConvertToRecipe} />
-
-          <div>
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
-              <Globe size={11} />
-              {t("digitalMenuRecipesLabel")}
-            </div>
-            {recipes.length === 0 ? (
-              <p className="text-white/30 text-xs">{t("digitalMenuNoRecipes")}</p>
-            ) : (
-              <>
-                {/* Filtre texte (2026-08-30) : liste jugée "hyper longue" par l'utilisateur dès
-                    qu'un compte a beaucoup de recettes — retrouver LA recette à cocher/modifier
-                    ne devrait pas obliger à tout parcourir. */}
-                {recipes.length > 6 && (
-                  <input
-                    type="text"
-                    value={recipeFilter}
-                    onChange={(e) => setRecipeFilter(e.target.value)}
-                    placeholder={t("digitalMenuRecipeFilterPlaceholder")}
-                    className="w-full bg-black/20 text-white text-xs rounded px-2.5 py-1.5 outline-none mb-2"
-                  />
-                )}
-                {/* Bornée en hauteur avec défilement propre (comme la liste d'articles simples
-                    juste au-dessus) plutôt que de laisser la fenêtre grandir indéfiniment. */}
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-0.5">
-                  {recipes
-                    .filter((r) => r.name.toLowerCase().includes(recipeFilter.trim().toLowerCase()))
-                    .map((r) => (
-                      <MenuRecipeRow key={r.id} r={r} lang={lang} t={t} categories={categories} onUpdate={(patch) => updateRecipe(r.id, patch)} />
-                    ))}
-                </div>
-              </>
-            )}
-          </div>
+          {/* [REFONTE 2026-08-30] Une seule section "plats" — plus deux listes séparées (recettes
+              cochées d'un côté, articles simples de l'autre) jugées trop compliquées à gérer
+              ensemble par l'utilisateur. `SimpleItemsSection` gère maintenant la liste unifiée +
+              les deux façons d'ajouter un plat (saisie rapide, ou recette déjà existante). */}
+          <SimpleItemsSection
+            items={simpleItems}
+            setItems={setSimpleItems}
+            recipes={recipes}
+            updateRecipe={updateRecipe}
+            categories={categories}
+            lang={lang}
+            t={t}
+            onConvert={onConvertToRecipe}
+          />
         </div>
       </div>
   );
