@@ -5340,52 +5340,32 @@ export default function App() {
 
         {/* [2026-08-28] "Carte digitale" est un vrai onglet maintenant, plus une fenêtre flottante
             (`digitalMenuOpen`/modal retirés) — demandé par l'utilisateur, qui trouvait la fenêtre
-            incohérente avec les 3 autres onglets qui occupent tout l'écran. `DigitalMenuModal`
-            garde son nom (son contenu interne n'a pas changé) mais son wrapper a été adapté pour
-            s'intégrer dans ce conteneur normal au lieu d'un habillage `fixed inset-0` par-dessus
-            tout. `onClose` redirige vers l'onglet Recettes plutôt que de fermer une fenêtre. */}
-        {/* [2026-08-28] Deux visages pour le même onglet : un assistant guidé en 4 étapes tant que
-            la carte n'a jamais été mise en place (`setupDone`), puis l'écran de réglages complet
-            pour tout affiner ensuite. Motif : l'écran complet affichait TOUT d'un coup
-            (publication, sections, logo, couleur, design, recettes, articles, QR) — jugé "beaucoup
-            trop abstrait et dur à comprendre du premier coup" par l'utilisateur. L'assistant ne
-            remplace pas la gestion, il remplace le premier contact. `showMenuWizard` permet aussi
-            de le relancer à la demande depuis l'écran de réglages. */}
-        {activeTab === "menu" && (showMenuAdvanced ? (
-          <>
-            <DigitalMenuModal
-              open={true}
-              onClose={() => setActiveTab("recipes")}
-              menuSettings={menuSettings}
-              setMenuSettings={setMenuSettings}
-              recipes={recipes}
-              setRecipes={setRecipes}
-              simpleItems={simpleItems}
-              setSimpleItems={setSimpleItems}
-              onConvertToRecipe={convertSimpleItemToRecipe}
-              userId={menuUserId}
-              lang={lang}
-              t={t}
-            />
-            <button
-              onClick={() => setShowMenuAdvanced(false)}
-              className="w-full mt-3 text-[11px] text-white/40 hover:text-white/70"
-            >
-              {t("menuWizardBackToSimple")}
-            </button>
-          </>
-        ) : (
-          <MenuWizard
+            incohérente avec les 3 autres onglets qui occupent tout l'écran. `onClose` redirige
+            vers l'onglet Recettes plutôt que de fermer une fenêtre.
+            [RETIRÉ 2026-08-30] L'assistant guidé (`MenuWizard`, 4 étapes) qui s'affichait par
+            défaut au premier contact a été jugé "chiant"/"trop compliqué" par l'utilisateur — il
+            veut directement l'écran simple, jamais un tunnel d'étapes. `DigitalMenuModal` (revu
+            le même jour en 5 boutons plats : Voir ma carte / Publier ma carte / Télécharger QR
+            code / Personnaliser ma carte / Ajouter des plats) est désormais la SEULE vue de cet
+            onglet. `MenuWizard.jsx` et `showMenuAdvanced` restent dans le code, juste plus
+            jamais atteints depuis l'UI — même principe que le scanner de fiche recette caché le
+            2026-08-18 (garder le code, retirer seulement le point d'entrée). */}
+        {activeTab === "menu" && (
+          <DigitalMenuModal
+            open={true}
+            onClose={() => setActiveTab("recipes")}
             menuSettings={menuSettings}
             setMenuSettings={setMenuSettings}
+            recipes={recipes}
+            setRecipes={setRecipes}
             simpleItems={simpleItems}
             setSimpleItems={setSimpleItems}
+            onConvertToRecipe={convertSimpleItemToRecipe}
             userId={menuUserId}
             lang={lang}
             t={t}
-            onOpenAdvanced={() => setShowMenuAdvanced(true)}
           />
-        ))}
+        )}
       </main>
 
       {/* Premier lancement guidé — voir FirstRunWizard. Rendu par-dessus tout le reste, mais

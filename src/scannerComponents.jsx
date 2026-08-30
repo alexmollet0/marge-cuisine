@@ -667,6 +667,13 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
   // jugés par l'utilisateur trop mélangés avec la gestion des plats ("basta, je ne veux pas que
   // ce soit compliqué"). Fermé par défaut : ce n'est pas ce qu'on vient régler le plus souvent.
   const [personalizationOpen, setPersonalizationOpen] = useState(false);
+  // [REFONTE 2026-08-30, 2e passage] Écran ramené à 5 boutons plats — "Voir ma carte / Publier ma
+  // carte / Télécharger QR code / Personnaliser ma carte / Ajouter des plats", exactement dans
+  // cet ordre et ce libellé, demandés mot pour mot par l'utilisateur après avoir trouvé la 1ère
+  // refonte encore trop compliquée. Chaque bouton révèle SON seul contenu, rien d'autre ouvert
+  // par défaut.
+  const [viewCardOpen, setViewCardOpen] = useState(false);
+  const [addDishesOpen, setAddDishesOpen] = useState(false);
   // Jeton de session pour l'aperçu d'une carte NON publiée (2026-08-30, voir api/public-menu.js) —
   // récupéré une seule fois à l'ouverture, jamais affiché, seulement collé dans le lien "Voir la
   // carte" quand la carte n'est pas encore publiée.
@@ -794,6 +801,22 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
     setMenuSettings({ ...menuSettings, customCategories: next });
   };
 
+  // [REFONTE 2026-08-30, 2e passage] Demandé explicitement par l'utilisateur : plus aucun bloc
+  // ouvert par défaut, juste 5 boutons plats — "Voir ma carte / Publier ma carte / Télécharger QR
+  // code / Personnaliser ma carte / Ajouter des plats" — chacun révèle SON contenu au clic, rien
+  // d'autre. Toujours les mêmes briques qu'avant (rien de fonctionnel n'a changé), seulement
+  // réorganisées derrière ces 5 actions nommées exactement comme demandé.
+  const AccordionButton = ({ icon: Icon, label, open, onClick }) => (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-lg border w-full justify-center transition-colors"
+      style={open ? { borderColor: BRAND_SOLID, background: `${BRAND_SOLID}18`, color: "#fff" } : { borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)" }}
+    >
+      <Icon size={13} /> {label}
+      <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+    </button>
+  );
+
   return (
     // [2026-08-28] Devenu un vrai onglet plutôt qu'une fenêtre flottante (voir App.jsx) : plus de
     // `fixed inset-0`/fond noir/limite de hauteur — le contenu suit le défilement normal de la
@@ -805,232 +828,230 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
       </div>
       <p className="text-white/50 text-xs mb-4 leading-relaxed">{t("digitalMenuHint")}</p>
 
-      <div className="space-y-4">
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={!!menuSettings.published}
-              onChange={(e) => setMenuSettings({ ...menuSettings, published: e.target.checked })}
-              className="mt-0.5 shrink-0"
-            />
-            <span>
-              <span className="text-xs text-white/80 block font-semibold">{t("digitalMenuPublishLabel")}</span>
-              <span className="text-[10px] text-white/40 block mt-0.5">{t("digitalMenuPublishHint")}</span>
-            </span>
-          </label>
-
-          {/* [AJOUT 2026-08-30] Nom/logo/design/couleur repliés derrière ce bouton — demandé
-              explicitement par l'utilisateur pour que l'écran principal ne montre que ce qu'on
-              règle le plus souvent (les plats), pas les réglages d'apparence à côté. */}
-          <button
-            onClick={() => setPersonalizationOpen((v) => !v)}
-            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2 rounded-lg border border-white/15 text-white/70 hover:border-white/30 w-full justify-center"
-          >
-            <Palette size={13} /> {t("digitalMenuPersonalizeButton")}
-            <ChevronDown size={12} className={`transition-transform ${personalizationOpen ? "rotate-180" : ""}`} />
-          </button>
-
-          {/* [BUG confirmé et corrigé, 2026-08-30] Ce bloc (nom, logo, design) n'était rendu QUE
-              si la carte était déjà publiée — impossible de rien configurer avant de publier, ce
-              qui est exactement l'inverse de l'ordre logique (on règle, on vérifie, PUIS on
-              publie). Rendu désormais dès qu'on ouvre "Personnalisation", peu importe l'état de
-              publication. */}
-          {personalizationOpen && (
-            <>
-              <div>
-                <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuRestaurantNameLabel")}</label>
-                <input
-                  type="text"
-                  value={menuSettings.restaurantName}
-                  onChange={(e) => setMenuSettings({ ...menuSettings, restaurantName: e.target.value })}
-                  placeholder={t("digitalMenuRestaurantNamePlaceholder")}
-                  className="w-full bg-black/20 text-white text-sm rounded px-2.5 py-2 outline-none"
-                />
+      <div className="space-y-2.5">
+        {/* 1. VOIR MA CARTE */}
+        <AccordionButton icon={QrCode} label={t("digitalMenuViewCardButton")} open={viewCardOpen} onClick={() => setViewCardOpen((v) => !v)} />
+        {viewCardOpen && (
+          <div className="rounded-lg p-3 flex flex-col items-center gap-2" style={{ background: "#16130F" }}>
+            {qrBusy ? (
+              <div className="w-[140px] h-[140px] flex items-center justify-center">
+                <Loader2 size={20} className="animate-spin text-white/40" />
               </div>
-
-              <div>
-                <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1.5">{t("digitalMenuLogoLabel")}</label>
-                <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoFile} />
-                {/* [AGRANDI, 2026-08-30] Un petit bouton texte à côté d'une pastille de 40px pour
-                    régler le logo — jugé trop discret par l'utilisateur ("c'est quand même
-                    important") vu que c'est ce que voient TOUS les clients qui scannent le QR
-                    code. Pastille et bouton nettement plus grands, bouton rempli (dégradé de
-                    marque) au lieu d'un simple contour. */}
-                <div className="flex items-center gap-3">
-                  <div className="w-16 h-16 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-white/10" style={{ background: "#16130F" }}>
-                    {menuSettings.logo ? <img src={menuSettings.logo} alt="" className="w-full h-full object-contain" /> : <Logo size={28} />}
-                  </div>
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <button
-                      onClick={() => logoInputRef.current?.click()}
-                      className="text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-lg active:scale-95 transition-transform"
-                      style={{ background: BRAND_GRADIENT, color: "#fff" }}
-                    >
-                      {t("digitalMenuLogoUpload")}
-                    </button>
-                    {menuSettings.logo && (
-                      <button
-                        onClick={() => setMenuSettings({ ...menuSettings, logo: null })}
-                        className="text-[11px] uppercase tracking-wide text-white/40 hover:text-[#EF4444] text-center"
-                      >
-                        {t("digitalMenuLogoRemove")}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {logoErr && <p className="text-[10px] text-[#EF4444] mt-1">{t("digitalMenuLogoError")}</p>}
+            ) : qrDataUrl ? (
+              <img src={qrDataUrl} alt="QR code" width={140} height={140} className="rounded" />
+            ) : !menuSettings.published ? (
+              <div className="w-[140px] h-[140px] flex items-center justify-center text-center px-2">
+                <span className="text-white/30 text-[10px] leading-relaxed">{t("digitalMenuQrAfterPublish")}</span>
               </div>
-
-              <div>
-                <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuDesignLabel")}</label>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  {MENU_DESIGNS.map(({ id: d, bg }) => (
-                    <button
-                      key={d}
-                      onClick={() => setMenuSettings({ ...menuSettings, design: d })}
-                      className="flex items-center gap-2 text-xs py-2 px-2.5 rounded-lg border transition-colors"
-                      style={
-                        menuSettings.design === d
-                          ? { borderColor: BRAND_SOLID, background: `${BRAND_SOLID}18`, color: "#fff" }
-                          : { borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }
-                      }
-                    >
-                      <span className="w-4 h-4 rounded-full shrink-0 border border-white/20" style={{ background: bg }} />
-                      {t(DESIGN_LABEL_KEYS[d])}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  {MENU_ACCENT_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setMenuSettings({ ...menuSettings, accentColor: c })}
-                      className="w-6 h-6 rounded-full shrink-0"
-                      style={{
-                        background: c,
-                        outline: (menuSettings.accentColor || MENU_ACCENT_COLORS[0]) === c ? "2px solid #fff" : "none",
-                        outlineOffset: "2px",
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-              <div className="rounded-lg p-3 flex flex-col items-center gap-2" style={{ background: "#16130F" }}>
-                {qrBusy ? (
-                  <div className="w-[140px] h-[140px] flex items-center justify-center">
-                    <Loader2 size={20} className="animate-spin text-white/40" />
-                  </div>
-                ) : qrDataUrl ? (
-                  <img src={qrDataUrl} alt="QR code" width={140} height={140} className="rounded" />
-                ) : !menuSettings.published ? (
-                  <div className="w-[140px] h-[140px] flex items-center justify-center text-center px-2">
-                    <span className="text-white/30 text-[10px] leading-relaxed">{t("digitalMenuQrAfterPublish")}</span>
-                  </div>
-                ) : null}
-                <div className="flex items-center gap-1.5 w-full">
-                  <input readOnly value={publicUrl || ""} className="flex-1 min-w-0 bg-black/30 text-white/70 text-[11px] rounded px-2 py-1.5 outline-none truncate" />
-                  <button onClick={copyLink} className="shrink-0 text-[10px] uppercase tracking-wide px-2 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40">
-                    {copied ? t("digitalMenuLinkCopied") : t("digitalMenuCopyLink")}
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  {publicUrl && (
-                    // Navigation normale dans le MÊME onglet (2026-08-19, 2e essai) — une iframe
-                    // avait été tentée d'abord mais se comportait mal en pratique (signalé par
-                    // l'utilisateur : renvoyait à l'écran Recettes de l'app, reproductible aussi
-                    // bien sur ordinateur que sur téléphone). `?preview=1` fait apparaître un lien
-                    // "Retour à Chefup" explicite sur la carte publique (`src/PublicMenu.jsx`) —
-                    // fonctionne partout, y compris sans bouton retour visible (app ajoutée à
-                    // l'écran d'accueil), puisque c'est un vrai lien cliquable, pas une dépendance
-                    // au bouton retour du navigateur.
-                    <a
-                      href={`${publicUrl}?preview=1${!menuSettings.published && previewToken ? `&previewToken=${encodeURIComponent(previewToken)}` : ""}`}
-                      className="text-[10px] uppercase tracking-wide text-white/50 hover:text-white underline"
-                    >
-                      {t("digitalMenuPreview")}
-                    </a>
-                  )}
-                  {qrDataUrl && (
-                    <a
-                      href={qrDataUrl}
-                      download="carte-chefup-qr.png"
-                      className="text-[10px] uppercase tracking-wide text-white/50 hover:text-white underline"
-                    >
-                      {t("digitalMenuDownloadQr")}
-                    </a>
-                  )}
-                </div>
-              </div>
-
-          <div>
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
-              <Tags size={11} />
-              {t("digitalMenuCategoriesLabel")}
-            </div>
-            <div className="space-y-1 mb-2">
-              {categories.map((c, i) => (
-                <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-white/70 bg-black/20 rounded-lg pl-1 pr-2.5 py-1">
-                  <div className="flex flex-col shrink-0">
-                    <button
-                      onClick={() => moveCategory(i, -1)}
-                      disabled={i === 0}
-                      className="text-white/30 hover:text-white disabled:opacity-20 disabled:hover:text-white/30 leading-none"
-                    >
-                      <ChevronUp size={11} />
-                    </button>
-                    <button
-                      onClick={() => moveCategory(i, 1)}
-                      disabled={i === categories.length - 1}
-                      className="text-white/30 hover:text-white disabled:opacity-20 disabled:hover:text-white/30 leading-none"
-                    >
-                      <ChevronDown size={11} />
-                    </button>
-                  </div>
-                  <span className="flex-1 min-w-0 truncate">{categoryLabel(c, lang)}</span>
-                  <button onClick={() => removeCategory(c.id)} className="text-white/30 hover:text-[#EF4444] shrink-0">
-                    <X size={10} />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              <input
-                type="text"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
-                placeholder={t("digitalMenuCategoryAddPlaceholder")}
-                className="flex-1 min-w-0 bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none"
-              />
-              <button
-                onClick={addCategory}
-                disabled={!newCategoryName.trim()}
-                className="shrink-0 text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40 disabled:opacity-40"
-              >
-                {t("digitalMenuCategoryAdd")}
+            ) : null}
+            <div className="flex items-center gap-1.5 w-full">
+              <input readOnly value={publicUrl || ""} className="flex-1 min-w-0 bg-black/30 text-white/70 text-[11px] rounded px-2 py-1.5 outline-none truncate" />
+              <button onClick={copyLink} className="shrink-0 text-[10px] uppercase tracking-wide px-2 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40">
+                {copied ? t("digitalMenuLinkCopied") : t("digitalMenuCopyLink")}
               </button>
             </div>
+            {publicUrl && (
+              // Navigation normale dans le MÊME onglet (2026-08-19, 2e essai) — une iframe avait
+              // été tentée d'abord mais se comportait mal en pratique (signalé par l'utilisateur :
+              // renvoyait à l'écran Recettes de l'app). `?preview=1` fait apparaître un lien
+              // "Retour à Chefup" explicite sur la carte publique (`src/PublicMenu.jsx`) —
+              // fonctionne partout, y compris sans bouton retour visible (app à l'écran d'accueil).
+              // `previewToken` (2026-08-30) permet de voir la carte même AVANT publication.
+              <a
+                href={`${publicUrl}?preview=1${!menuSettings.published && previewToken ? `&previewToken=${encodeURIComponent(previewToken)}` : ""}`}
+                className="w-full text-center text-[11px] font-semibold uppercase tracking-wide px-3 py-2 rounded-lg"
+                style={{ background: BRAND_GRADIENT, color: "#fff" }}
+              >
+                {t("digitalMenuPreview")}
+              </a>
+            )}
           </div>
+        )}
 
-          {/* [REFONTE 2026-08-30] Une seule section "plats" — plus deux listes séparées (recettes
-              cochées d'un côté, articles simples de l'autre) jugées trop compliquées à gérer
-              ensemble par l'utilisateur. `SimpleItemsSection` gère maintenant la liste unifiée +
-              les deux façons d'ajouter un plat (saisie rapide, ou recette déjà existante). */}
-          <SimpleItemsSection
-            items={simpleItems}
-            setItems={setSimpleItems}
-            recipes={recipes}
-            updateRecipe={updateRecipe}
-            categories={categories}
-            lang={lang}
-            t={t}
-            onConvert={onConvertToRecipe}
-          />
-        </div>
+        {/* 2. PUBLIER MA CARTE */}
+        <button
+          onClick={() => setMenuSettings({ ...menuSettings, published: !menuSettings.published })}
+          className="flex items-center justify-between gap-2 text-left px-3 py-2.5 rounded-lg border w-full"
+          style={menuSettings.published ? { borderColor: "#10B981", background: "#10B98118" } : { borderColor: "rgba(255,255,255,0.15)" }}
+        >
+          <span>
+            <span
+              className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5"
+              style={{ color: menuSettings.published ? "#10B981" : "rgba(255,255,255,0.8)" }}
+            >
+              {menuSettings.published && <Check size={13} className="shrink-0" />} {t("digitalMenuPublishLabel")}
+            </span>
+            <span className="text-[10px] text-white/40 block mt-0.5">{t("digitalMenuPublishHint")}</span>
+          </span>
+        </button>
+
+        {/* 3. TÉLÉCHARGER QR CODE */}
+        {qrDataUrl ? (
+          <a
+            href={qrDataUrl}
+            download="carte-chefup-qr.png"
+            className="flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-lg border border-white/15 text-white/70 hover:border-white/30 w-full"
+          >
+            <QrCode size={13} /> {t("digitalMenuDownloadQr")}
+          </a>
+        ) : (
+          <div className="flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-lg border border-white/10 text-white/25 w-full cursor-not-allowed">
+            <QrCode size={13} /> {t("digitalMenuDownloadQr")}
+          </div>
+        )}
+
+        {/* 4. PERSONNALISER MA CARTE */}
+        <AccordionButton icon={Palette} label={t("digitalMenuPersonalizeButton")} open={personalizationOpen} onClick={() => setPersonalizationOpen((v) => !v)} />
+        {personalizationOpen && (
+          <div className="space-y-4">
+            <div>
+              <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuRestaurantNameLabel")}</label>
+              <input
+                type="text"
+                value={menuSettings.restaurantName}
+                onChange={(e) => setMenuSettings({ ...menuSettings, restaurantName: e.target.value })}
+                placeholder={t("digitalMenuRestaurantNamePlaceholder")}
+                className="w-full bg-black/20 text-white text-sm rounded px-2.5 py-2 outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1.5">{t("digitalMenuLogoLabel")}</label>
+              <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoFile} />
+              <div className="flex items-center gap-3">
+                <div className="w-16 h-16 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-white/10" style={{ background: "#16130F" }}>
+                  {menuSettings.logo ? <img src={menuSettings.logo} alt="" className="w-full h-full object-contain" /> : <Logo size={28} />}
+                </div>
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <button
+                    onClick={() => logoInputRef.current?.click()}
+                    className="text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-lg active:scale-95 transition-transform"
+                    style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                  >
+                    {t("digitalMenuLogoUpload")}
+                  </button>
+                  {menuSettings.logo && (
+                    <button
+                      onClick={() => setMenuSettings({ ...menuSettings, logo: null })}
+                      className="text-[11px] uppercase tracking-wide text-white/40 hover:text-[#EF4444] text-center"
+                    >
+                      {t("digitalMenuLogoRemove")}
+                    </button>
+                  )}
+                </div>
+              </div>
+              {logoErr && <p className="text-[10px] text-[#EF4444] mt-1">{t("digitalMenuLogoError")}</p>}
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuDesignLabel")}</label>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                {MENU_DESIGNS.map(({ id: d, bg }) => (
+                  <button
+                    key={d}
+                    onClick={() => setMenuSettings({ ...menuSettings, design: d })}
+                    className="flex items-center gap-2 text-xs py-2 px-2.5 rounded-lg border transition-colors"
+                    style={
+                      menuSettings.design === d
+                        ? { borderColor: BRAND_SOLID, background: `${BRAND_SOLID}18`, color: "#fff" }
+                        : { borderColor: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)" }
+                    }
+                  >
+                    <span className="w-4 h-4 rounded-full shrink-0 border border-white/20" style={{ background: bg }} />
+                    {t(DESIGN_LABEL_KEYS[d])}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                {MENU_ACCENT_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setMenuSettings({ ...menuSettings, accentColor: c })}
+                    className="w-6 h-6 rounded-full shrink-0"
+                    style={{
+                      background: c,
+                      outline: (menuSettings.accentColor || MENU_ACCENT_COLORS[0]) === c ? "2px solid #fff" : "none",
+                      outlineOffset: "2px",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 5. AJOUTER DES PLATS */}
+        <AccordionButton icon={Package} label={t("digitalMenuAddDishesButton")} open={addDishesOpen} onClick={() => setAddDishesOpen((v) => !v)} />
+        {addDishesOpen && (
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
+                <Tags size={11} />
+                {t("digitalMenuCategoriesLabel")}
+              </div>
+              <div className="space-y-1 mb-2">
+                {categories.map((c, i) => (
+                  <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-white/70 bg-black/20 rounded-lg pl-1 pr-2.5 py-1">
+                    <div className="flex flex-col shrink-0">
+                      <button
+                        onClick={() => moveCategory(i, -1)}
+                        disabled={i === 0}
+                        className="text-white/30 hover:text-white disabled:opacity-20 disabled:hover:text-white/30 leading-none"
+                      >
+                        <ChevronUp size={11} />
+                      </button>
+                      <button
+                        onClick={() => moveCategory(i, 1)}
+                        disabled={i === categories.length - 1}
+                        className="text-white/30 hover:text-white disabled:opacity-20 disabled:hover:text-white/30 leading-none"
+                      >
+                        <ChevronDown size={11} />
+                      </button>
+                    </div>
+                    <span className="flex-1 min-w-0 truncate">{categoryLabel(c, lang)}</span>
+                    <button onClick={() => removeCategory(c.id)} className="text-white/30 hover:text-[#EF4444] shrink-0">
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
+                  placeholder={t("digitalMenuCategoryAddPlaceholder")}
+                  className="flex-1 min-w-0 bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none"
+                />
+                <button
+                  onClick={addCategory}
+                  disabled={!newCategoryName.trim()}
+                  className="shrink-0 text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40 disabled:opacity-40"
+                >
+                  {t("digitalMenuCategoryAdd")}
+                </button>
+              </div>
+            </div>
+
+            {/* Une seule section "plats" — plus deux listes séparées (recettes cochées d'un côté,
+                articles simples de l'autre) jugées trop compliquées à gérer ensemble par
+                l'utilisateur. `SimpleItemsSection` gère la liste unifiée + les deux façons
+                d'ajouter un plat (saisie rapide, ou recette déjà existante). */}
+            <SimpleItemsSection
+              items={simpleItems}
+              setItems={setSimpleItems}
+              recipes={recipes}
+              updateRecipe={updateRecipe}
+              categories={categories}
+              lang={lang}
+              t={t}
+              onConvert={onConvertToRecipe}
+            />
+          </div>
+        )}
       </div>
+    </div>
   );
 }
 
