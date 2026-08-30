@@ -116,7 +116,7 @@ export function MenuWizard({ menuSettings, setMenuSettings, simpleItems, setSimp
     // Import dynamique, comme ailleurs dans le projet : cette librairie ne doit peser sur le
     // chargement que pour qui va vraiment jusqu'au QR code.
     import("qrcode")
-      .then((mod) => (mod.default || mod).toDataURL(publicUrl, { width: 240, margin: 1, color: { dark: "#1B1815", light: "#ffffff" } }))
+      .then((mod) => (mod.default || mod).toDataURL(publicUrl, { width: 240, margin: 1, color: { dark: "#16130F", light: "#ffffff" } }))
       .then((url) => { if (!cancelled) setQrDataUrl(url); })
       .catch(() => {});
     return () => { cancelled = true; };

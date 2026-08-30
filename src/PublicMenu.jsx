@@ -95,7 +95,15 @@ export default function PublicMenu({ menuId }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/public-menu?id=${encodeURIComponent(menuId)}`)
+    // Aperçu d'une carte NON publiée (2026-08-30) : `?previewToken=<jeton de session>` est ajouté
+    // par le bouton "Voir la carte" (DigitalMenuModal) quand la carte n'est pas encore publiée —
+    // sans lui, l'API renvoie 404 (voir api/public-menu.js), ce que l'utilisateur signalait comme
+    // une erreur bloquante ("il faudrait qu'on puisse voir la carte même si elle n'est pas
+    // publiée"). Le jeton prouve juste que celui qui regarde EST le propriétaire du compte — un
+    // vrai client qui scanne un QR code n'en a jamais un, donc reste soumis au 404 normal.
+    const previewToken = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("previewToken") : null;
+    const url = `/api/public-menu?id=${encodeURIComponent(menuId)}${previewToken ? `&previewToken=${encodeURIComponent(previewToken)}` : ""}`;
+    fetch(url)
       .then(async (res) => {
         if (!res.ok) throw new Error("not_available");
         return res.json();
@@ -107,7 +115,7 @@ export default function PublicMenu({ menuId }) {
 
   if (state.status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#1B1815" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#16130F" }}>
         {BackLink}
         <Loader2 className="animate-spin" style={{ color: BRAND_SOLID }} size={28} />
       </div>
@@ -116,7 +124,7 @@ export default function PublicMenu({ menuId }) {
 
   if (state.status === "error") {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center font-body" style={{ background: "#1B1815" }}>
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center font-body" style={{ background: "#16130F" }}>
         {BackLink}
         <Logo size={30} />
         <p className="text-white/60 text-sm mt-4">{t("publicMenuNotAvailable")}</p>

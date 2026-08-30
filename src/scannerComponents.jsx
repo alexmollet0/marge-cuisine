@@ -321,6 +321,25 @@ function simpleItemPriceVariation(item) {
 
 export function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove, onConvert }) {
   const [showCost, setShowCost] = useState(item.cost != null);
+  // [AJOUT 2026-08-30] Description + traduction auto, jusqu'ici réservées aux recettes
+  // (`MenuRecipeRow`) — un article simple (boisson, dessert du jour...) ne pouvait donc jamais
+  // avoir la moindre description sur la carte publique, signalé par l'utilisateur comme un vrai
+  // manque. Repliée par défaut (comme le coût d'achat juste en dessous) pour ne pas alourdir la
+  // ligne compacte de saisie rapide — la plupart des articles simples n'en ont pas besoin.
+  const [showDescription, setShowDescription] = useState(!!item.menuDescription?.[lang]);
+  const [translating, setTranslating] = useState(false);
+  const description = item.menuDescription?.[lang] || "";
+  useEffect(() => {
+    if (!description.trim()) return;
+    const timer = setTimeout(async () => {
+      setTranslating(true);
+      const data = await translateMenuText(description, lang);
+      if (data) onUpdate({ menuDescription: { ...(item.menuDescription || {}), ...data } });
+      setTranslating(false);
+    }, 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [description, lang]);
   // `onCommit` (pas `onChange`, qui se déclenche à chaque touche) — même règle que partout ailleurs
   // dans ce projet depuis le bug "+70%" du 2026-08-27 (voir CLAUDE.md) : un historique de prix ne
   // doit s'écrire qu'une fois la saisie VRAIMENT terminée, jamais à chaque caractère tapé.
@@ -399,6 +418,26 @@ export function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove, o
           {t("digitalMenuSimpleItemAddCost")}
         </button>
       )}
+      {showDescription ? (
+        <div className="mt-1.5">
+          <textarea
+            value={description}
+            onChange={(e) => onUpdate({ menuDescription: { ...(item.menuDescription || {}), [lang]: e.target.value } })}
+            placeholder={t("digitalMenuDescriptionPlaceholder")}
+            rows={2}
+            className="w-full bg-black/20 text-white/80 text-[11px] rounded px-2 py-1.5 outline-none resize-none"
+          />
+          {translating && (
+            <span className="flex items-center gap-1 text-[10px] text-white/40 mt-0.5">
+              <Loader2 size={10} className="animate-spin" /> {t("digitalMenuTranslating")}
+            </span>
+          )}
+        </div>
+      ) : (
+        <button onClick={() => setShowDescription(true)} className="text-[10px] text-white/25 hover:text-white/50 mt-1 ml-2">
+          + {t("digitalMenuDescriptionPlaceholder")}
+        </button>
+      )}
       {/* [PONT, 2026-08-27] Le passage d'un simple nom sur la carte à un plat dont on connaît la
           marge. Sans lui, un chef qui compose sa carte en saisie rapide reste bloqué dans un coin
           du produit qui ne parle jamais de marge — alors que c'est précisément là qu'il a sous les
@@ -426,13 +465,22 @@ export function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove, o
 export function SimpleItemsSection({ items, setItems, categories, lang, t, onConvert }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  // [BUG confirmé et corrigé, 2026-08-30] Sans pastille de section active, `addItem` posait
+  // toujours `menuCategory: null` — l'utilisateur devait penser à choisir la section manuellement
+  // sur CHAQUE ligne juste après l'ajout, sinon l'article restait invisible dans son rythme de
+  // section une fois publié (les articles sans section vont toujours en fin de carte, voir
+  // `groupByCategory`, PublicMenu.jsx — indépendant de l'ordre des sections). Cas réel signalé :
+  // "j'ai ajouté 4 boissons, seulement 2 ont suivi la section, les 2 autres sont restées à la
+  // fin" — les 2 oubliées avaient tout simplement `menuCategory: null`. Même pastille de section
+  // que l'assistant guidé (MenuWizard.jsx, `activeCat`), pour un comportement identique partout.
+  const [activeCat, setActiveCat] = useState(categories[0]?.id || null);
   const nameRef = useRef(null);
 
   const addItem = () => {
     const n = name.trim();
     const p = parseFloat((price || "").replace(",", "."));
     if (!n || !Number.isFinite(p) || p <= 0) return;
-    setItems([...items, { id: uid(), name: n, sellPrice: p, cost: null, menuCategory: null }]);
+    setItems([...items, { id: uid(), name: n, sellPrice: p, cost: null, menuCategory: activeCat }]);
     setName("");
     setPrice("");
     nameRef.current?.focus();
@@ -466,6 +514,24 @@ export function SimpleItemsSection({ items, setItems, categories, lang, t, onCon
         </div>
       )}
 
+      {categories.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setActiveCat(c.id)}
+              className="px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors"
+              style={
+                activeCat === c.id
+                  ? { background: BRAND_GRADIENT, color: "#fff" }
+                  : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }
+              }
+            >
+              {categoryLabel(c, lang)}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-1.5">
         <input
           ref={nameRef}
@@ -507,9 +573,23 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
   const [copied, setCopied] = useState(false);
   const [logoErr, setLogoErr] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  // Filtre texte sur la longue liste de recettes (2026-08-30), demandé par l'utilisateur — sans
+  // lui, il fallait défiler toutes les recettes cochées pour atteindre l'ajout rapide d'article
+  // plus bas (déplacé au-dessus, voir plus bas dans ce composant, mais une carte avec beaucoup de
+  // recettes reste longue à parcourir pour en régler UNE seule).
+  const [recipeFilter, setRecipeFilter] = useState("");
+  // Jeton de session pour l'aperçu d'une carte NON publiée (2026-08-30, voir api/public-menu.js) —
+  // récupéré une seule fois à l'ouverture, jamais affiché, seulement collé dans le lien "Voir la
+  // carte" quand la carte n'est pas encore publiée.
+  const [previewToken, setPreviewToken] = useState(null);
   const logoInputRef = useRef(null);
 
   const publicUrl = userId ? `${window.location.origin}/menu/${userId}` : null;
+
+  useEffect(() => {
+    if (!open || menuSettings.published) { setPreviewToken(null); return; }
+    supabase.auth.getSession().then(({ data }) => setPreviewToken(data?.session?.access_token || null));
+  }, [open, menuSettings.published]);
 
   useEffect(() => {
     if (!open || !menuSettings.published || !publicUrl) { setQrDataUrl(null); return; }
@@ -650,8 +730,14 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
             </span>
           </label>
 
-          {menuSettings.published && (
-            <>
+          {/* [BUG confirmé et corrigé, 2026-08-30] Ce bloc entier (nom, logo, design, QR, aperçu)
+              n'était rendu QUE si la carte était déjà publiée — impossible de rien configurer (ni
+              même prévisualiser) avant de publier, ce qui est exactement l'inverse de l'ordre
+              logique (on règle, on vérifie, PUIS on publie). Rendu désormais dans tous les cas ;
+              seule la génération du QR code lui-même reste conditionnée à la publication (voir
+              plus bas) — un QR qui ne mène nulle part pour un vrai client n'aurait aucun intérêt
+              avant publication. */}
+          <>
               <div>
                 <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuRestaurantNameLabel")}</label>
                 <input
@@ -664,26 +750,34 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
               </div>
 
               <div>
-                <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1">{t("digitalMenuLogoLabel")}</label>
+                <label className="text-[10px] uppercase tracking-wide text-white/40 block mb-1.5">{t("digitalMenuLogoLabel")}</label>
                 <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoFile} />
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 overflow-hidden" style={{ background: "#16130F" }}>
-                    {menuSettings.logo ? <img src={menuSettings.logo} alt="" className="w-full h-full object-contain" /> : <Logo size={18} />}
+                {/* [AGRANDI, 2026-08-30] Un petit bouton texte à côté d'une pastille de 40px pour
+                    régler le logo — jugé trop discret par l'utilisateur ("c'est quand même
+                    important") vu que c'est ce que voient TOUS les clients qui scannent le QR
+                    code. Pastille et bouton nettement plus grands, bouton rempli (dégradé de
+                    marque) au lieu d'un simple contour. */}
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-white/10" style={{ background: "#16130F" }}>
+                    {menuSettings.logo ? <img src={menuSettings.logo} alt="" className="w-full h-full object-contain" /> : <Logo size={28} />}
                   </div>
-                  <button
-                    onClick={() => logoInputRef.current?.click()}
-                    className="text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40"
-                  >
-                    {t("digitalMenuLogoUpload")}
-                  </button>
-                  {menuSettings.logo && (
+                  <div className="flex-1 flex flex-col gap-1.5">
                     <button
-                      onClick={() => setMenuSettings({ ...menuSettings, logo: null })}
-                      className="text-[10px] uppercase tracking-wide text-white/40 hover:text-[#EF4444]"
+                      onClick={() => logoInputRef.current?.click()}
+                      className="text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-lg active:scale-95 transition-transform"
+                      style={{ background: BRAND_GRADIENT, color: "#fff" }}
                     >
-                      {t("digitalMenuLogoRemove")}
+                      {t("digitalMenuLogoUpload")}
                     </button>
-                  )}
+                    {menuSettings.logo && (
+                      <button
+                        onClick={() => setMenuSettings({ ...menuSettings, logo: null })}
+                        className="text-[11px] uppercase tracking-wide text-white/40 hover:text-[#EF4444] text-center"
+                      >
+                        {t("digitalMenuLogoRemove")}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {logoErr && <p className="text-[10px] text-[#EF4444] mt-1">{t("digitalMenuLogoError")}</p>}
               </div>
@@ -730,6 +824,10 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
                   </div>
                 ) : qrDataUrl ? (
                   <img src={qrDataUrl} alt="QR code" width={140} height={140} className="rounded" />
+                ) : !menuSettings.published ? (
+                  <div className="w-[140px] h-[140px] flex items-center justify-center text-center px-2">
+                    <span className="text-white/30 text-[10px] leading-relaxed">{t("digitalMenuQrAfterPublish")}</span>
+                  </div>
                 ) : null}
                 <div className="flex items-center gap-1.5 w-full">
                   <input readOnly value={publicUrl || ""} className="flex-1 min-w-0 bg-black/30 text-white/70 text-[11px] rounded px-2 py-1.5 outline-none truncate" />
@@ -748,7 +846,7 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
                     // l'écran d'accueil), puisque c'est un vrai lien cliquable, pas une dépendance
                     // au bouton retour du navigateur.
                     <a
-                      href={`${publicUrl}?preview=1`}
+                      href={`${publicUrl}?preview=1${!menuSettings.published && previewToken ? `&previewToken=${encodeURIComponent(previewToken)}` : ""}`}
                       className="text-[10px] uppercase tracking-wide text-white/50 hover:text-white underline"
                     >
                       {t("digitalMenuPreview")}
@@ -765,8 +863,7 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
                   )}
                 </div>
               </div>
-            </>
-          )}
+          </>
 
           <div>
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
@@ -818,6 +915,11 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
             </div>
           </div>
 
+          {/* [RÉORDONNÉ, 2026-08-30] L'ajout rapide d'article (boissons, etc.) passe AVANT la
+              liste des recettes — l'utilisateur devait jusqu'ici défiler toute la liste (parfois
+              longue) pour l'atteindre à chaque fois. */}
+          <SimpleItemsSection items={simpleItems} setItems={setSimpleItems} categories={categories} lang={lang} t={t} onConvert={onConvertToRecipe} />
+
           <div>
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
               <Globe size={11} />
@@ -826,15 +928,31 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
             {recipes.length === 0 ? (
               <p className="text-white/30 text-xs">{t("digitalMenuNoRecipes")}</p>
             ) : (
-              <div className="space-y-2">
-                {recipes.map((r) => (
-                  <MenuRecipeRow key={r.id} r={r} lang={lang} t={t} categories={categories} onUpdate={(patch) => updateRecipe(r.id, patch)} />
-                ))}
-              </div>
+              <>
+                {/* Filtre texte (2026-08-30) : liste jugée "hyper longue" par l'utilisateur dès
+                    qu'un compte a beaucoup de recettes — retrouver LA recette à cocher/modifier
+                    ne devrait pas obliger à tout parcourir. */}
+                {recipes.length > 6 && (
+                  <input
+                    type="text"
+                    value={recipeFilter}
+                    onChange={(e) => setRecipeFilter(e.target.value)}
+                    placeholder={t("digitalMenuRecipeFilterPlaceholder")}
+                    className="w-full bg-black/20 text-white text-xs rounded px-2.5 py-1.5 outline-none mb-2"
+                  />
+                )}
+                {/* Bornée en hauteur avec défilement propre (comme la liste d'articles simples
+                    juste au-dessus) plutôt que de laisser la fenêtre grandir indéfiniment. */}
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-0.5">
+                  {recipes
+                    .filter((r) => r.name.toLowerCase().includes(recipeFilter.trim().toLowerCase()))
+                    .map((r) => (
+                      <MenuRecipeRow key={r.id} r={r} lang={lang} t={t} categories={categories} onUpdate={(patch) => updateRecipe(r.id, patch)} />
+                    ))}
+                </div>
+              </>
             )}
           </div>
-
-          <SimpleItemsSection items={simpleItems} setItems={setSimpleItems} categories={categories} lang={lang} t={t} onConvert={onConvertToRecipe} />
         </div>
       </div>
   );

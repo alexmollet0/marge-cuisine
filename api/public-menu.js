@@ -28,7 +28,25 @@ export default async function handler(req, res) {
     const simpleItemsRaw = (data || []).find((r) => r.key === "simpleItems")?.value;
     const menuSettings = menuSettingsRaw ? JSON.parse(menuSettingsRaw) : null;
 
-    if (!menuSettings || menuSettings.published !== true) {
+    // Aperçu propriétaire (2026-08-30) : le bouton "Voir la carte" doit fonctionner même AVANT la
+    // publication (signalé par l'utilisateur comme une erreur bloquante) — sans ça, impossible de
+    // relire sa propre carte tant qu'on ne l'a pas rendue publique. `previewToken` est le jeton de
+    // session Supabase du compte connecté (passé en query, pas en header : cette page publique
+    // n'a pas de session côté client) ; on vérifie juste qu'il correspond bien au PROPRIÉTAIRE du
+    // compte demandé (`userId`) avant de lever la restriction "publiée uniquement" — un vrai client
+    // qui scanne un QR code n'a jamais ce jeton, donc reste toujours soumis au 404 normal.
+    const previewToken = typeof req.query.previewToken === "string" ? req.query.previewToken : null;
+    let isOwnerPreview = false;
+    if (previewToken) {
+      try {
+        const { data: authData } = await supabaseAdmin.auth.getUser(previewToken);
+        if (authData?.user?.id === userId) isOwnerPreview = true;
+      } catch {
+        // jeton invalide/expiré : retombe simplement sur le comportement public normal
+      }
+    }
+
+    if (!menuSettings || (menuSettings.published !== true && !isOwnerPreview)) {
       return res.status(404).json({ error: "not_published" });
     }
 
@@ -48,10 +66,13 @@ export default async function handler(req, res) {
 
     // Articles simples (2026-08-19, voir SimpleItemsSection côté client) : jamais des recettes,
     // mais transformés ici dans le MÊME format que les recettes déjà filtrées ci-dessus (allergènes
-    // et description toujours vides) — ainsi src/PublicMenu.jsx n'a besoin d'aucune logique
-    // supplémentaire pour les afficher, juste les concaténer dans la même liste. Toujours inclus
-    // (pas de case "menuIncluded" séparée) : leur seule raison d'exister est d'être sur la carte.
-    // Le coût d'achat éventuel (`cost`) n'est jamais renvoyé — ce n'est pas une donnée publique.
+    // toujours vides — un article simple n'a pas d'ingrédients à analyser) — ainsi src/PublicMenu.jsx
+    // n'a besoin d'aucune logique supplémentaire pour les afficher, juste les concaténer dans la
+    // même liste. Toujours inclus (pas de case "menuIncluded" séparée) : leur seule raison d'exister
+    // est d'être sur la carte. Le coût d'achat éventuel (`cost`) n'est jamais renvoyé — pas une
+    // donnée publique. `menuDescription` renvoyée depuis 2026-08-30 (ajoutée côté UI le même jour,
+    // voir SimpleItemRow) — jusqu'ici toujours vide en dur, un article simple ne pouvait avoir
+    // aucune description sur la carte publique, signalé par l'utilisateur comme un vrai manque.
     const simpleItems = simpleItemsRaw ? JSON.parse(simpleItemsRaw) : [];
     const includedSimple = simpleItems
       .filter((it) => it && it.name)
@@ -62,7 +83,7 @@ export default async function handler(req, res) {
         sellPrice: typeof it.sellPrice === "number" ? it.sellPrice : 0,
         allergens: "",
         allergenCodes: [],
-        menuDescription: {},
+        menuDescription: it.menuDescription && typeof it.menuDescription === "object" ? it.menuDescription : {},
         menuCategory: typeof it.menuCategory === "string" ? it.menuCategory : null,
       }));
 
