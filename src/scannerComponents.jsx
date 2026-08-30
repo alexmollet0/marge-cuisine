@@ -465,14 +465,15 @@ export function SimpleItemRow({ item, categories, lang, t, onUpdate, onRemove, o
   );
 }
 
-// [REFONTE 2026-08-30] Devenue LA section "plats" unique de la carte digitale — jusqu'ici deux
-// systèmes côte à côte (une longue liste de recettes à cocher, puis plus bas les "articles
-// simples") que l'utilisateur a jugés trop compliqués à gérer ensemble, d'autant que les
-// articles simples ont depuis gagné une description/traduction comme les recettes ("ce ne sont
-// plus des articles SIMPLES"). Une seule liste mélange maintenant les deux (recettes déjà
-// ajoutées + articles créés ici), avec DEUX façons d'ajouter un plat : la saisie rapide
-// (toujours là) et le nouveau sélecteur de recette existante juste en dessous.
-export function SimpleItemsSection({ items, setItems, recipes, updateRecipe, categories, lang, t, onConvert }) {
+// [REFONTE 2026-08-30, 2e passage] "Ajouter des plats" entièrement repensée — jugée "trop
+// d'infos, boutons pas assez visibles" par l'utilisateur. Ordre revu : (1) section active, sans
+// dupliquer la gestion des sections (repliée derrière une icône réglage), (2) les DEUX façons
+// d'ajouter un plat mises côte à côte avec le même poids visuel, (3) la liste de ce qui est déjà
+// sur la carte, en dernier — plus besoin de la parcourir pour ajouter quelque chose.
+export function SimpleItemsSection({
+  items, setItems, recipes, updateRecipe, categories, lang, t, onConvert,
+  moveCategory, removeCategory, addCategory, newCategoryName, setNewCategoryName,
+}) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   // [BUG confirmé et corrigé, 2026-08-30] Sans pastille de section active, `addItem` posait
@@ -485,6 +486,7 @@ export function SimpleItemsSection({ items, setItems, recipes, updateRecipe, cat
   // que l'assistant guidé (MenuWizard.jsx, `activeCat`), pour un comportement identique partout,
   // réutilisée aussi par le sélecteur de recette existante juste en dessous.
   const [activeCat, setActiveCat] = useState(categories[0]?.id || null);
+  const [manageSectionsOpen, setManageSectionsOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
   const nameRef = useRef(null);
@@ -523,48 +525,21 @@ export function SimpleItemsSection({ items, setItems, recipes, updateRecipe, cat
   };
 
   return (
-    <div>
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
-        <Package size={11} />
-        {t("digitalMenuDishesLabel")}
-      </div>
-
-      {dishRows.length > 0 && (
-        <div className="space-y-1.5 mb-3 max-h-72 overflow-y-auto pr-0.5">
-          {dishRows.map((row) =>
-            row.type === "recipe" ? (
-              <MenuRecipeRow
-                key={row.key}
-                r={row.data}
-                lang={lang}
-                t={t}
-                categories={categories}
-                onUpdate={(patch) => updateRecipe(row.data.id, patch)}
-                onRemove={() => updateRecipe(row.data.id, { menuIncluded: false })}
-              />
-            ) : (
-              <SimpleItemRow
-                key={row.key}
-                item={row.data}
-                categories={categories}
-                lang={lang}
-                t={t}
-                onUpdate={(patch) => updateItem(row.data.id, patch)}
-                onRemove={() => removeItem(row.data.id)}
-                onConvert={onConvert ? () => onConvert(row.data) : null}
-              />
-            )
-          )}
+    <div className="space-y-3">
+      {/* 1. Section active — UN SEUL endroit pour choisir la section (avant : dupliqué avec le
+          bloc "Sections de la carte" juste au-dessus dans DigitalMenuModal). Réorganiser/
+          supprimer une section reste possible, mais replié derrière l'icône réglage — une action
+          rare, pas besoin de l'avoir toujours sous les yeux. */}
+      <div>
+        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-1.5">
+          <Tags size={11} /> {t("digitalMenuCategoriesLabel")}
         </div>
-      )}
-
-      {categories.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {categories.map((c) => (
             <button
               key={c.id}
               onClick={() => setActiveCat(c.id)}
-              className="px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors"
+              className="px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition-colors"
               style={
                 activeCat === c.id
                   ? { background: BRAND_GRADIENT, color: "#fff" }
@@ -574,78 +549,165 @@ export function SimpleItemsSection({ items, setItems, recipes, updateRecipe, cat
               {categoryLabel(c, lang)}
             </button>
           ))}
+          <button
+            onClick={() => setManageSectionsOpen((v) => !v)}
+            className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center border border-white/15 text-white/40 hover:text-white/70 hover:border-white/30"
+            title={t("digitalMenuManageSections")}
+          >
+            <Pencil size={11} />
+          </button>
         </div>
-      )}
-      <p className="text-[10px] text-white/30 mb-1.5">{t("digitalMenuSimpleItemsHint")}</p>
-      <div className="flex items-center gap-1.5">
-        <input
-          ref={nameRef}
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
-          placeholder={t("digitalMenuSimpleItemNamePlaceholder")}
-          className="flex-1 min-w-0 bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none"
-        />
-        <input
-          type="text"
-          inputMode="decimal"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
-          placeholder="€"
-          className="w-16 bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none text-right"
-        />
-        <button
-          onClick={addItem}
-          className="shrink-0 text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40"
-        >
-          {t("digitalMenuCategoryAdd")}
-        </button>
+        {manageSectionsOpen && (
+          <div className="mt-2 space-y-1.5 rounded-lg p-2.5 border border-white/10" style={{ background: "#16130F" }}>
+            <div className="space-y-1">
+              {categories.map((c, i) => (
+                <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-white/70 bg-black/20 rounded-lg pl-1 pr-2.5 py-1">
+                  <div className="flex flex-col shrink-0">
+                    <button onClick={() => moveCategory(i, -1)} disabled={i === 0} className="text-white/30 hover:text-white disabled:opacity-20 leading-none">
+                      <ChevronUp size={11} />
+                    </button>
+                    <button onClick={() => moveCategory(i, 1)} disabled={i === categories.length - 1} className="text-white/30 hover:text-white disabled:opacity-20 leading-none">
+                      <ChevronDown size={11} />
+                    </button>
+                  </div>
+                  <span className="flex-1 min-w-0 truncate">{categoryLabel(c, lang)}</span>
+                  <button onClick={() => removeCategory(c.id)} className="text-white/30 hover:text-[#EF4444] shrink-0">
+                    <X size={10} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
+                placeholder={t("digitalMenuCategoryAddPlaceholder")}
+                className="flex-1 min-w-0 bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none"
+              />
+              <button
+                onClick={addCategory}
+                disabled={!newCategoryName.trim()}
+                className="shrink-0 text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40 disabled:opacity-40"
+              >
+                {t("digitalMenuCategoryAdd")}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* [AJOUT 2026-08-30] "Sélection de recette déjà existante" — demandé explicitement pour ne
-          plus avoir à faire défiler une longue liste de recettes à cocher (ancien comportement) :
-          un simple champ de recherche parmi les recettes pas encore sur la carte, un clic ajoute. */}
-      <div className="mt-2">
-        {pickerOpen ? (
-          <div className="rounded-lg p-2 border border-white/10" style={{ background: "#16130F" }}>
-            <input
-              autoFocus
-              type="text"
-              value={pickerQuery}
-              onChange={(e) => setPickerQuery(e.target.value)}
-              placeholder={t("digitalMenuRecipeFilterPlaceholder")}
-              className="w-full bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none mb-1.5"
-            />
-            {pickableRecipes.length === 0 ? (
-              <p className="text-white/25 text-[10px] px-1 py-1.5">{t("digitalMenuNoPickableRecipes")}</p>
-            ) : (
-              <div className="max-h-40 overflow-y-auto space-y-0.5">
-                {pickableRecipes.map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={() => addExistingRecipe(r)}
-                    className="w-full flex items-center gap-1.5 text-left text-[11px] text-white/80 hover:bg-white/10 rounded px-2 py-1.5"
-                  >
-                    <ChefHat size={11} className="shrink-0 text-white/25" />
-                    <span className="flex-1 min-w-0 truncate">{r.name}</span>
-                    <Plus size={11} className="shrink-0 text-white/30" />
-                  </button>
-                ))}
-              </div>
-            )}
-            <button onClick={() => { setPickerOpen(false); setPickerQuery(""); }} className="text-[10px] text-white/30 hover:text-white/60 mt-1.5">
-              {t("cancelLabel")}
-            </button>
-          </div>
-        ) : (
+      {/* 2. Les deux façons d'ajouter un plat, même poids visuel, textes simplifiés — l'ancien
+          texte ("pour ce qui est revendu tel quel...") ne voulait plus rien dire depuis qu'on
+          peut ajouter n'importe quel plat ici, pas seulement une boisson revendue telle quelle. */}
+      <div className="rounded-lg p-3 space-y-2" style={{ background: "#16130F" }}>
+        <div className="text-[10px] uppercase tracking-wide text-white/40">{t("digitalMenuQuickAddLabel")}</div>
+        <div className="flex items-center gap-1.5">
+          <input
+            ref={nameRef}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+            placeholder={t("digitalMenuSimpleItemNamePlaceholder")}
+            className="flex-1 min-w-0 bg-black/20 text-white text-[11px] rounded px-2 py-2 outline-none"
+          />
+          <input
+            type="text"
+            inputMode="decimal"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+            placeholder="€"
+            className="w-16 bg-black/20 text-white text-[11px] rounded px-2 py-2 outline-none text-right"
+          />
           <button
-            onClick={() => setPickerOpen(true)}
-            className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/50 hover:text-white"
+            onClick={addItem}
+            className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center active:scale-95 transition-transform"
+            style={{ background: BRAND_GRADIENT, color: "#fff" }}
           >
-            <Search size={11} /> {t("digitalMenuPickRecipeButton")}
+            <Plus size={16} />
           </button>
+        </div>
+      </div>
+
+      {pickerOpen ? (
+        <div className="rounded-lg p-3 border border-white/10" style={{ background: "#16130F" }}>
+          <div className="text-[10px] uppercase tracking-wide text-white/40 mb-1.5">{t("digitalMenuPickRecipeButton")}</div>
+          <input
+            autoFocus
+            type="text"
+            value={pickerQuery}
+            onChange={(e) => setPickerQuery(e.target.value)}
+            placeholder={t("digitalMenuRecipeFilterPlaceholder")}
+            className="w-full bg-black/20 text-white text-xs rounded px-2.5 py-2 outline-none mb-1.5"
+          />
+          {pickableRecipes.length === 0 ? (
+            <p className="text-white/25 text-[11px] px-1 py-2">{t("digitalMenuNoPickableRecipes")}</p>
+          ) : (
+            <div className="max-h-40 overflow-y-auto space-y-1">
+              {pickableRecipes.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => addExistingRecipe(r)}
+                  className="w-full flex items-center gap-2 text-left text-xs text-white/85 hover:bg-white/10 rounded-lg px-2.5 py-2"
+                >
+                  <ChefHat size={13} className="shrink-0 text-white/30" />
+                  <span className="flex-1 min-w-0 truncate">{r.name}</span>
+                  <Plus size={13} className="shrink-0 text-white/40" />
+                </button>
+              ))}
+            </div>
+          )}
+          <button onClick={() => { setPickerOpen(false); setPickerQuery(""); }} className="text-[11px] text-white/30 hover:text-white/60 mt-2">
+            {t("cancelLabel")}
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setPickerOpen(true)}
+          className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-lg border border-white/15 text-white/70 hover:border-white/30"
+        >
+          <Search size={13} /> {t("digitalMenuPickRecipeButton")}
+        </button>
+      )}
+
+      {/* 3. Ce qui est déjà sur la carte, en dernier. */}
+      <div>
+        <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
+          <Package size={11} />
+          {t("digitalMenuDishesLabel")} {dishRows.length > 0 && `(${dishRows.length})`}
+        </div>
+        {dishRows.length === 0 ? (
+          <p className="text-white/25 text-xs">{t("digitalMenuNoDishesYet")}</p>
+        ) : (
+          <div className="space-y-1.5 max-h-72 overflow-y-auto pr-0.5">
+            {dishRows.map((row) =>
+              row.type === "recipe" ? (
+                <MenuRecipeRow
+                  key={row.key}
+                  r={row.data}
+                  lang={lang}
+                  t={t}
+                  categories={categories}
+                  onUpdate={(patch) => updateRecipe(row.data.id, patch)}
+                  onRemove={() => updateRecipe(row.data.id, { menuIncluded: false })}
+                />
+              ) : (
+                <SimpleItemRow
+                  key={row.key}
+                  item={row.data}
+                  categories={categories}
+                  lang={lang}
+                  t={t}
+                  onUpdate={(patch) => updateItem(row.data.id, patch)}
+                  onRemove={() => removeItem(row.data.id)}
+                  onConvert={onConvert ? () => onConvert(row.data) : null}
+                />
+              )
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -983,72 +1045,26 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
         {/* 5. AJOUTER DES PLATS */}
         <AccordionButton icon={Package} label={t("digitalMenuAddDishesButton")} open={addDishesOpen} onClick={() => setAddDishesOpen((v) => !v)} />
         {addDishesOpen && (
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/40 mb-2">
-                <Tags size={11} />
-                {t("digitalMenuCategoriesLabel")}
-              </div>
-              <div className="space-y-1 mb-2">
-                {categories.map((c, i) => (
-                  <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-white/70 bg-black/20 rounded-lg pl-1 pr-2.5 py-1">
-                    <div className="flex flex-col shrink-0">
-                      <button
-                        onClick={() => moveCategory(i, -1)}
-                        disabled={i === 0}
-                        className="text-white/30 hover:text-white disabled:opacity-20 disabled:hover:text-white/30 leading-none"
-                      >
-                        <ChevronUp size={11} />
-                      </button>
-                      <button
-                        onClick={() => moveCategory(i, 1)}
-                        disabled={i === categories.length - 1}
-                        className="text-white/30 hover:text-white disabled:opacity-20 disabled:hover:text-white/30 leading-none"
-                      >
-                        <ChevronDown size={11} />
-                      </button>
-                    </div>
-                    <span className="flex-1 min-w-0 truncate">{categoryLabel(c, lang)}</span>
-                    <button onClick={() => removeCategory(c.id)} className="text-white/30 hover:text-[#EF4444] shrink-0">
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCategory(); } }}
-                  placeholder={t("digitalMenuCategoryAddPlaceholder")}
-                  className="flex-1 min-w-0 bg-black/20 text-white text-[11px] rounded px-2 py-1.5 outline-none"
-                />
-                <button
-                  onClick={addCategory}
-                  disabled={!newCategoryName.trim()}
-                  className="shrink-0 text-[10px] uppercase tracking-wide px-2.5 py-1.5 rounded border border-white/20 text-white/70 hover:border-white/40 disabled:opacity-40"
-                >
-                  {t("digitalMenuCategoryAdd")}
-                </button>
-              </div>
-            </div>
-
-            {/* Une seule section "plats" — plus deux listes séparées (recettes cochées d'un côté,
-                articles simples de l'autre) jugées trop compliquées à gérer ensemble par
-                l'utilisateur. `SimpleItemsSection` gère la liste unifiée + les deux façons
-                d'ajouter un plat (saisie rapide, ou recette déjà existante). */}
-            <SimpleItemsSection
-              items={simpleItems}
-              setItems={setSimpleItems}
-              recipes={recipes}
-              updateRecipe={updateRecipe}
-              categories={categories}
-              lang={lang}
-              t={t}
-              onConvert={onConvertToRecipe}
-            />
-          </div>
+          // [REFONTE 2026-08-30, 2e passage] Jugée "trop d'infos, boutons pas assez visibles" —
+          // la gestion des sections (reorder/suppression) vivait ici EN DOUBLE avec la pastille
+          // de sélection à l'intérieur de SimpleItemsSection. Tout est maintenant réuni dans
+          // SimpleItemsSection (une seule pastille de section, réorganiser replié derrière une
+          // icône), ce bloc ne fait plus que lui transmettre ce dont elle a besoin.
+          <SimpleItemsSection
+            items={simpleItems}
+            setItems={setSimpleItems}
+            recipes={recipes}
+            updateRecipe={updateRecipe}
+            categories={categories}
+            lang={lang}
+            t={t}
+            onConvert={onConvertToRecipe}
+            moveCategory={moveCategory}
+            removeCategory={removeCategory}
+            addCategory={addCategory}
+            newCategoryName={newCategoryName}
+            setNewCategoryName={setNewCategoryName}
+          />
         )}
       </div>
     </div>

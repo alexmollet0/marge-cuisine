@@ -4508,23 +4508,6 @@ export default function App() {
                 <ArrowLeft size={14} /> {t("recipes")}
               </button>
               <div className="flex items-center gap-2.5">
-                {/* [AJOUT 2026-08-30] Demandé par l'utilisateur : ajouter une recette à la carte
-                    digitale directement depuis sa fiche, sans passer par la longue liste à cocher
-                    de l'onglet Carte digitale. Ouvre une petite confirmation (choix de section)
-                    plutôt qu'un ajout silencieux en un clic — même prudence que partout ailleurs
-                    dans l'app pour une action qui rend quelque chose public. */}
-                {active.menuIncluded ? (
-                  <span className="flex items-center gap-1.5 text-xs font-display uppercase tracking-wide" style={{ color: "#10B981" }}>
-                    <QrCode size={13} /> {t("onMenuLabel")}
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => { setAddToMenuSection(menuCategories[0]?.id || null); setAddToMenuModalOpen(true); }}
-                    className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#C9793B] font-display uppercase tracking-wide"
-                  >
-                    <QrCode size={13} /> {t("addToMenuButton")}
-                  </button>
-                )}
                 <button onClick={() => setLossModalOpen(true)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#C9793B] font-display uppercase tracking-wide">
                   <Percent size={13} /> {t("declareLossesButton")}
                 </button>
@@ -4822,6 +4805,27 @@ export default function App() {
                 <div className="flex justify-between text-black/50 text-xs">
                   <span>{t("sellPriceHT")} ({t("vat")} {vatRate}%)</span>
                   <span>{sellHT.toFixed(2)}€</span>
+                </div>
+                {/* [DÉPLACÉ 2026-08-30] Vivait avant dans l'en-tête de la fiche, au milieu de
+                    "Pertes à la découpe"/"Dupliquer"/"Imprimer" — jugé "moche" sur mobile
+                    (rangée surchargée). Repositionné ici, juste sous le prix de vente, avec le
+                    même style que le bouton "Mettre à jour sur la carte" juste en dessous —
+                    demandé explicitement par l'utilisateur. Toujours visible (pas conditionné à
+                    une marge calculable), contrairement au panneau "en un coup d'œil" plus haut. */}
+                <div className="flex justify-between items-center pt-1.5">
+                  {active.menuIncluded ? (
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#10B981" }}>
+                      <QrCode size={11} className="shrink-0" /> {t("onMenuLabel")}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => { setAddToMenuSection(menuCategories[0]?.id || null); setAddToMenuModalOpen(true); }}
+                      className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full"
+                      style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                    >
+                      <QrCode size={11} /> {t("addToMenuButton")}
+                    </button>
+                  )}
                 </div>
                 {/* [REFONTE 2026-08-30] Le simple avertissement passif ("attention, ce prix est
                     aussi celui affiché en direct") est remplacé par un vrai bouton d'action —
