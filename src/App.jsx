@@ -155,7 +155,6 @@ export default function App() {
   // qu'un simple booléen, pour ne jamais afficher le message sur la mauvaise recette si on
   // navigue vite entre deux fiches juste après avoir cliqué.
   const [menuPricePushedId, setMenuPricePushedId] = useState(null);
-  const [hidePricesPrint, setHidePricesPrint] = useState(false);
   const [allergenSheetOpen, setAllergenSheetOpen] = useState(false);
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
   const [recipeSubView, setRecipeSubView] = useState("list"); // 'list' | 'detail'
@@ -454,6 +453,19 @@ export default function App() {
   const lineCost = (line) => {
     const ing = ingredientById(line.ingredientId);
     return ing ? effectiveUnitPrice(ing) * line.qty : 0;
+  };
+
+  // Quantité formatée pour la liste d'ingrédients IMPRIMÉE (2026-08-31) — même logique d'affichage
+  // que QtyField (g/mL en dessous de 1 kg/L, sinon kg/L), mais en simple texte plutôt qu'un champ
+  // éditable : c'est ce qui rend la fiche imprimée compacte et lisible comme une vraie fiche de
+  // cuisine, au lieu de réutiliser les champs de saisie (pensés pour l'écran, pas le papier).
+  const formatLineQty = (qty, unit) => {
+    const isSmallUnit = unit === "kg" || unit === "L";
+    const small = isSmallUnit && (qty || 0) < 1;
+    const factor = isSmallUnit && small ? 1000 : 1;
+    const displayUnit = isSmallUnit ? (small ? (unit === "kg" ? "g" : "mL") : unit) : unitDisplayLabel(unit || "", t);
+    const val = Math.round((qty || 0) * factor * 100) / 100;
+    return `${val} ${displayUnit}`;
   };
 
   // Vrai si au moins une ligne de cette recette a une quantité saisie dans une unité qui a changé
@@ -1093,12 +1105,17 @@ export default function App() {
   };
 
   const handlePrint = () => window.print();
+  // [BUG confirmé et corrigé, 2026-08-31] "Imprimer la fiche recette" affichait parfois quand même
+  // le prix/la marge — signalé par l'utilisateur. Cause : la version précédente passait par un état
+  // React (`hidePricesPrint`) + un `setTimeout(50ms)` en espérant que le re-rendu ait eu le temps de
+  // s'appliquer avant `window.print()` — un pari qui pouvait échouer selon la rapidité du rendu
+  // (mobile en particulier). `document.body.classList` est une mutation DOM directe et SYNCHRONE :
+  // aucune attente nécessaire, le navigateur recalcule les styles avant même d'ouvrir l'aperçu
+  // d'impression. Voir la règle CSS `body.hide-prices-print .price-field`.
   const handlePrintRecipeSheet = () => {
-    setHidePricesPrint(true);
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => setHidePricesPrint(false), 500);
-    }, 50);
+    document.body.classList.add("hide-prices-print");
+    window.print();
+    document.body.classList.remove("hide-prices-print");
   };
 
   // --- Scan de facture ---
@@ -2780,7 +2797,7 @@ export default function App() {
             box-shadow: none; border-radius: 0; background: #fff; max-width: 190mm;
           }
           .allergen-sheet { position: absolute; top: 0; left: 0; right: 0; margin: 0 auto; }
-          .hide-prices .price-field { display: none !important; }
+          body.hide-prices-print .price-field { display: none !important; }
         }
         @media (max-width: 1024px) { .grid-main { grid-template-columns: 1fr !important; } }
         /* Empêche le zoom automatique de Safari mobile sur les champs de saisie
@@ -4612,14 +4629,14 @@ export default function App() {
             {/* Pleine largeur et police du corps de l'app à la place de `max-w-md` + `font-mono` :
                 la chasse fixe et la colonne étroite étaient là pour imiter un ticket de caisse,
                 elles ne faisaient que rendre la fiche moins lisible et plus longue à parcourir. */}
-            <div className={`ticket px-4 sm:px-8 py-7 sm:py-9 w-full font-body text-[15px] ${hidePricesPrint ? "hide-prices" : ""}`}>
+            <div className="ticket px-4 sm:px-8 py-7 sm:py-9 print:py-4 w-full font-body text-[15px]">
               <input
                 ref={recipeNameInputRef}
                 value={active.name}
                 onChange={(e) => updateRecipe({ name: e.target.value })}
-                className="w-full bg-transparent font-display text-2xl sm:text-3xl uppercase tracking-wide mb-2 outline-none text-center border-b border-black/10 pb-3"
+                className="w-full bg-transparent font-display text-2xl sm:text-3xl uppercase tracking-wide mb-2 print:mb-1 outline-none text-center border-b border-black/10 pb-3 print:pb-1.5"
               />
-              <div className="flex justify-center mb-2">
+              <div className="flex justify-center mb-2 print:mb-1">
                 <div
                   className="flex items-center gap-2 rounded-lg px-3 py-1.5"
                   style={{ background: `${TIER_COLORS.mid}18`, border: `1.5px solid ${TIER_COLORS.mid}70` }}
@@ -4661,7 +4678,7 @@ export default function App() {
                 </div>
               )}
 
-              <div className="text-center text-[10px] text-black/40 mb-4">{t("createdOn")} {active.createdAt || today()}</div>
+              <div className="text-center text-[10px] text-black/40 mb-4 print:mb-2">{t("createdOn")} {active.createdAt || today()}</div>
               {active.isExample && (
                 <div className="flex justify-center -mt-3 mb-4 print:hidden">
                   <span className="text-[9px] uppercase tracking-widest px-2.5 py-1 rounded-full font-bold" style={{ background: "#3B82F622", color: "#3B82F6" }}>
@@ -4675,7 +4692,33 @@ export default function App() {
                   recette exemple doit rester lisible d'un coup d'œil dès l'arrivée, sans clic
                   supplémentaire pour comprendre sa structure. */}
               <div className="text-[10px] uppercase tracking-wide text-black/40 mt-2">{t("ingredientsSectionLabel")}</div>
-              <div className="border-t border-b border-black/10 py-4 space-y-2.5">
+              {/* [COMPACT PRINT, 2026-08-31] Liste imprimée séparée de la liste éditable ci-dessous
+                  (print:hidden) — demandé par l'utilisateur : la fiche imprimée réutilisait les
+                  champs de saisie pensés pour l'écran (menus déroulants, boutons supprimer/éditer,
+                  grands espacements tactiles), ce qui la rendait à la fois moins compacte et moins
+                  soignée qu'une vraie fiche de cuisine. Simple texte, mise en page nom/quantité,
+                  prix affiché uniquement si présent dans .price-field (donc masqué pour "Imprimer
+                  la fiche recette", visible pour "Imprimer (avec prix)" — même mécanisme que le
+                  reste de la fiche). */}
+              {active.lines.length > 0 && (
+                <div className="hidden print:block border-t border-b border-black/15 py-3">
+                  {active.lines.map((line, idx) => {
+                    const ing = ingredientById(line.ingredientId);
+                    if (!ing) return null;
+                    return (
+                      <div key={idx} className="flex items-baseline justify-between gap-3 py-0.5 text-[13px]">
+                        <span className="min-w-0">{ingredientDisplayName(ing)}</span>
+                        <span className="flex-1 border-b border-dotted border-black/25 mx-1 translate-y-[-3px]" />
+                        <span className="shrink-0 font-medium whitespace-nowrap">
+                          {formatLineQty(line.qty, ing.unit)}
+                          <span className="price-field text-black/50"> · {lineCost(line).toFixed(2)}€</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="border-t border-b border-black/10 py-4 space-y-2.5 print:hidden">
                 {/* Ajout rapide en TÊTE de liste : c'est le geste le plus fréquent quand on
                     construit une recette, il doit être le premier sous la main. */}
                 <QuickAddLine
