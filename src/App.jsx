@@ -33,7 +33,7 @@ import {
   ScanNameChoice, PricingCalculator, MenuRecipeRow, SimpleItemRow, SimpleItemsSection,
   DigitalMenuModal, ScanItemCard,
 } from "./scannerComponents.jsx";
-import { marginMessage, InstallDiagram, AdminDashboard, FirstRunWizard, FirstRunScanDemo, SCAN_ERR_CODES } from "./adminAndOnboarding.jsx";
+import { marginMessage, InstallDiagram, AdminDashboard, AppTutorial, SCAN_ERR_CODES } from "./adminAndOnboarding.jsx";
 import { MenuWizard } from "./MenuWizard.jsx";
 import {
   Plus,
@@ -82,21 +82,11 @@ import {
   RefreshCw,
   MailWarning,
   Info,
-  Sparkles,
+  HelpCircle,
 } from "lucide-react";
 
 
 
-
-// [WOW ONBOARDING, 2026-08-31] Deux ingrédients "trouvés" par la fausse facture de démo juste
-// après la création du premier plat (voir FirstRunScanDemo) — mêmes id que le vrai catalogue
-// (cohérence des noms traduits + unité + catégorie avec le garde-manger), prix et quantités fixes
-// choisis pour donner un coût plausible quel que soit le prix de vente saisi. Aucun appel réseau/IA
-// : l'objectif est un résultat instantané et garanti, pas une vraie extraction.
-const FIRST_RUN_DEMO_DATA = [
-  { catalogId: "boeuf", unit: "kg", category: "viandes", price: 11.9, qty: 0.15 },
-  { catalogId: "oignons", unit: "kg", category: "legumes", price: 1.8, qty: 0.05 },
-];
 
 export function marginTier(m, minMargin) {
   if (m === null || m === undefined) return null;
@@ -172,17 +162,13 @@ export default function App() {
   const [portalErr, setPortalErr] = useState("");
   const [showMarginLegend, setShowMarginLegend] = useState(false);
   const [ready, setReady] = useState(false);
-  // Premier lancement guidé (2026-08-27). `null` = pas encore lu depuis le stockage : tant qu'on
-  // ne sait pas, on n'affiche RIEN — afficher l'assistant à un utilisateur qui l'a déjà fait
-  // serait bien pire que de ne pas l'afficher du tout à un nouveau.
+  // Tutoriel de premier lancement (2026-08-27, refondu en tuto informatif le 2026-08-31). `null` =
+  // pas encore lu depuis le stockage : tant qu'on ne sait pas, on n'affiche RIEN — l'afficher à un
+  // utilisateur qui l'a déjà vu serait bien pire que de ne pas l'afficher du tout à un nouveau.
   const [firstRunDone, setFirstRunDone] = useState(null);
-  // Étape 2 du premier lancement (2026-08-31) : juste après avoir créé son premier plat, montre
-  // l'effet d'un scan de facture (démo simulée) au lieu de le laisser seul sur une fiche vide —
-  // voir FirstRunScanDemo. `wowMoment` déclenche un bref halo sur le panneau marge de la fiche
-  // recette quand la démo vient de remplir ses ingrédients, pour que l'effet soit visible même
-  // sans avoir suivi l'animation de la démo elle-même.
-  const [firstRunScanStepOpen, setFirstRunScanStepOpen] = useState(false);
-  const [wowMoment, setWowMoment] = useState(false);
+  // Réouverture volontaire du tuto depuis "Mon compte" (2026-08-31) — indépendante de firstRunDone,
+  // qui ne doit changer qu'au tout premier affichage automatique.
+  const [tutorialOpen, setTutorialOpen] = useState(false);
   const [loadErr, setLoadErr] = useState(false);
   const [savedPulse, setSavedPulse] = useState(false);
 
@@ -473,96 +459,23 @@ export default function App() {
     });
 
   // Compte encore totalement vierge : la seule recette est la démo non modifiée ET aucun prix réel
-  // n'a jamais été saisi ou scanné. Condition volontairement stricte — mieux vaut rater l'assistant
+  // n'a jamais été saisi ou scanné. Condition volontairement stricte — mieux vaut rater le tuto
   // pour quelqu'un qui a déjà touché à un truc que l'imposer à un utilisateur installé.
   const looksBrandNew =
     recipes.length <= 1 &&
     (recipes.length === 0 || isPristineSeedRecipe(recipes[0])) &&
     ingredients.every((i) => (activeSupplier(i)?.priceSource || "estimate") === "estimate");
-  const showFirstRun = ready && firstRunDone === false && looksBrandNew;
+  // [TUTO, 2026-08-31] Le premier lancement ne force plus AUCUNE création de recette (jugé "chiant"
+  // après test réel de la v1 — voir docs/HISTORIQUE-FONCTIONNALITES.md) : un compte neuf garde sa
+  // recette de démo telle quelle (jamais imposée, jamais mise en avant de force), et voit à la
+  // place un tutoriel purement informatif (voir AppTutorial), rouvrable à tout moment depuis "Mon
+  // compte" (`tutorialOpen`) — même mécanisme de fermeture (`closeTutorial`) dans les deux cas.
+  const showTutorial = ready && firstRunDone === false && looksBrandNew;
 
-  const closeFirstRun = () => {
+  const closeTutorial = () => {
     setFirstRunDone(true);
     storage.set("firstRunDone", JSON.stringify(true)).catch(() => {});
-  };
-
-  // Crée la recette vide (nom + prix de vente) et ouvre sa fiche : c'est là que le chef ajoutera
-  // ses ingrédients, avec la vraie interface — voir le commentaire de FirstRunWizard pour pourquoi
-  // on ne construit plus d'éditeur d'ingrédients séparé. La recette n'a volontairement AUCUNE
-  // ligne : grâce au correctif de , elle n'affiche donc pas de marge tant qu'aucun
-  // ingrédient n'est saisi, au lieu d'un 100% absurde.
-  const finishFirstRun = ({ dishName, sellPrice }) => {
-    const newRecipe = {
-      id: uid(),
-      name: dishName || t('newRecipeName'),
-      // 1 portion : le chef a saisi le prix de vente d'UNE assiette.
-      portions: 1,
-      sellPrice: sellPrice || 0,
-      targetMargin: settings.minMargin ?? 75,
-      notes: '',
-      allergens: '',
-      allergensAuto: true,
-      createdAt: today(),
-      lines: [],
-    };
-    setRecipes((rs) => [...rs, newRecipe]);
-    setActiveId(newRecipe.id);
-    setActiveTab('recipes');
-    setRecipeSubView('detail');
-    closeFirstRun();
-    // Enchaîne sur la démo de scan (voir FirstRunScanDemo) plutôt que de laisser le chef seul
-    // face à une fiche vide — objectif explicite : un effet "wahou" dans les 2 premières minutes.
-    setFirstRunScanStepOpen(true);
-    logActivity('recipe_created', { name: newRecipe.name, source: 'first_run' });
-  };
-
-  // Résout les 2 ingrédients de démo dans la langue active — recalculé à chaque rendu (négligeable,
-  // 2 entrées) plutôt que mémoïsé, pour rester trivialement correct si la langue change en cours de
-  // route pendant que la démo est affichée.
-  const firstRunDemoItems = FIRST_RUN_DEMO_DATA.map((d) => ({
-    ...d,
-    name: CATALOG.find((c) => c.id === d.catalogId)?.[lang] || d.catalogId,
-    priceLabel: `${d.price.toFixed(2)}€/${d.unit}`,
-  }));
-
-  const closeFirstRunScanStep = () => setFirstRunScanStepOpen(false);
-
-  // Ajoute les 2 ingrédients de démo au garde-manger ET comme lignes du plat qu'on vient de créer —
-  // c'est ce qui rend la marge visible immédiatement en arrivant sur la fiche recette (voir
-  // `margin !== null`, panneau "en un coup d'œil"). Aucun appel réseau : contrairement à un vrai
-  // scan, cette action ne doit jamais pouvoir échouer.
-  const finishFirstRunDemo = () => {
-    const recipeId = activeId;
-    const newIngredients = firstRunDemoItems.map((item) => {
-      const sId = uid();
-      return {
-        id: uid(),
-        name: item.name,
-        unit: item.unit,
-        catalogId: item.catalogId,
-        category: item.category,
-        selectedSupplierId: sId,
-        suppliers: [{ id: sId, name: t('supplier'), price: item.price, priceSource: 'manual' }],
-        history: [],
-        lastUpdated: today(),
-      };
-    });
-    setIngredients((ings) => [...ings, ...newIngredients]);
-    const newLines = newIngredients.map((ing, i) => ({ ingredientId: ing.id, qty: firstRunDemoItems[i].qty, unitAtEntry: ing.unit }));
-    setRecipes((rs) => rs.map((r) => (r.id === recipeId ? { ...r, lines: [...r.lines, ...newLines] } : r)));
-    closeFirstRunScanStep();
-    setWowMoment(true);
-    setTimeout(() => setWowMoment(false), 4000);
-    // meta.demo:true pour ne jamais fausser les vraies statistiques de scan du tableau de bord.
-    logActivity('scan_invoice', { demo: true, foodItems: newIngredients.length, source: 'first_run' });
-  };
-
-  // "Scanner ma vraie facture maintenant" depuis la démo : on ne déclenche jamais le sélecteur de
-  // fichier par programme (peu fiable selon les navigateurs) — on amène simplement le chef sur
-  // l'onglet Scanner, déjà prêt avec ses boutons "prendre une photo"/"choisir un fichier".
-  const skipDemoToRealScan = () => {
-    closeFirstRunScanStep();
-    setActiveTab('scanner');
+    setTutorialOpen(false);
   };
 
   // [PONT CARTE DIGITALE → MARGE, 2026-08-27] Transforme un article simple de la carte (nom + prix,
@@ -2998,6 +2911,13 @@ export default function App() {
                 <Smartphone size={12} /> {t("installAppButton")}
               </button>
             )}
+            {/* Réouverture volontaire du tuto (2026-08-31) — voir AppTutorial/tutorialOpen. */}
+            <button
+              onClick={() => { setAccountMenuOpen(false); setTutorialOpen(true); }}
+              className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B] flex items-center justify-center gap-2 mb-2"
+            >
+              <HelpCircle size={12} /> {t("reopenTutorialButton")}
+            </button>
             <button onClick={() => setAccountMenuOpen(false)} className="w-full text-xs font-display uppercase tracking-wide py-2 rounded border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]">
               {t("close")}
             </button>
@@ -4621,26 +4541,10 @@ export default function App() {
                 inchangé plus bas, avec sa légende/suggestion — ce panneau est un résumé, pas un
                 remplacement). print:hidden : la fiche imprimée a déjà son propre bloc marge. */}
             {margin !== null && (
-              <div className="print:hidden mb-4">
-                {/* [WOW ONBOARDING, 2026-08-31] Halo temporaire (4s, voir finishFirstRunDemo) quand
-                    la marge vient d'apparaître grâce à la démo de scan — sans lui, rien ne
-                    distinguerait "j'ai rempli ça moi-même" de "un scan vient de le faire". */}
-                {wowMoment && (
-                  <div className="flex items-center gap-1.5 mb-2 text-[11px] font-semibold animate-pulse" style={{ color: BRAND_SOLID }}>
-                    <Sparkles size={12} /> {t("wowMomentHint")}
-                  </div>
-                )}
-                <div
-                  className="rounded-2xl p-4 flex items-center gap-4 border"
-                  style={{
-                    background: "#201B15",
-                    borderColor: wowMoment ? BRAND_SOLID : "rgba(255,255,255,0.1)",
-                    boxShadow: wowMoment
-                      ? `0 0 0 3px ${BRAND_SOLID}40, inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 22px rgba(0,0,0,0.25)`
-                      : "inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 22px rgba(0,0,0,0.25)",
-                    transition: "box-shadow 0.6s ease, border-color 0.6s ease",
-                  }}
-                >
+              <div
+                className="print:hidden rounded-2xl p-4 mb-4 flex items-center gap-4 border border-white/10"
+                style={{ background: "#201B15", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 22px rgba(0,0,0,0.25)" }}
+              >
                 <div className="relative w-[72px] h-[72px] shrink-0">
                   <svg width="72" height="72" viewBox="0 0 72 72">
                     <circle cx="36" cy="36" r="30" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" />
@@ -4671,7 +4575,6 @@ export default function App() {
                     <span className="text-white/45">{t("portions")}</span>
                     <span className="text-white font-semibold font-mono">{active.portions}</span>
                   </div>
-                </div>
                 </div>
               </div>
             )}
@@ -5459,21 +5362,12 @@ export default function App() {
         )}
       </main>
 
-      {/* Premier lancement guidé — voir FirstRunWizard. Rendu par-dessus tout le reste, mais
-          uniquement sur un compte encore totalement vierge (voir looksBrandNew) et jamais une
-          seconde fois (drapeau firstRunDone, stocké par compte). */}
-      {showFirstRun && (
-        <FirstRunWizard t={t} onFinish={finishFirstRun} onSkip={closeFirstRun} />
-      )}
-      {firstRunScanStepOpen && (
-        <FirstRunScanDemo
-          t={t}
-          dishName={active?.name || ""}
-          items={firstRunDemoItems}
-          onAddDemo={finishFirstRunDemo}
-          onScanReal={skipDemoToRealScan}
-          onSkip={closeFirstRunScanStep}
-        />
+      {/* Tuto informatif — voir AppTutorial. Rendu par-dessus tout le reste, soit automatiquement
+          sur un compte encore totalement vierge et jamais vu (showTutorial, voir looksBrandNew +
+          firstRunDone), soit rouvert volontairement depuis "Mon compte" (tutorialOpen). Ne crée ni
+          ne modifie jamais aucune recette — purement informatif. */}
+      {(showTutorial || tutorialOpen) && (
+        <AppTutorial t={t} onClose={closeTutorial} />
       )}
 
       {/* ---------------- NAVIGATION PAR ONGLETS (bas d'écran) ---------------- */}

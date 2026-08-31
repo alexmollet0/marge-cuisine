@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import {
   ArrowRight, ChefHat, ChevronDown, ClipboardList, Loader2, LogIn, MailWarning, Receipt,
-  Smartphone, AlertTriangle, Sparkles, Check,
+  Smartphone, AlertTriangle, Check, TrendingUp, TrendingDown,
 } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { TR } from "./translations.js";
@@ -750,6 +750,10 @@ export function AdminDashboard() {
   );
 }
 
+// [PLUS UTILISÉ depuis le 2026-08-31, voir AppTutorial plus bas] Gardé (non branché, hide-don't-
+// delete) : l'ancien premier lancement forçait la création d'une recette avant toute chose, jugé
+// "chiant" après un nouveau test réel — le tuto qui l'a remplacé n'impose plus rien.
+//
 // [REFONTE 2026-08-27, après le premier test réel de l'utilisateur] Premier lancement guidé,
 // version à UN SEUL écran : on demande le plat et son prix de vente, on crée la recette, et on
 // dépose le chef directement dans sa VRAIE fiche recette pour qu'il y ajoute ses ingrédients.
@@ -819,72 +823,191 @@ export function FirstRunWizard({ t, onFinish, onSkip }) {
   );
 }
 
-// [WOW ONBOARDING, 2026-08-31] Étape 2 du premier lancement, affichée juste après FirstRunWizard :
-// montre l'effet d'un scan de facture (garde-manger rempli + marge qui apparaît) AVANT même que le
-// chef ait une vraie facture sous la main, plutôt que de le laisser seul sur une fiche vide comme
-// avant. Démo entièrement simulée côté client (voir `items`, construits dans App.jsx à partir de
-// FIRST_RUN_DEMO_DATA) — délibérément aucun appel au vrai pipeline de scan (api/scan-invoice.js) :
-// on ne fait courir aucun risque (coût IA, échec réseau, mauvaise lecture) au tout premier contact
-// avec l'app, l'objectif étant un résultat garanti et instantané, pas une vraie extraction.
-export function FirstRunScanDemo({ t, dishName, items, onAddDemo, onScanReal, onSkip }) {
-  const [phase, setPhase] = useState("analyzing"); // "analyzing" -> "found"
+// [TUTO, 2026-08-31] Tutoriel informatif à 4 pages (Bienvenue / Scanner / Recettes / Garde-manger),
+// affiché automatiquement au premier lancement (voir showTutorial dans App.jsx) et rouvrable à tout
+// moment depuis "Mon compte". Remplace l'ancien enchaînement FirstRunWizard → FirstRunScanDemo
+// (2026-08-27/31) : jugé après test réel "chiant" — imposer la création d'une recette (même
+// minimale) dès l'arrivée n'était pas ce que l'utilisateur voulait. Ce tuto ne crée ni ne modifie
+// AUCUNE donnée : purement informatif, illustrations animées auto-jouées (aucune vraie vidéo — pas
+// d'asset à héberger, rien à fournir), skippable à tout moment.
+const TUTORIAL_PAGES = ["welcome", "scan", "recipe", "pantry"];
+
+// Petite ligne de "scan" qui balaie une fausse facture en boucle — utilisée uniquement par
+// TutorialScanArt, gardée en dehors pour ne définir les keyframes qu'une fois.
+function TutorialStyles() {
+  return (
+    <style>{`
+      @keyframes chefupTutScan { 0% { top: 10%; opacity: .95; } 90% { top: 85%; opacity: .95; } 100% { top: 85%; opacity: 0; } }
+    `}</style>
+  );
+}
+
+function TutorialWelcomeArt() {
+  return (
+    <div className="relative w-20 h-20 flex items-center justify-center">
+      <div className="absolute inset-0 rounded-full animate-pulse" style={{ background: `${BRAND_SOLID}25` }} />
+      <ChefHat size={34} style={{ color: BRAND_SOLID }} className="relative" />
+    </div>
+  );
+}
+
+// Fausse facture avec une ligne de scan en boucle + 2 ingrédients qui apparaissent l'un après
+// l'autre — illustre le scan sans jamais appeler le vrai pipeline (api/scan-invoice.js).
+function TutorialScanArt() {
+  const [reveal, setReveal] = useState(0);
   useEffect(() => {
-    const timer = setTimeout(() => setPhase("found"), 1300);
-    return () => clearTimeout(timer);
+    const id = setInterval(() => setReveal((r) => (r + 1) % 3), 1100);
+    return () => clearInterval(id);
   }, []);
+  const items = [
+    { name: "Bœuf haché", price: "11,90€/kg" },
+    { name: "Oignons", price: "1,80€/kg" },
+  ];
+  return (
+    <div className="w-full flex items-center justify-center gap-4 py-1">
+      <div className="relative w-16 h-20 rounded-lg overflow-hidden shrink-0" style={{ background: "rgba(255,255,255,0.92)" }}>
+        <div className="absolute inset-x-2 top-2 h-1 rounded-full bg-black/15" />
+        <div className="absolute inset-x-2 top-4 h-1 rounded-full bg-black/10 w-2/3" />
+        <div className="absolute inset-x-2 top-6 h-1 rounded-full bg-black/10 w-1/2" />
+        <div
+          className="absolute inset-x-0 h-0.5"
+          style={{ background: BRAND_SOLID, boxShadow: `0 0 6px ${BRAND_SOLID}`, animation: "chefupTutScan 1.8s ease-in-out infinite" }}
+        />
+      </div>
+      <ArrowRight size={16} className="text-white/25 shrink-0" />
+      <div className="flex flex-col gap-1.5 min-w-0">
+        {items.map((it, i) => (
+          <div
+            key={it.name}
+            className="flex items-center gap-1.5 text-[11px] transition-all duration-500"
+            style={{ opacity: reveal > i ? 1 : 0, transform: reveal > i ? "translateX(0)" : "translateX(-6px)" }}
+          >
+            <Check size={11} style={{ color: "#10B981" }} className="shrink-0" />
+            <span className="text-white/80">{it.name}</span>
+            <span className="text-white/40 font-mono">{it.price}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Lignes d'ingrédients qui se remplissent une à une puis anneau de marge qui se dessine — même
+// grammaire visuelle que le vrai panneau "en un coup d'œil" de la fiche recette, pour que l'écran
+// réel soit immédiatement reconnaissable une fois le tuto terminé.
+function TutorialRecipeArt() {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setStep((s) => (s + 1) % 4), 900);
+    return () => clearInterval(id);
+  }, []);
+  const rows = ["Bœuf", "Oignons", "Crème"];
+  const margin = step >= 3 ? 73 : 0;
+  return (
+    <div className="w-full flex items-center justify-center gap-4 py-1">
+      <div className="flex flex-col gap-1.5 w-24">
+        {rows.map((r, i) => (
+          <div
+            key={r}
+            className="h-4 rounded transition-all duration-500 flex items-center px-1.5 text-[9px] text-white/70"
+            style={{ background: "rgba(255,255,255,0.06)", opacity: step > i ? 1 : 0.15 }}
+          >
+            {step > i ? r : ""}
+          </div>
+        ))}
+      </div>
+      <div className="relative w-14 h-14 shrink-0">
+        <svg width="56" height="56" viewBox="0 0 56 56">
+          <circle cx="28" cy="28" r="23" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" />
+          <circle
+            cx="28" cy="28" r="23" fill="none" stroke={BRAND_SOLID} strokeWidth="5" strokeLinecap="round"
+            strokeDasharray="144.5"
+            strokeDashoffset={144.5 * (1 - margin / 100)}
+            transform="rotate(-90 28 28)"
+            style={{ transition: "stroke-dashoffset 0.6s ease" }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-white text-[11px] font-display font-black">{margin}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Prix d'un ingrédient qui alterne en boucle, avec sa flèche de variation — illustre l'historique
+// de prix par fournisseur du garde-manger.
+function TutorialPantryArt() {
+  const [up, setUp] = useState(false);
+  useEffect(() => {
+    const id = setInterval(() => setUp((u) => !u), 1300);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="w-full flex items-center justify-center py-1">
+      <div className="rounded-lg px-3 py-2 flex items-center gap-2" style={{ background: "rgba(255,255,255,0.06)" }}>
+        <span className="text-white/70 text-xs">Bœuf haché</span>
+        <span className="font-mono text-xs font-semibold transition-colors duration-500" style={{ color: up ? "#EF4444" : "#10B981" }}>
+          {up ? "12,90€/kg" : "11,90€/kg"}
+        </span>
+        {up ? <TrendingUp size={13} style={{ color: "#EF4444" }} /> : <TrendingDown size={13} style={{ color: "#10B981" }} />}
+      </div>
+    </div>
+  );
+}
+
+const TUTORIAL_ART = { welcome: TutorialWelcomeArt, scan: TutorialScanArt, recipe: TutorialRecipeArt, pantry: TutorialPantryArt };
+
+export function AppTutorial({ t, onClose }) {
+  const [pageIdx, setPageIdx] = useState(0);
+  const page = TUTORIAL_PAGES[pageIdx];
+  const isLast = pageIdx === TUTORIAL_PAGES.length - 1;
+  const Art = TUTORIAL_ART[page];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 py-4" style={{ background: "rgba(0,0,0,0.75)" }}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 py-4" style={{ background: "rgba(0,0,0,0.8)" }}>
+      <TutorialStyles />
       <div className="w-full max-w-md rounded-2xl border border-white/10 max-h-full overflow-y-auto" style={{ background: "#201B15" }}>
-        <div className="p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <Receipt size={16} style={{ color: BRAND_SOLID }} className="shrink-0" />
-            <h2 className="font-display uppercase text-white text-sm tracking-wide">{t("firstRunScanTitle")}</h2>
+        <div className="flex justify-end px-5 pt-4">
+          <button type="button" onClick={onClose} className="text-white/35 hover:text-white/70 text-[11px]">
+            {t("tutorialSkip")}
+          </button>
+        </div>
+        <div className="px-6 pb-2 flex flex-col items-center text-center">
+          <Art />
+          <h2 className="font-display uppercase text-white text-base tracking-wide mt-5 mb-2">{t(`tutorial_${page}_title`)}</h2>
+          <p className="text-white/55 text-sm leading-relaxed">{t(`tutorial_${page}_body`)}</p>
+        </div>
+        <div className="p-5 pt-4">
+          <div className="flex justify-center gap-1.5 mb-4">
+            {TUTORIAL_PAGES.map((p, i) => (
+              <span
+                key={p}
+                className="h-1.5 rounded-full transition-all duration-300"
+                style={{ width: i === pageIdx ? 18 : 6, background: i === pageIdx ? BRAND_SOLID : "rgba(255,255,255,0.15)" }}
+              />
+            ))}
           </div>
-          <p className="text-white/50 text-xs mb-4">{t("firstRunScanHint")}</p>
-
-          <div
-            className="rounded-xl border border-white/10 p-4 flex flex-col justify-center"
-            style={{ background: "rgba(0,0,0,0.25)", minHeight: 92 }}
-          >
-            {phase === "analyzing" ? (
-              <div className="flex items-center gap-3">
-                <Loader2 size={18} className="animate-spin shrink-0" style={{ color: BRAND_SOLID }} />
-                <span className="text-white/70 text-sm">{t("firstRunScanAnalyzing")}</span>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {items.map((it) => (
-                  <div key={it.catalogId} className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Check size={14} className="shrink-0" style={{ color: "#10B981" }} />
-                      <span className="text-white/85 text-sm truncate">{it.name}</span>
-                    </div>
-                    <span className="text-white/55 text-xs font-mono shrink-0">{it.priceLabel}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {phase === "found" && (
-            <>
+          <div className="flex items-center gap-2">
+            {pageIdx > 0 && (
               <button
                 type="button"
-                onClick={onAddDemo}
-                className="w-full mt-4 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold flex items-center justify-center gap-1.5"
-                style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+                onClick={() => setPageIdx((i) => i - 1)}
+                className="px-4 py-3 rounded-full text-xs font-medium text-white/60 shrink-0"
+                style={{ background: "rgba(255,255,255,0.06)" }}
               >
-                <Sparkles size={13} /> {t("firstRunScanAddDemo")(dishName)}
+                {t("tutorialBack")}
               </button>
-              <button type="button" onClick={onScanReal} className="w-full mt-2.5 text-[11px] font-medium" style={{ color: BRAND_SOLID }}>
-                {t("firstRunScanReal")}
-              </button>
-              <button type="button" onClick={onSkip} className="w-full mt-2 text-[11px] text-white/35 hover:text-white/70">
-                {t("firstRunSkip")}
-              </button>
-            </>
-          )}
+            )}
+            <button
+              type="button"
+              onClick={() => (isLast ? onClose() : setPageIdx((i) => i + 1))}
+              className="flex-1 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold"
+              style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+            >
+              {isLast ? t("tutorialFinish") : t("tutorialNext")}
+            </button>
+          </div>
         </div>
       </div>
     </div>
