@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import {
   ArrowRight, ChefHat, ChevronDown, ClipboardList, Loader2, LogIn, MailWarning, Receipt,
-  Smartphone, AlertTriangle, Check, TrendingUp, TrendingDown,
+  Smartphone, AlertTriangle, Check, TrendingUp, TrendingDown, Printer, QrCode,
 } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { TR } from "./translations.js";
@@ -823,14 +823,16 @@ export function FirstRunWizard({ t, onFinish, onSkip }) {
   );
 }
 
-// [TUTO, 2026-08-31] Tutoriel informatif à 4 pages (Bienvenue / Scanner / Recettes / Garde-manger),
+// [TUTO, 2026-08-31] Tutoriel informatif à 7 pages (Bienvenue / Scanner / Recettes / Fiche
+// allergènes / Fiche technique / Carte digitale / Garde-manger — étendu le même jour de 4 à 7,
+// l'utilisateur ayant jugé les fiches auto-générées et la carte digitale "un vrai wahou" à montrer),
 // affiché automatiquement au premier lancement (voir showTutorial dans App.jsx) et rouvrable à tout
 // moment depuis "Mon compte". Remplace l'ancien enchaînement FirstRunWizard → FirstRunScanDemo
 // (2026-08-27/31) : jugé après test réel "chiant" — imposer la création d'une recette (même
 // minimale) dès l'arrivée n'était pas ce que l'utilisateur voulait. Ce tuto ne crée ni ne modifie
 // AUCUNE donnée : purement informatif, illustrations animées auto-jouées (aucune vraie vidéo — pas
 // d'asset à héberger, rien à fournir), skippable à tout moment.
-const TUTORIAL_PAGES = ["welcome", "scan", "recipe", "pantry"];
+const TUTORIAL_PAGES = ["welcome", "scan", "recipe", "allergens", "technicalSheet", "digitalMenu", "pantry"];
 
 // Petite ligne de "scan" qui balaie une fausse facture en boucle — utilisée uniquement par
 // TutorialScanArt, gardée en dehors pour ne définir les keyframes qu'une fois.
@@ -851,38 +853,45 @@ function TutorialWelcomeArt() {
   );
 }
 
-// Fausse facture avec une ligne de scan en boucle + 2 ingrédients qui apparaissent l'un après
-// l'autre — illustre le scan sans jamais appeler le vrai pipeline (api/scan-invoice.js).
+// Fausse facture avec une ligne de scan en boucle + 5 ingrédients qui apparaissent l'un après
+// l'autre — illustre le scan sans jamais appeler le vrai pipeline (api/scan-invoice.js). 5 lignes
+// (remonté de 2 le 2026-08-31, demandé pour que la facture ait l'air plus réelle/dense) — interval
+// resserré (750ms) pour garder un cycle total raisonnable malgré le nombre de lignes en plus.
 function TutorialScanArt() {
   const [reveal, setReveal] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setReveal((r) => (r + 1) % 3), 1100);
-    return () => clearInterval(id);
-  }, []);
   const items = [
     { name: "Bœuf haché", price: "11,90€/kg" },
     { name: "Oignons", price: "1,80€/kg" },
+    { name: "Crème fraîche", price: "3,20€/L" },
+    { name: "Carottes", price: "1,50€/kg" },
+    { name: "Tomates", price: "2,40€/kg" },
   ];
+  useEffect(() => {
+    const id = setInterval(() => setReveal((r) => (r + 1) % (items.length + 1)), 750);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <div className="w-full flex items-center justify-center gap-4 py-1">
-      <div className="relative w-16 h-20 rounded-lg overflow-hidden shrink-0" style={{ background: "rgba(255,255,255,0.92)" }}>
+      <div className="relative w-16 h-24 rounded-lg overflow-hidden shrink-0" style={{ background: "rgba(255,255,255,0.92)" }}>
         <div className="absolute inset-x-2 top-2 h-1 rounded-full bg-black/15" />
         <div className="absolute inset-x-2 top-4 h-1 rounded-full bg-black/10 w-2/3" />
         <div className="absolute inset-x-2 top-6 h-1 rounded-full bg-black/10 w-1/2" />
+        <div className="absolute inset-x-2 top-8 h-1 rounded-full bg-black/10 w-3/5" />
         <div
           className="absolute inset-x-0 h-0.5"
           style={{ background: BRAND_SOLID, boxShadow: `0 0 6px ${BRAND_SOLID}`, animation: "chefupTutScan 1.8s ease-in-out infinite" }}
         />
       </div>
       <ArrowRight size={16} className="text-white/25 shrink-0" />
-      <div className="flex flex-col gap-1.5 min-w-0">
+      <div className="flex flex-col gap-1 min-w-0">
         {items.map((it, i) => (
           <div
             key={it.name}
-            className="flex items-center gap-1.5 text-[11px] transition-all duration-500"
+            className="flex items-center gap-1.5 text-[10px] transition-all duration-500"
             style={{ opacity: reveal > i ? 1 : 0, transform: reveal > i ? "translateX(0)" : "translateX(-6px)" }}
           >
-            <Check size={11} style={{ color: "#10B981" }} className="shrink-0" />
+            <Check size={10} style={{ color: "#10B981" }} className="shrink-0" />
             <span className="text-white/80">{it.name}</span>
             <span className="text-white/40 font-mono">{it.price}</span>
           </div>
@@ -935,6 +944,92 @@ function TutorialRecipeArt() {
   );
 }
 
+// Petite fiche avec des étiquettes d'allergène qui apparaissent une à une — illustre la détection
+// automatique (détail réel : detectAllergens dans src/catalog.js) plutôt qu'une saisie manuelle.
+function TutorialAllergensArt() {
+  const [reveal, setReveal] = useState(0);
+  const tags = ["Gluten", "Lait", "Œufs"];
+  useEffect(() => {
+    const id = setInterval(() => setReveal((r) => (r + 1) % (tags.length + 1)), 800);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div className="w-full flex items-center justify-center gap-4 py-1">
+      <div className="relative w-14 h-18 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.92)", height: 72 }}>
+        <ClipboardList size={20} style={{ color: BRAND_SOLID }} />
+      </div>
+      <div className="flex flex-col gap-1.5 min-w-0">
+        {tags.map((tag, i) => (
+          <span
+            key={tag}
+            className="text-[10px] px-2.5 py-1 rounded-full font-semibold transition-all duration-500 text-center"
+            style={{
+              background: reveal > i ? `${BRAND_SOLID}25` : "rgba(255,255,255,0.05)",
+              color: reveal > i ? BRAND_SOLID : "rgba(255,255,255,0.2)",
+              transform: reveal > i ? "scale(1)" : "scale(0.9)",
+            }}
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Feuille qui "sort" d'une imprimante en boucle — illustre la fiche technique imprimable d'une
+// recette (menu Imprimer → "Imprimer la fiche recette" sur la vraie fiche).
+function TutorialTechnicalSheetArt() {
+  const [out, setOut] = useState(false);
+  useEffect(() => {
+    const id = setInterval(() => setOut((o) => !o), 1300);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="w-full flex flex-col items-center justify-center py-1 gap-0.5">
+      <div className="w-16 h-8 rounded-t-md flex items-center justify-center" style={{ background: "rgba(255,255,255,0.12)" }}>
+        <Printer size={16} className="text-white/50" />
+      </div>
+      <div
+        className="w-12 rounded-sm transition-all duration-700 overflow-hidden"
+        style={{ background: "rgba(255,255,255,0.92)", height: 30, transform: out ? "translateY(2px)" : "translateY(-16px)", opacity: out ? 1 : 0 }}
+      >
+        <div className="mx-1.5 mt-1.5 h-0.5 rounded-full bg-black/15" />
+        <div className="mx-1.5 mt-1 h-0.5 rounded-full bg-black/10 w-2/3" />
+        <div className="mx-1.5 mt-1 h-0.5 rounded-full bg-black/10 w-1/2" />
+      </div>
+    </div>
+  );
+}
+
+// QR code + silhouette de téléphone — illustre la carte digitale publique générée à partir des
+// recettes (voir DigitalMenuModal).
+function TutorialDigitalMenuArt() {
+  const [pulse, setPulse] = useState(false);
+  useEffect(() => {
+    const id = setInterval(() => setPulse((p) => !p), 1200);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="w-full flex items-center justify-center gap-4 py-1">
+      <div
+        className="w-14 h-14 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-500"
+        style={{ background: "rgba(255,255,255,0.92)", transform: pulse ? "scale(1.05)" : "scale(1)" }}
+      >
+        <QrCode size={30} style={{ color: "#16130F" }} />
+      </div>
+      <ArrowRight size={16} className="text-white/25 shrink-0" />
+      <div className="w-11 h-[68px] rounded-lg border-2 border-white/20 flex flex-col items-center justify-center gap-1.5 px-1.5 shrink-0">
+        <div className="h-1 w-7 rounded-full" style={{ background: BRAND_SOLID }} />
+        <div className="h-1 w-6 rounded-full bg-white/20" />
+        <div className="h-1 w-6 rounded-full bg-white/20" />
+        <div className="h-1 w-5 rounded-full bg-white/20" />
+      </div>
+    </div>
+  );
+}
+
 // Prix d'un ingrédient qui alterne en boucle, avec sa flèche de variation — illustre l'historique
 // de prix par fournisseur du garde-manger.
 function TutorialPantryArt() {
@@ -956,7 +1051,15 @@ function TutorialPantryArt() {
   );
 }
 
-const TUTORIAL_ART = { welcome: TutorialWelcomeArt, scan: TutorialScanArt, recipe: TutorialRecipeArt, pantry: TutorialPantryArt };
+const TUTORIAL_ART = {
+  welcome: TutorialWelcomeArt,
+  scan: TutorialScanArt,
+  recipe: TutorialRecipeArt,
+  allergens: TutorialAllergensArt,
+  technicalSheet: TutorialTechnicalSheetArt,
+  digitalMenu: TutorialDigitalMenuArt,
+  pantry: TutorialPantryArt,
+};
 
 export function AppTutorial({ t, onClose }) {
   const [pageIdx, setPageIdx] = useState(0);

@@ -8,6 +8,24 @@
 // renvoyé du tout tant que le restaurateur n'a pas explicitement activé `menuSettings.published`.
 import { getSupabaseAdmin } from "./_lib.js";
 
+// Dupliqué depuis `MENU_CATEGORY_LABELS`/`defaultMenuCategories` de src/brand.js (même principe que
+// `recipeMarginPercent` dans api/send-reminders.js — à resynchroniser à la main si les 4 sections
+// par défaut changent). Nécessaire ici : `menuSettings.customCategories` ne contient RIEN tant que
+// le restaurateur n'a jamais personnalisé ses sections (bouton crayon dans "Ajouter des plats") —
+// avant ce correctif, un plat ajouté à la section par défaut "Entrées"/"Plats"/etc. n'avait donc
+// jamais de section reconnue sur la carte PUBLIQUE (tombait dans le groupe "sans section", sans
+// en-tête — voir groupByCategory dans src/PublicMenu.jsx), alors que côté app le même repli sur les
+// 4 sections par défaut existe déjà (voir `categories` dans DigitalMenuModal, scannerComponents.jsx).
+const DEFAULT_MENU_CATEGORY_LABELS = {
+  starter: { fr: "Entrées", es: "Entrantes", en: "Starters" },
+  main: { fr: "Plats", es: "Platos principales", en: "Main courses" },
+  dessert: { fr: "Desserts", es: "Postres", en: "Desserts" },
+  drink: { fr: "Boissons", es: "Bebidas", en: "Drinks" },
+};
+function defaultMenuCategories() {
+  return Object.keys(DEFAULT_MENU_CATEGORY_LABELS).map((id) => ({ id, name: { ...DEFAULT_MENU_CATEGORY_LABELS[id] } }));
+}
+
 export default async function handler(req, res) {
   const userId = req.query.id;
   if (!userId || typeof userId !== "string") {
@@ -99,14 +117,15 @@ export default async function handler(req, res) {
     // `name` est un objet {fr,es,en} depuis le 2026-08-18 (v3) — repli sur l'ancien format chaîne
     // (jamais écrit après ce changement, mais possible sur une carte publiée juste avant) pour ne
     // jamais faire disparaître une section déjà créée par un compte existant.
-    const customCategories = Array.isArray(menuSettings.customCategories)
-      ? menuSettings.customCategories
-          .filter((c) => c && typeof c.id === "string" && c.name)
-          .map((c) => ({
-            id: c.id,
-            name: typeof c.name === "string" ? { fr: c.name, es: c.name, en: c.name } : c.name,
-          }))
-      : [];
+    const customCategories =
+      Array.isArray(menuSettings.customCategories) && menuSettings.customCategories.length
+        ? menuSettings.customCategories
+            .filter((c) => c && typeof c.id === "string" && c.name)
+            .map((c) => ({
+              id: c.id,
+              name: typeof c.name === "string" ? { fr: c.name, es: c.name, en: c.name } : c.name,
+            }))
+        : defaultMenuCategories();
 
     return res.status(200).json({
       restaurantName: menuSettings.restaurantName || "",
