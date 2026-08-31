@@ -14,6 +14,45 @@ export function getSupabaseAdmin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
+// Bucket Supabase Storage pour les photos/PDF de facture scannés (2026-08-31), demandé par
+// l'utilisateur pour pouvoir vérifier depuis le tableau de bord admin qu'un scan a bien fonctionné
+// (comparer la facture d'origine au résultat extrait). Jamais créé à la main dans le dashboard
+// Supabase — voir uploadScanImage, qui le crée à la volée au premier upload. Privé (jamais public) :
+// seul le tableau de bord admin y accède, via une URL signée à courte durée de vie (voir
+// api/admin-dashboard.js, action "get_scan_image_url"). Nettoyage automatique après 30 jours (choix
+// explicite de l'utilisateur) — voir api/send-reminders.js, cron quotidien.
+export const SCAN_UPLOADS_BUCKET = "scan-uploads";
+export const SCAN_UPLOADS_RETENTION_DAYS = 30;
+
+// Upload best-effort d'une image/PDF de scan vers Storage — ne doit JAMAIS faire échouer le journal
+// d'activité qui l'accompagne (voir api/scan-events.js) : toute erreur renvoie simplement `null`
+// plutôt que de lever. Chemin `<userId>/<horodatage>-<aléatoire>.<ext>`, jamais mêlé entre comptes.
+export async function uploadScanImage(supabaseAdmin, userId, base64, mediaType) {
+  if (!base64 || typeof base64 !== "string" || !userId) return null;
+  // Filet de sécurité : une facture compressée dépasse rarement quelques centaines de Ko, un PDF
+  // natif peut être plus lourd — accepté jusqu'à ~6 Mo décodés plutôt que de risquer de saturer la
+  // fonction serverless pour un usage qui reste secondaire (diagnostic, pas le scan lui-même).
+  if (base64.length > 8_000_000) return null;
+  try {
+    const ext = mediaType === "application/pdf" ? "pdf" : mediaType === "image/png" ? "png" : "jpg";
+    const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+    const buffer = Buffer.from(base64, "base64");
+    const doUpload = () =>
+      supabaseAdmin.storage.from(SCAN_UPLOADS_BUCKET).upload(path, buffer, { contentType: mediaType || "image/jpeg" });
+    let { error } = await doUpload();
+    if (error && /bucket.*not.*found/i.test(error.message || "")) {
+      // Premier upload du projet : le bucket n'existe pas encore côté Supabase, on le crée puis on
+      // réessaie une seule fois.
+      await supabaseAdmin.storage.createBucket(SCAN_UPLOADS_BUCKET, { public: false });
+      ({ error } = await doUpload());
+    }
+    if (error) return null;
+    return path;
+  } catch (e) {
+    return null;
+  }
+}
+
 // Vérifie le token de session Supabase envoyé par le client (Authorization: Bearer <token>) et
 // renvoie l'utilisateur correspondant, ou null. C'est le token signé par Supabase qui prouve
 // l'identité — on ne fait jamais confiance à un user_id envoyé directement dans le corps de la

@@ -9,7 +9,38 @@
 // CRON_SECRET — différent modèle d'auth, voir plus bas). Programme (ne envoie pas tout de suite)
 // un email d'accueil humain via Resend (`scheduled_at`), à une heure choisie selon le fuseau
 // horaire du navigateur de l'utilisateur — voir `computeWelcomeSendAt`.
-import { getSupabaseAdmin, sendEmail, requireUser, wrapEmailHtml, getFoundingState } from "./_lib.js";
+import { getSupabaseAdmin, sendEmail, requireUser, wrapEmailHtml, getFoundingState, SCAN_UPLOADS_BUCKET, SCAN_UPLOADS_RETENTION_DAYS } from "./_lib.js";
+
+// Nettoyage des photos/PDF de facture scannés (2026-08-31) — voir uploadScanImage (api/_lib.js) :
+// stockées pour que l'utilisateur puisse vérifier qu'un scan a bien fonctionné, mais supprimées
+// après 30 jours (choix explicite, pas de raison de garder indéfiniment des documents professionnels
+// de ses clients). Pas de fonction Vercel dédiée (plafond de 12 déjà atteint) — greffé sur ce cron
+// quotidien existant plutôt qu'un nouvel endpoint. Best-effort total : une erreur ici ne doit jamais
+// faire échouer les rappels par email, qui sont le vrai rôle de ce cron.
+// ⚠️ Pas testé contre un bucket réellement peuplé (aucun scan réel effectué depuis cette session) —
+// repose sur le comportement documenté de l'API Storage de Supabase (list() simule un niveau de
+// dossiers via le préfixe `<userId>/`, une entrée sans `id` est un dossier, avec `id` un fichier) :
+// à revérifier une fois que de vraies photos existent dans le bucket.
+async function cleanupOldScanUploads(admin) {
+  const cutoff = Date.now() - SCAN_UPLOADS_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  let deletedCount = 0;
+  const { data: entries, error } = await admin.storage.from(SCAN_UPLOADS_BUCKET).list("", { limit: 1000 });
+  if (error) return { deletedCount, error: error.message };
+  for (const entry of entries || []) {
+    // Une entrée avec un `id` est un vrai fichier (ne devrait pas arriver à la racine avec le schéma
+    // `<userId>/<fichier>` utilisé ici) — on ne descend que dans les dossiers (id absent).
+    if (!entry?.name || entry.id) continue;
+    const { data: files } = await admin.storage.from(SCAN_UPLOADS_BUCKET).list(entry.name, { limit: 1000 });
+    const stale = (files || [])
+      .filter((f) => f.created_at && new Date(f.created_at).getTime() < cutoff)
+      .map((f) => `${entry.name}/${f.name}`);
+    if (stale.length) {
+      await admin.storage.from(SCAN_UPLOADS_BUCKET).remove(stale);
+      deletedCount += stale.length;
+    }
+  }
+  return { deletedCount };
+}
 
 // Tarif fondateur affiché dans la relance de fin d'essai — doit rester synchronisé avec PRICING
 // dans src/App.jsx et avec le prix Stripe STRIPE_FOUNDING_PRICE_ID.
@@ -457,7 +488,16 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ dryRun, checkedUsers: usersData.users.length, notified: report });
+    let scanUploadsCleanup = null;
+    if (!dryRun) {
+      try {
+        scanUploadsCleanup = await cleanupOldScanUploads(admin);
+      } catch (e) {
+        scanUploadsCleanup = { error: e.message || "échec du nettoyage" };
+      }
+    }
+
+    return res.status(200).json({ dryRun, checkedUsers: usersData.users.length, notified: report, scanUploadsCleanup });
   } catch (e) {
     return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
   }

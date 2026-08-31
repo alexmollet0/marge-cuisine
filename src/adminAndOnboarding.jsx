@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import {
   ArrowRight, ChefHat, ChevronDown, ClipboardList, Loader2, LogIn, MailWarning, Receipt,
   Smartphone, AlertTriangle, Check, TrendingUp, TrendingDown, Printer, QrCode,
+  Sparkles, LayoutGrid, CreditCard, Image as ImageIcon, X, Clock,
 } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { TR } from "./translations.js";
@@ -100,12 +101,24 @@ export function DailyBarChart({ series, color, height = 90 }) {
 // "il y a 3 min" plutôt que des dates absolues à décoder) — plus besoin de cliquer puis remonter
 // chercher un tableau séparé. "Aperçu" garde les KPI marketing (visites/clics/graphique), moins
 // urgents pour du suivi en direct, écartés du premier écran pour ne pas noyer l'essentiel.
+// Étapes de parcours (2026-08-31), voir CLAUDE.md — étendent le flux d'activité existant plutôt
+// que de tout tracker clic par clic (jugé trop lourd/bruyant) : tuto, onglets visités, carte
+// digitale publiée, clic vers l'abonnement.
+const TUTORIAL_STEP_LABELS_FR = {
+  welcome: "Bienvenue", scan: "Scanner", recipe: "Recette", allergens: "Fiche allergènes",
+  technicalSheet: "Fiche technique", digitalMenu: "Carte digitale", pantry: "Garde-manger",
+};
+const TAB_LABELS_FR = { scanner: "Scanner", pantry: "Garde-manger", menu: "Carte digitale" };
 const ACTIVITY_LABELS = {
   login: "Connexion",
   recipe_created: "Recette créée",
   scan_invoice: "Scan facture",
   scan_recipe: "Scan fiche recette",
   scan_failed: "Scan ÉCHOUÉ",
+  tutorial_closed: "Tuto",
+  tab_opened: "Onglet ouvert",
+  digital_menu_published: "Carte digitale publiée",
+  subscribe_clicked: "Clic « S'abonner »",
 };
 const ACTIVITY_ICON = {
   login: { Icon: LogIn, color: "#9CA3AF" },
@@ -113,6 +126,10 @@ const ACTIVITY_ICON = {
   scan_invoice: { Icon: Receipt, color: "#38BDF8" },
   scan_recipe: { Icon: ClipboardList, color: "#F59E0B" },
   scan_failed: { Icon: AlertTriangle, color: TIER_COLORS.low },
+  tutorial_closed: { Icon: Sparkles, color: BRAND_SOLID },
+  tab_opened: { Icon: LayoutGrid, color: "#9CA3AF" },
+  digital_menu_published: { Icon: QrCode, color: "#10B981" },
+  subscribe_clicked: { Icon: CreditCard, color: BRAND_SOLID },
 };
 // Codes d'échec de scan connus. Toute valeur hors de cette liste retombe sur "unknown" côté
 // affichage, pour ne jamais montrer une clé de traduction brute au restaurateur.
@@ -167,8 +184,114 @@ function activityDetail(e) {
     if (!m.supplierKnown) bits.push("fournisseur non lu");
     return bits.join(" · ");
   }
+  if (e.type === "tutorial_closed") {
+    const stepLabel = TUTORIAL_STEP_LABELS_FR[m.lastStep] || m.lastStep || "?";
+    return m.finishedAll ? `Terminé (jusqu'à « ${stepLabel} »)` : `Passé à l'étape « ${stepLabel} »`;
+  }
+  if (e.type === "tab_opened") return TAB_LABELS_FR[m.tab] || m.tab || "";
   return "";
 }
+
+// Preuve du scan (2026-08-31), demandé par l'utilisateur : liste des lignes extraites + un bouton
+// pour voir la photo/PDF d'origine, réservés au tableau de bord admin — pour vérifier qu'un scan a
+// bien fonctionné sans redemander le document à son client. L'URL de la photo n'est jamais stockée
+// en clair : récupérée à la demande, signée et valable 5 minutes seulement (voir
+// api/admin-dashboard.js, action "get_scan_image_url"). Rendu pour tout événement qui porte
+// `meta.items`/`meta.imagePath` (scan_invoice/scan_recipe/scan_failed) — s'efface tout seul sinon.
+function ScanEvidence({ meta }) {
+  const [imageState, setImageState] = useState("idle"); // idle | loading | error
+  const [imageUrl, setImageUrl] = useState(null);
+  const items = Array.isArray(meta?.items) ? meta.items.filter((it) => it && it.name) : [];
+
+  const loadImage = async (ev) => {
+    ev.stopPropagation();
+    if (imageState === "loading") return;
+    setImageState("loading");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/admin-dashboard", {
+        method: "POST",
+        headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "get_scan_image_url", path: meta.imagePath }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || "échec");
+      setImageUrl(data.url);
+      setImageState("idle");
+    } catch (e) {
+      setImageState("error");
+    }
+  };
+
+  if (!items.length && !meta?.imagePath) return null;
+
+  return (
+    <div className="mt-1.5">
+      {items.length > 0 && (
+        <div className="rounded-lg px-2 py-1.5 mb-1.5 space-y-0.5" style={{ background: "rgba(255,255,255,0.04)" }}>
+          {items.slice(0, 12).map((it, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 text-[10px] text-white/50">
+              <span className="truncate">{it.name}</span>
+              <span className="font-mono shrink-0">{typeof it.price === "number" ? `${it.price.toFixed(2)}€${it.unit ? `/${it.unit}` : ""}` : "?"}</span>
+            </div>
+          ))}
+          {items.length > 12 && <div className="text-[10px] text-white/30">+ {items.length - 12} autre(s)</div>}
+        </div>
+      )}
+      {meta?.imagePath && (
+        <>
+          <button
+            type="button"
+            onClick={loadImage}
+            disabled={imageState === "loading"}
+            className="text-[10px] font-medium px-2 py-1 rounded-full flex items-center gap-1 disabled:opacity-50"
+            style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}
+          >
+            <ImageIcon size={10} /> {imageState === "loading" ? "Chargement…" : "Voir la facture"}
+          </button>
+          {imageState === "error" && (
+            <span className="text-[10px] ml-2" style={{ color: TIER_COLORS.low }}>
+              Introuvable (peut-être supprimée après 30 jours)
+            </span>
+          )}
+          {imageUrl && (
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4"
+              onClick={() => setImageUrl(null)}
+            >
+              <button
+                type="button"
+                onClick={(ev) => { ev.stopPropagation(); setImageUrl(null); }}
+                className="absolute top-4 right-4 text-white/70 hover:text-white"
+              >
+                <X size={22} />
+              </button>
+              {meta.imagePath.endsWith(".pdf") ? (
+                <a
+                  href={imageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-white underline text-sm"
+                  onClick={(ev) => ev.stopPropagation()}
+                >
+                  Ouvrir le PDF dans un nouvel onglet
+                </a>
+              ) : (
+                <img
+                  src={imageUrl}
+                  alt="Facture scannée"
+                  className="max-w-full max-h-full rounded-lg"
+                  onClick={(ev) => ev.stopPropagation()}
+                />
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // Temps relatif FR ("à l'instant", "il y a 3 min"...) — bien plus lisible d'un coup d'œil qu'une
 // date absolue pour répondre à la vraie question de l'utilisateur : "est-il en train d'utiliser
 // l'app là maintenant ?".
@@ -546,6 +669,7 @@ export function AdminDashboard() {
                                     <span className="text-white/30 text-[10px]">{relativeTimeFr(e.createdAt)}</span>
                                   </div>
                                   {activityDetail(e) && <div className="text-white/40 text-[11px] mt-0.5">{activityDetail(e)}</div>}
+                                  <ScanEvidence meta={e.meta} />
                                 </div>
                               </div>
                             );
@@ -1072,7 +1196,11 @@ export function AppTutorial({ t, onClose }) {
       <TutorialStyles />
       <div className="w-full max-w-md rounded-2xl border border-white/10 max-h-full overflow-y-auto" style={{ background: "#201B15" }}>
         <div className="flex justify-end px-5 pt-4">
-          <button type="button" onClick={onClose} className="text-white/35 hover:text-white/70 text-[11px]">
+          <button
+            type="button"
+            onClick={() => onClose({ lastStep: page, finishedAll: false })}
+            className="text-white/35 hover:text-white/70 text-[11px]"
+          >
             {t("tutorialSkip")}
           </button>
         </div>
@@ -1104,7 +1232,7 @@ export function AppTutorial({ t, onClose }) {
             )}
             <button
               type="button"
-              onClick={() => (isLast ? onClose() : setPageIdx((i) => i + 1))}
+              onClick={() => (isLast ? onClose({ lastStep: page, finishedAll: true }) : setPageIdx((i) => i + 1))}
               className="flex-1 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold"
               style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
             >

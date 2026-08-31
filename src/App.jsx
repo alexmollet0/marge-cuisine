@@ -143,6 +143,13 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem("chefup:activeTab", activeTab); } catch {}
   }, [activeTab]);
+  // Onglets visités (2026-08-31), demandé par l'utilisateur pour savoir si un compte explore
+  // vraiment l'app ou reste bloqué sur un seul écran. "recipes" volontairement exclu : c'est
+  // l'onglet par défaut, le logger n'apprendrait rien (se déclencherait à chaque chargement).
+  useEffect(() => {
+    if (activeTab === "recipes") return;
+    logActivity("tab_opened", { tab: activeTab });
+  }, [activeTab]);
   // Message de succès temporaire (2026-08-30) après avoir poussé un nouveau prix sur la carte
   // digitale (voir bouton juste sous le prix de vente, fiche recette) — id de la recette plutôt
   // qu'un simple booléen, pour ne jamais afficher le message sur la mauvaise recette si on
@@ -472,10 +479,13 @@ export default function App() {
   // compte" (`tutorialOpen`) — même mécanisme de fermeture (`closeTutorial`) dans les deux cas.
   const showTutorial = ready && firstRunDone === false && looksBrandNew;
 
-  const closeTutorial = () => {
+  // `lastStep`/`finishedAll` (2026-08-31) : à quelle page le chef a quitté le tuto (passé ou
+  // terminé) — demandé par l'utilisateur pour savoir précisément où un compte décroche.
+  const closeTutorial = ({ lastStep, finishedAll } = {}) => {
     setFirstRunDone(true);
     storage.set("firstRunDone", JSON.stringify(true)).catch(() => {});
     setTutorialOpen(false);
+    logActivity("tutorial_closed", { lastStep: lastStep || null, finishedAll: !!finishedAll });
   };
 
   // [PONT CARTE DIGITALE → MARGE, 2026-08-27] Transforme un article simple de la carte (nom + prix,
@@ -994,6 +1004,10 @@ export default function App() {
   const manageSubscription = async () => {
     setPortalErr("");
     setPortalBusy(true);
+    // Étape de parcours (2026-08-31) : sert aussi bien à "gérer mon abonnement" (déjà abonné)
+    // qu'à "s'abonner" (essai) — les deux sont un signal utile pour repérer un lead chaud qui
+    // abandonne avant de payer, voir CLAUDE.md.
+    logActivity("subscribe_clicked", {});
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const authHeader = { Authorization: `Bearer ${session.access_token}` };
@@ -1963,7 +1977,7 @@ export default function App() {
       await runScanPipeline({ image: base64, mediaType, ocrText, lang });
     } catch (err) {
       setScanErr({ code: "unknown" });
-      logScanFailure("unknown", { errorMessage: String(err?.message || err).slice(0, 200) });
+      logScanFailure("unknown", { errorMessage: String(err?.message || err).slice(0, 200) }, base64, mediaType);
       setScanning(false);
       setScanStep(null);
     }
@@ -1982,8 +1996,11 @@ export default function App() {
   // Journal des ÉCHECS de scan (2026-08-24). Jusqu'ici seuls les scans réussis étaient enregistrés :
   // quand un client disait "ça ne marche pas", le tableau de bord admin restait vide et il était
   // impossible de savoir s'il avait seulement essayé, ni pourquoi ça avait échoué. Fire-and-forget,
-  // jamais bloquant, aucune donnée de facture — juste un code d'erreur.
-  const logScanFailure = (code, meta = {}) => {
+  // jamais bloquant. `image`/`mediaType` optionnels (2026-08-31, quand disponibles à cet endroit du
+  // code) : demandé explicitement par l'utilisateur pour pouvoir comparer le document d'origine au
+  // résultat depuis le tableau de bord admin — voir uploadScanImage côté serveur (jamais exposé
+  // ailleurs que l'admin, supprimé automatiquement après 30 jours).
+  const logScanFailure = (code, meta = {}, image = null, mediaType = null) => {
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -1993,9 +2010,12 @@ export default function App() {
           headers: { "content-type": "application/json", Authorization: `Bearer ${session.access_token}` },
           // `device` ajouté le 2026-08-25 : un vrai trou jusqu'ici — un échec PDF pouvait être
           // attribué à un bug iOS (voir file_pdf_ios_issue) sans jamais savoir avec certitude si
-          // l'appareil concerné était réellement un iPhone. Jamais de contenu de facture, juste le
-          // user-agent du navigateur (donnée déjà publique côté client, pas une info sensible).
-          body: JSON.stringify({ type: "scan_failed", meta: { scanner: "invoice", code, online: navigator.onLine, device: isIOSDevice ? (isIOSChromeDevice ? "iOS Chrome" : "iOS") : "autre", ...meta } }),
+          // l'appareil concerné était réellement un iPhone (donnée déjà publique côté client).
+          body: JSON.stringify({
+            type: "scan_failed",
+            meta: { scanner: "invoice", code, online: navigator.onLine, device: isIOSDevice ? (isIOSChromeDevice ? "iOS Chrome" : "iOS") : "autre", ...meta },
+            ...(image ? { image, mediaType } : {}),
+          }),
         });
       } catch (e) {}
     })();
@@ -2221,10 +2241,12 @@ export default function App() {
       const manyLowConfidence = foodItems.length >= 2 && foodItems.filter((i) => i.lowConfidence).length / foodItems.length > 0.3;
 
       setScanResult({ supplier: data.supplier || null, date: data.date || null, items: foodItems, excludedItems, manyUp, manyLowConfidence });
-      // Statistiques agrégées du scanner (2026-08, fire-and-forget) : jamais de contenu de
-      // facture, juste des compteurs — voir api/scan-events.js (POST). Sert uniquement à surveiller
-      // la fiabilité réelle du scan sur l'ensemble des comptes (interrogeable via le même fichier
-      // en GET, protégé par ADMIN_SECRET), invisible dans l'app pour tout utilisateur.
+      // Statistiques agrégées du scanner (2026-08, fire-and-forget) — voir api/scan-events.js
+      // (POST). Sert à surveiller la fiabilité réelle du scan sur l'ensemble des comptes
+      // (interrogeable via le même fichier en GET, protégé par ADMIN_SECRET), invisible dans l'app
+      // pour tout utilisateur. `items`/`image` (2026-08-31, demandé explicitement par l'utilisateur) :
+      // résultat détaillé + photo/PDF d'origine, réservés au tableau de bord admin pour vérifier
+      // qu'un scan a bien fonctionné — voir sanitizeScanItems/uploadScanImage côté serveur.
       (async () => {
         try {
           const { data: { session } } = await supabase.auth.getSession();
@@ -2243,6 +2265,9 @@ export default function App() {
               manyLowConfidence,
               priceInconsistentItems: foodItems.filter((i) => i.priceInconsistent).length,
               pricingUnknownItems: foodItems.filter((i) => i.pricingUnknown).length,
+              items: foodItems.map((it) => ({ name: it.name || "", unit: it.unit || "", price: it.unitPriceHT ?? null })),
+              image: payload.image || payload.pdfBase64 || undefined,
+              mediaType: payload.pdfBase64 ? "application/pdf" : payload.mediaType || "image/jpeg",
             }),
           });
         } catch (e) {}
@@ -2264,11 +2289,16 @@ export default function App() {
         err.scanCode ||
         (err.name === "AbortError" ? "ai_timeout" : !navigator.onLine || err.name === "TypeError" ? "offline" : "unknown");
       setScanErr({ code, status: err.httpStatus || null });
-      logScanFailure(code, {
-        httpStatus: err.httpStatus || null,
-        upstreamStatus: err.upstreamStatus || null,
-        mode: payload.pdfBase64 ? "pdf" : payload.text ? "pdf_text" : "image",
-      });
+      logScanFailure(
+        code,
+        {
+          httpStatus: err.httpStatus || null,
+          upstreamStatus: err.upstreamStatus || null,
+          mode: payload.pdfBase64 ? "pdf" : payload.text ? "pdf_text" : "image",
+        },
+        payload.image || payload.pdfBase64 || null,
+        payload.pdfBase64 ? "application/pdf" : payload.mediaType || "image/jpeg"
+      );
     } finally {
       clearTimeout(timeoutId);
       setScanning(false);

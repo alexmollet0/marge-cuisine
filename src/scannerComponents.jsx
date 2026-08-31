@@ -14,6 +14,7 @@ import {
 import { NumField, IngredientPicker } from "./formComponents.jsx";
 import { Logo } from "./Logo.jsx";
 import { uid } from "./utils.js";
+import { logActivity } from "./pricing.js";
 
 export function ScanNameChoice({ item, guessedIng, ingredientDisplayName, onUpdate, t }) {
   if (!guessedIng) return null;
@@ -932,7 +933,13 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
 
         {/* 2. PUBLIER MA CARTE */}
         <button
-          onClick={() => setMenuSettings({ ...menuSettings, published: !menuSettings.published })}
+          onClick={() => {
+            const next = !menuSettings.published;
+            setMenuSettings({ ...menuSettings, published: next });
+            // Étape de parcours (2026-08-31) : uniquement au passage à "publiée", jamais en la
+            // dépubliant — c'est le vrai jalon business à repérer dans le tableau de bord admin.
+            if (next) logActivity("digital_menu_published", {});
+          }}
           className="flex items-center justify-between gap-2 text-left px-3 py-2.5 rounded-lg border w-full"
           style={menuSettings.published ? { borderColor: "#10B981", background: "#10B98118" } : { borderColor: "rgba(255,255,255,0.15)" }}
         >

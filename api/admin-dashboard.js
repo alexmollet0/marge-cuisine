@@ -7,7 +7,7 @@
 // ⚠️ Ce projet est au plafond du plan Hobby Vercel (12 fonctions serverless par déploiement,
 // _lib.js exclu) avec ce fichier. Avant d'ajouter un nouvel endpoint : fusionner avec un fichier
 // existant proche, voir la note dans CLAUDE.md ("Fichiers clés").
-import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml, isInternalEmail, landingEventsSummary } from "./_lib.js";
+import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml, isInternalEmail, landingEventsSummary, SCAN_UPLOADS_BUCKET } from "./_lib.js";
 
 // Suppression de compte (2026-08-29), demandée par l'utilisateur pour nettoyer les comptes de test
 // (chefuptest01/02/03..., comptes créés par Claude pour tester le flux OTP/Google) sans jamais
@@ -145,6 +145,24 @@ export default async function handler(req, res) {
       }
     }
 
+    // Voir la photo/PDF d'une facture scannée (2026-08-31), demandé par l'utilisateur pour vérifier
+    // qu'un scan a bien fonctionné sans redemander le document au client. Le fichier lui-même est
+    // privé (bucket non public, voir uploadScanImage/api/_lib.js) — seule une URL SIGNÉE de courte
+    // durée (5 min) est renvoyée, jamais le fichier ni une URL permanente. `path` vient de
+    // `meta.imagePath` d'un événement scan_invoice/scan_recipe/scan_failed, jamais construit
+    // librement côté client.
+    if (action === "get_scan_image_url") {
+      const { path } = req.body || {};
+      if (!path || typeof path !== "string") return res.status(400).json({ error: "Requête invalide." });
+      try {
+        const { data, error } = await supabaseAdmin.storage.from(SCAN_UPLOADS_BUCKET).createSignedUrl(path, 300);
+        if (error) throw error;
+        return res.status(200).json({ url: data.signedUrl });
+      } catch (e) {
+        return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+      }
+    }
+
     if (action === "delete_account") {
       if (!email) return res.status(400).json({ error: "Requête invalide." });
       if (isInternalEmail(email)) return res.status(403).json({ error: "Ce compte est protégé, il ne peut pas être supprimé depuis ici." });
@@ -203,8 +221,10 @@ export default async function handler(req, res) {
       // — voir api/scan-events.js. Pas filtré par `days` (c'est un flux récent à surveiller, pas une
       // série historique) ; la table peut ne pas encore exister sur un déploiement pas encore migré,
       // d'où le fallback silencieux à un tableau vide plutôt qu'une erreur qui casserait tout le reste
-      // du dashboard.
-      supabaseAdmin.from("activity_events").select("*").order("created_at", { ascending: false }).limit(200),
+      // du dashboard. Limite remontée 200→500 le 2026-08-31 : beaucoup plus de types d'événements
+      // journalisés désormais (tuto, onglets, carte digitale, abonnement), un compte très actif
+      // pouvait sinon repousser hors de la fenêtre les événements d'un autre compte moins actif.
+      supabaseAdmin.from("activity_events").select("*").order("created_at", { ascending: false }).limit(500),
     ]);
     if (scanRes.error) throw scanRes.error;
     if (subRes.error) throw subRes.error;
