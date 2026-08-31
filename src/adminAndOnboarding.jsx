@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import {
   ArrowRight, ChefHat, ChevronDown, ClipboardList, Loader2, LogIn, MailWarning, Receipt,
-  Smartphone, AlertTriangle,
+  Smartphone, AlertTriangle, Sparkles, Check,
 } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { TR } from "./translations.js";
@@ -813,6 +813,78 @@ export function FirstRunWizard({ t, onFinish, onSkip }) {
           <button type="button" onClick={onSkip} className="w-full mt-3 text-[11px] text-white/35 hover:text-white/70">
             {t("firstRunSkip")}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// [WOW ONBOARDING, 2026-08-31] Étape 2 du premier lancement, affichée juste après FirstRunWizard :
+// montre l'effet d'un scan de facture (garde-manger rempli + marge qui apparaît) AVANT même que le
+// chef ait une vraie facture sous la main, plutôt que de le laisser seul sur une fiche vide comme
+// avant. Démo entièrement simulée côté client (voir `items`, construits dans App.jsx à partir de
+// FIRST_RUN_DEMO_DATA) — délibérément aucun appel au vrai pipeline de scan (api/scan-invoice.js) :
+// on ne fait courir aucun risque (coût IA, échec réseau, mauvaise lecture) au tout premier contact
+// avec l'app, l'objectif étant un résultat garanti et instantané, pas une vraie extraction.
+export function FirstRunScanDemo({ t, dishName, items, onAddDemo, onScanReal, onSkip }) {
+  const [phase, setPhase] = useState("analyzing"); // "analyzing" -> "found"
+  useEffect(() => {
+    const timer = setTimeout(() => setPhase("found"), 1300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 py-4" style={{ background: "rgba(0,0,0,0.75)" }}>
+      <div className="w-full max-w-md rounded-2xl border border-white/10 max-h-full overflow-y-auto" style={{ background: "#201B15" }}>
+        <div className="p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Receipt size={16} style={{ color: BRAND_SOLID }} className="shrink-0" />
+            <h2 className="font-display uppercase text-white text-sm tracking-wide">{t("firstRunScanTitle")}</h2>
+          </div>
+          <p className="text-white/50 text-xs mb-4">{t("firstRunScanHint")}</p>
+
+          <div
+            className="rounded-xl border border-white/10 p-4 flex flex-col justify-center"
+            style={{ background: "rgba(0,0,0,0.25)", minHeight: 92 }}
+          >
+            {phase === "analyzing" ? (
+              <div className="flex items-center gap-3">
+                <Loader2 size={18} className="animate-spin shrink-0" style={{ color: BRAND_SOLID }} />
+                <span className="text-white/70 text-sm">{t("firstRunScanAnalyzing")}</span>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {items.map((it) => (
+                  <div key={it.catalogId} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Check size={14} className="shrink-0" style={{ color: "#10B981" }} />
+                      <span className="text-white/85 text-sm truncate">{it.name}</span>
+                    </div>
+                    <span className="text-white/55 text-xs font-mono shrink-0">{it.priceLabel}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {phase === "found" && (
+            <>
+              <button
+                type="button"
+                onClick={onAddDemo}
+                className="w-full mt-4 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold flex items-center justify-center gap-1.5"
+                style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+              >
+                <Sparkles size={13} /> {t("firstRunScanAddDemo")(dishName)}
+              </button>
+              <button type="button" onClick={onScanReal} className="w-full mt-2.5 text-[11px] font-medium" style={{ color: BRAND_SOLID }}>
+                {t("firstRunScanReal")}
+              </button>
+              <button type="button" onClick={onSkip} className="w-full mt-2 text-[11px] text-white/35 hover:text-white/70">
+                {t("firstRunSkip")}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
