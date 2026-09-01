@@ -4855,19 +4855,14 @@ export default function App() {
                     </div>
                   );
                 })}
-                {/* Une recette toute neuve (0 ligne) tombait sur un simple petit lien "+ ligne"
-                    perdu au milieu d'une page par ailleurs vide (0,00€ partout) — repéré comme
-                    confus par l'utilisateur. Remplacé par un bouton bien visible tant qu'aucun
-                    ingrédient n'a encore été ajouté ; redevient le petit lien discret habituel dès
-                    la première ligne, pour ne pas prendre de place inutile une fois la recette lancée. */}
-                {active.lines.length === 0 && (
-                  <button
-                    onClick={addLine}
-                    className="w-full flex items-center justify-center gap-1.5 text-xs font-display uppercase tracking-wide py-2.5 rounded-xl border border-dashed border-black/25 text-black/50 hover:text-black hover:border-black/50 active:scale-95 transition mb-1 print:hidden"
-                  >
-                    <Plus size={14} /> {t("firstIngredientPrompt")}
-                  </button>
-                )}
+                {/* [RETIRÉ 2026-09-01] Le gros bouton en pointillés "+ Ajoute ton premier
+                    ingrédient" (posé ici même à l'origine parce que le petit lien "+ ligne" se
+                    perdait sur une page vide) est retiré : depuis l'ajout de l'indice sous le champ
+                    d'ajout rapide juste au-dessus (quickAddEstimateHint), avoir les DEUX en même
+                    temps — un champ à remplir ET un gros bouton juste en dessous — créait
+                    exactement la confusion à deux méthodes que l'utilisateur a signalée. Le petit
+                    lien "+ ligne" ci-dessous (méthode "recherche dans le garde-manger", différente
+                    et complémentaire de l'ajout rapide) reste seul, comme avant ce bouton. */}
                 <div className="flex items-center justify-between pt-1 print:hidden">
                   <button onClick={addLine} className="text-xs text-black/40 hover:text-black flex items-center gap-1">
                     <Plus size={12} /> {t("line")}
