@@ -4751,6 +4751,16 @@ export default function App() {
                   guessUnit={guessUnitForName}
                   guessPrice={guessPriceForName}
                 />
+                {/* [2026-09-01] Indice affiché UNIQUEMENT tant que la recette est vide (jamais après
+                    la 1ère ligne, pour ne pas surcharger l'écran une fois que le geste est compris)
+                    — demandé après avoir observé via le suivi de parcours qu'un compte neuf crée
+                    une recette puis l'abandonne vide. Hypothèse de l'utilisateur : sans facture ni
+                    prix réel sous la main, une fiche vide décourage. Ce que les gens ne savent pas :
+                    un prix ESTIMÉ se remplit déjà tout seul par catégorie, aucune vraie donnée
+                    fournisseur n'est nécessaire pour voir sa marge apparaître. */}
+                {active.lines.length === 0 && (
+                  <div className="text-[10px] text-black/40 -mt-1">{t("quickAddEstimateHint")}</div>
+                )}
                 {active.lines.map((line, idx) => {
                   const ing = ingredientById(line.ingredientId);
                   const variation = ing ? priceVariation(ing) : null;
