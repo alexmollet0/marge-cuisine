@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Loader2, Check } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING } from "./App.jsx";
+import { logActivity } from "./pricing.js";
 
 const TRIAL_DAYS = 7;
 const AUTH_LANG_KEY = "chefup:authLang";
@@ -93,6 +94,13 @@ export default function SubscriptionGate({ children }) {
   async function subscribe() {
     setErr("");
     setBusy(true);
+    // [BUG confirmé et corrigé, 2026-09-01] Le suivi "Clic « S'abonner »" ajouté hier n'avait été
+    // branché que sur `manageSubscription` (App.jsx, bouton secondaire de la fenêtre "Mon compte")
+    // — pas sur CETTE fonction, qui est celle du vrai bouton "S'abonner maintenant" du bandeau
+    // d'essai (le chemin que prennent presque tous les utilisateurs). Signalé par l'utilisateur
+    // après un test réel : clic sur le bandeau, rien dans le tableau de bord. Corrigé en dupliquant
+    // le même appel ici — les deux boutons envoient maintenant le même événement.
+    logActivity("subscribe_clicked", {});
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch("/api/create-checkout-session", {

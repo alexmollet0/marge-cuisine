@@ -4,7 +4,7 @@ export const CRITICAL_MARGIN = 70;
 
 export const TR = {
   fr: {
-    appTitle: "Chefup", saved: "Enregistré", loading: "Chargement…", greeting: "Service, Chef.",
+    appTitle: "Chefup", saved: "Enregistré", loading: "Chargement…", alertRecipesLabel: "À corriger",
     dataUnavailable: "Données locales indisponibles", resetData: "Réinitialiser mes données",
     resetDataConfirm: "Effacer toutes tes données ? Cette action est irréversible.",
     pantry: "Garde-manger", newIngredient: "Nouvel ingrédient", addIngredient: "Ajouter un ingrédient",
@@ -403,7 +403,7 @@ export const TR = {
     landingPricingFeature3: "Fiches techniques & allergènes imprimables", landingPricingFeature4: "Carte digitale avec QR code", landingPricingFeature5: "Résiliable à tout moment",
   },
   es: {
-    appTitle: "Chefup", saved: "Guardado", loading: "Cargando…", greeting: "En cocina, Chef.",
+    appTitle: "Chefup", saved: "Guardado", loading: "Cargando…", alertRecipesLabel: "A corregir",
     dataUnavailable: "Datos locales no disponibles", resetData: "Restablecer mis datos",
     resetDataConfirm: "¿Borrar todos tus datos? Esta acción es irreversible.",
     pantry: "Despensa", newIngredient: "Nuevo ingrediente", addIngredient: "Añadir ingrediente",
@@ -799,7 +799,7 @@ export const TR = {
     landingPricingFeature3: "Fichas técnicas y de alérgenos imprimibles", landingPricingFeature4: "Carta digital con código QR", landingPricingFeature5: "Cancelable en cualquier momento",
   },
   en: {
-    appTitle: "Chefup", saved: "Saved", loading: "Loading…", greeting: "Service, Chef.",
+    appTitle: "Chefup", saved: "Saved", loading: "Loading…", alertRecipesLabel: "Needs fixing",
     dataUnavailable: "Local data unavailable", resetData: "Reset my data",
     resetDataConfirm: "Erase all your data? This action is irreversible.",
     pantry: "Pantry", newIngredient: "New ingredient", addIngredient: "Add ingredient",

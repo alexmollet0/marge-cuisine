@@ -4272,24 +4272,45 @@ export default function App() {
               <Logo size={18} />
               <span className="font-display text-white/50 text-[11px] uppercase tracking-widest">{t("appTitle")}</span>
             </div>
-            <h1 className="font-display text-white text-2xl mb-1">{t("greeting")}</h1>
-            {/* [2026-08-29] Repère chiffré sous le titre, demandé par l'utilisateur pour renforcer
-                la hiérarchie visuelle de l'écran d'accueil (jugé trop plat) — un coup d'œil sur
-                l'état général avant même de scroller vers la liste. N'affiche rien tant qu'aucune
-                marge n'est calculable (pas de division par zéro sur un garde-manger vide). */}
+            {/* [REFONTE 2026-09-01] "Service, Chef." retiré — jugé par l'utilisateur comme ne
+                voulant rien dire hors contexte ("autant rien mettre"). Remplacé par un vrai petit
+                tableau de bord compact (nombre de recettes, marge moyenne, recettes en alerte)
+                plutôt qu'un titre décoratif — fusionne avec l'ancien repère chiffré en texte simple
+                du 2026-08-29, qui devient ce bandeau. Toujours print:hidden-friendly (jamais
+                affiché à l'impression de toute façon, hors de la fiche recette). N'affiche rien
+                tant qu'aucune marge n'est calculable (pas de division par zéro sur un garde-manger
+                vide) — dans ce cas, seul le logo/titre reste au-dessus des bandeaux suivants. */}
             {recipes.length > 0 && (() => {
               const margins = recipes.map((r) => recipeMargin(r)).filter((m) => m !== null);
               const avgMargin = margins.length ? Math.round(margins.reduce((s, m) => s + m, 0) / margins.length) : null;
               const avgTier = avgMargin !== null ? marginTier(avgMargin, settings.minMargin) : null;
+              // "En alerte" = tier rouge (sous CRITICAL_MARGIN), pas juste sous l'objectif choisi —
+              // même définition que la couleur "problème" déjà utilisée partout ailleurs (badges de
+              // la liste, panneau "en un coup d'œil"), pour ne jamais introduire un 2e sens du mot
+              // "alerte" dans l'app.
+              const alertCount = recipes.filter((r) => marginTier(recipeMargin(r), r.targetMargin ?? settings.minMargin) === "low").length;
               return (
-                <div className="flex items-center gap-1.5 mb-5">
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: avgTier ? TIER_COLORS[avgTier] : "rgba(255,255,255,0.3)" }} />
-                  <span className="text-white/45 text-xs">
-                    {recipes.length} {recipes.length > 1 ? t("recipes").toLowerCase() : t("recipes").toLowerCase().replace(/s$/, "")}
-                    {avgMargin !== null && (
-                      <> · {t("avgMarginLabel")} <span className="font-semibold" style={{ color: TIER_COLORS[avgTier] }}>{avgMargin}%</span></>
-                    )}
-                  </span>
+                <div className="flex items-stretch rounded-xl overflow-hidden mb-5 border border-white/10" style={{ background: "#201B15" }}>
+                  <div className="flex-1 px-3 py-2.5 text-center min-w-0">
+                    <div className="font-display text-white text-lg leading-none">{recipes.length}</div>
+                    <div className="text-white/40 text-[9px] uppercase tracking-wide mt-1 truncate">{t("recipes")}</div>
+                  </div>
+                  <div className="w-px bg-white/10" />
+                  <div className="flex-1 px-3 py-2.5 text-center min-w-0">
+                    <div className="font-display text-lg leading-none" style={{ color: avgMargin !== null ? TIER_COLORS[avgTier] : "rgba(255,255,255,0.3)" }}>
+                      {avgMargin !== null ? `${avgMargin}%` : "—"}
+                    </div>
+                    <div className="text-white/40 text-[9px] uppercase tracking-wide mt-1 truncate">{t("avgMarginLabel")}</div>
+                  </div>
+                  {alertCount > 0 && (
+                    <>
+                      <div className="w-px bg-white/10" />
+                      <div className="flex-1 px-3 py-2.5 text-center min-w-0">
+                        <div className="font-display text-lg leading-none" style={{ color: TIER_COLORS.low }}>{alertCount}</div>
+                        <div className="text-white/40 text-[9px] uppercase tracking-wide mt-1 truncate">{t("alertRecipesLabel")}</div>
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })()}
