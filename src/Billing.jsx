@@ -48,6 +48,7 @@ export default function SubscriptionGate({ children }) {
     // Le même appel indique aussi si le compte est interne (voir INTERNAL_EMAILS, api/_lib.js).
     let founder = false;
     let internal = false;
+    let spotsRemaining = null;
     try {
       const res = await fetch("/api/create-checkout-session", {
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -56,6 +57,7 @@ export default function SubscriptionGate({ children }) {
         const info = await res.json();
         founder = !!info.founder;
         internal = !!info.internal;
+        spotsRemaining = typeof info.spotsRemaining === "number" ? info.spotsRemaining : null;
       }
     } catch (e) {}
 
@@ -69,7 +71,7 @@ export default function SubscriptionGate({ children }) {
     // "je suis interne" stocké localement serait modifiable par n'importe qui pour contourner
     // l'abonnement. En contrepartie, si cet appel échoue, le paywall réapparaît — c'est le repli
     // sûr, jamais l'inverse.
-    setStatus({ active: active || internal, inTrial: left > 0, trialDaysLeft: left, founder, internal });
+    setStatus({ active: active || internal, inTrial: left > 0, trialDaysLeft: left, founder, internal, spotsRemaining });
   }, []);
 
   useEffect(() => {
@@ -177,10 +179,12 @@ export default function SubscriptionGate({ children }) {
           style={{ background: BRAND_GRADIENT }}
         >
           {/* Pendant l'essai, un fondateur voit ce qu'il a à PERDRE (son tarif à vie) plutôt qu'un
-              simple décompte de jours : c'est la même échéance, mais avec un enjeu. */}
+              simple décompte de jours : c'est la même échéance, mais avec un enjeu. Nombre de
+              places restantes ajouté au bandeau (2026-09-01, demandé par l'utilisateur) — la même
+              pression que sur la landing, mais visible aussi une fois dans l'app. */}
           <span>
             {status.founder
-              ? t("launchTrialBanner")(status.trialDaysLeft, PRICING.founding)
+              ? t("launchTrialBanner")(status.trialDaysLeft, PRICING.founding, status.spotsRemaining)
               : t("billingTrialBanner")(status.trialDaysLeft)}
           </span>
           {/* [AJOUT 2026-08-27] Bouton d'abonnement directement dans le bandeau. Jusqu'ici, le seul

@@ -51,17 +51,20 @@ export const TR = {
     billingPaywallReminder: "Tes recettes et leurs marges déjà calculées t'attendent — ne perds pas ce que tu as construit.",
     // Offre de lancement (2026-08-26) — 50 places, tarif bloqué à vie. Voir api/_lib.js.
     launchBadge: "Offre de lancement",
-    launchSpotsLeft: (n) => (n > 1 ? `Plus que ${n} places sur 50` : n === 1 ? "Dernière place sur 50" : "Les 50 places sont prises"),
+    launchSpotsLeft: (n) => (n > 1 ? `Plus que ${n} places sur 7` : n === 1 ? "Dernière place sur 7" : "Les 7 places sont prises"),
     launchFounderPrice: (f, s) => `${f}€/mois à vie au lieu de ${s}€`,
     launchForLife: "à vie",
     launchLifetimeLock: "Ce tarif reste le tien tant que ton abonnement reste actif, même quand le prix augmentera.",
     launchCondition: "Ta place est réservée dès ton inscription et confirmée si tu t'abonnes avant la fin de tes 7 jours d'essai.",
-    launchTrialBanner: (n, f) =>
-      n > 1
-        ? `Tarif fondateur ${f}€/mois à vie : encore ${n} jours pour le garder`
-        : n === 1
-        ? `Tarif fondateur ${f}€/mois à vie : dernier jour pour le garder`
-        : `Tarif fondateur ${f}€/mois à vie : ça se termine aujourd'hui`,
+    launchTrialBanner: (n, f, spots) => {
+      const base =
+        n > 1
+          ? `Tarif fondateur ${f}€/mois à vie : encore ${n} jours pour le garder`
+          : n === 1
+          ? `Tarif fondateur ${f}€/mois à vie : dernier jour pour le garder`
+          : `Tarif fondateur ${f}€/mois à vie : ça se termine aujourd'hui`;
+      return typeof spots === "number" && spots > 0 ? `${base} — plus que ${spots} places au total` : base;
+    },
     launchPaywallTitle: (f) => `Garde ton tarif fondateur : ${f}€/mois à vie`,
     billingSubscribeButton: "S'abonner maintenant", billingSecureNote: "Paiement sécurisé par Stripe.", billingCheckoutError: "Impossible d'ouvrir la page de paiement, réessaie dans un instant.",
     billingManageSubscription: "Abonnement", billingPortalError: "Impossible d'ouvrir la page d'abonnement, réessaie dans un instant.",
@@ -446,17 +449,20 @@ export const TR = {
     billingBenefit1: "Escaneo automático de facturas por IA", billingBenefit2: "Margen recalculado al instante con cada cambio de precio", billingBenefit3: "Alerta en cuanto un plato baja de tu margen objetivo",
     billingPaywallReminder: "Tus recetas y sus márgenes ya calculados te esperan — no pierdas lo que has construido.",
     launchBadge: "Oferta de lanzamiento",
-    launchSpotsLeft: (n) => (n > 1 ? `Solo quedan ${n} plazas de 50` : n === 1 ? "Última plaza de 50" : "Las 50 plazas están ocupadas"),
+    launchSpotsLeft: (n) => (n > 1 ? `Solo quedan ${n} plazas de 7` : n === 1 ? "Última plaza de 7" : "Las 7 plazas están ocupadas"),
     launchFounderPrice: (f, s) => `${f}€/mes de por vida en lugar de ${s}€`,
     launchForLife: "de por vida",
     launchLifetimeLock: "Este precio sigue siendo tuyo mientras tu suscripción siga activa, incluso cuando el precio suba.",
     launchCondition: "Tu plaza se reserva al registrarte y se confirma si te suscribes antes de que acaben tus 7 días de prueba.",
-    launchTrialBanner: (n, f) =>
-      n > 1
-        ? `Precio fundador ${f}€/mes de por vida: te quedan ${n} días para conservarlo`
-        : n === 1
-        ? `Precio fundador ${f}€/mes de por vida: último día para conservarlo`
-        : `Precio fundador ${f}€/mes de por vida: termina hoy`,
+    launchTrialBanner: (n, f, spots) => {
+      const base =
+        n > 1
+          ? `Precio fundador ${f}€/mes de por vida: te quedan ${n} días para conservarlo`
+          : n === 1
+          ? `Precio fundador ${f}€/mes de por vida: último día para conservarlo`
+          : `Precio fundador ${f}€/mes de por vida: termina hoy`;
+      return typeof spots === "number" && spots > 0 ? `${base} — solo quedan ${spots} plazas en total` : base;
+    },
     launchPaywallTitle: (f) => `Conserva tu precio fundador: ${f}€/mes de por vida`,
     billingSubscribeButton: "Suscribirme ahora", billingSecureNote: "Pago seguro con Stripe.", billingCheckoutError: "No se pudo abrir la página de pago, inténtalo de nuevo en un momento.",
     billingManageSubscription: "Suscripción", billingPortalError: "No se pudo abrir la página de suscripción, inténtalo de nuevo en un momento.",
@@ -839,17 +845,20 @@ export const TR = {
     billingBenefit1: "Automatic AI invoice scanning", billingBenefit2: "Margin recalculated instantly with every price change", billingBenefit3: "Alert as soon as a dish drops below your target margin",
     billingPaywallReminder: "Your recipes and their already-calculated margins are waiting — don't lose what you've built.",
     launchBadge: "Launch offer",
-    launchSpotsLeft: (n) => (n > 1 ? `Only ${n} spots left out of 50` : n === 1 ? "Last spot out of 50" : "All 50 spots are taken"),
+    launchSpotsLeft: (n) => (n > 1 ? `Only ${n} spots left out of 7` : n === 1 ? "Last spot out of 7" : "All 7 spots are taken"),
     launchFounderPrice: (f, s) => `€${f}/month for life instead of €${s}`,
     launchForLife: "for life",
     launchLifetimeLock: "This price stays yours as long as your subscription stays active, even when the price goes up.",
     launchCondition: "Your spot is reserved when you sign up and confirmed if you subscribe before your 7-day trial ends.",
-    launchTrialBanner: (n, f) =>
-      n > 1
-        ? `Founder price €${f}/month for life: ${n} days left to keep it`
-        : n === 1
-        ? `Founder price €${f}/month for life: last day to keep it`
-        : `Founder price €${f}/month for life: ends today`,
+    launchTrialBanner: (n, f, spots) => {
+      const base =
+        n > 1
+          ? `Founder price €${f}/month for life: ${n} days left to keep it`
+          : n === 1
+          ? `Founder price €${f}/month for life: last day to keep it`
+          : `Founder price €${f}/month for life: ends today`;
+      return typeof spots === "number" && spots > 0 ? `${base} — only ${spots} spots left in total` : base;
+    },
     launchPaywallTitle: (f) => `Keep your founder price: €${f}/month for life`,
     billingSubscribeButton: "Subscribe now", billingSecureNote: "Secure payment by Stripe.", billingCheckoutError: "Couldn't open the payment page, try again in a moment.",
     billingManageSubscription: "Subscription", billingPortalError: "Couldn't open the subscription page, try again in a moment.",

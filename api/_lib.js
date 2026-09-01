@@ -142,9 +142,9 @@ export async function sendEmail(to, subject, html, attachments, scheduledAt, rep
 }
 
 // ---------------------------------------------------------------------------
-// Offre de lancement "tarif fondateur" (2026-08-26)
+// Offre de lancement "tarif fondateur" (2026-08-26, quota revu le 2026-09-01)
 // ---------------------------------------------------------------------------
-// Les 50 premiers restaurants gardent 29€/mois à vie au lieu du tarif normal.
+// Les 7 premiers restaurants gardent 29€/mois à vie au lieu du tarif normal.
 // Règles décidées avec l'utilisateur, à ne pas modifier sans lui :
 //  - une place est RÉSERVÉE dès l'inscription, tant que l'essai gratuit court ;
 //  - elle est CONFIRMÉE (et verrouillée à vie côté Stripe) si le compte s'abonne
@@ -152,7 +152,15 @@ export async function sendEmail(to, subject, html, attachments, scheduledAt, rep
 //  - un essai qui expire sans abonnement LIBÈRE la place, qui repart dans le pool.
 // Conséquence : le nombre de places restantes se recalcule à chaque appel plutôt que
 // d'être stocké — un compteur figé se serait forcément désynchronisé de la réalité.
-export const FOUNDING_SPOTS = 50;
+// [2026-09-01] Quota abaissé de 50 à 7 (2 places déjà prises à ce moment-là, donc "5 restantes"
+// affiché tout de suite) : à 50, le compteur "48 places restantes" trahissait un faible nombre
+// d'inscriptions réelles et cassait l'effet d'urgence recherché au lieu de le créer. Un quota plus
+// petit et sincère peut être relevé plus tard (annoncé comme "on ouvre plus de places", une bonne
+// nouvelle) — ne JAMAIS le baisser après coup une fois annoncé publiquement, seulement le monter.
+// ⚠️ `launchSpotsLeft` dans src/translations.js (×3 langues) et `public/cgv.html` répètent ce
+// nombre en dur (texte, pas de constante partagée) — à resynchroniser à la main si ce chiffre
+// change encore, même principe que les autres duplications assumées de ce projet.
+export const FOUNDING_SPOTS = 7;
 // ⚠️ doit rester synchronisé avec TRIAL_DAYS dans src/Billing.jsx et api/send-reminders.js
 export const TRIAL_DAYS = 7;
 
