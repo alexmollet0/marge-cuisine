@@ -1781,6 +1781,7 @@ export default function App() {
     // une variable pas encore déclarée (erreur) et serait de toute façon écrasée par la
     // déclaration plus bas.
     let kgLPriceMismatch = false;
+    let alreadyPerContentUnit = false;
     if (printedUnit === "kg" || printedUnit === "L") {
       // Le prix imprimé est déjà un prix au kilo/litre selon l'IA. Recoupement systématique quand
       // on a une contenance fiable trouvée nous-mêmes dans le texte (ex: "75 CL" dans le titre) :
@@ -1845,7 +1846,30 @@ export default function App() {
       // — bug réel trouvé en test (2026-08). Le calcul lui-même n'a jamais été faux, seul l'arrondi
       // manquait.
       finalUnit = packageContentUnit === "kg" || packageContentUnit === "L" ? packageContentUnit : "pièce";
-      finalUnitPrice = Math.round((printedPrice / packageContent) * 10000) / 10000;
+      // [BUG confirmé 2026-09-02, facture bière France Boissons] L'IA classe parfois un prix DÉJÀ
+      // au kg/L comme "prix par colis" (printedPriceUnit: "colis") — diviser par packageContent
+      // donnait alors un prix ~15-30x trop bas, importé SANS la moindre alerte (voir plus bas :
+      // le contrôle priceInconsistent devient mathématiquement tautologique dès que countForCheck
+      // bascule sur impliedCount, packageContent s'annulant algébriquement des deux côtés de la
+      // comparaison — confirmé par un vrai test reproduit deux fois avec la même facture). Même
+      // recoupement que la branche kg/L juste au-dessus, en miroir : la quantité totale déduite du
+      // total imprimé (totalPriceHT ÷ printedPrice) doit ressembler soit à "nombre de colis" (le
+      // prix est bien par colis), soit à "nombre de colis × contenance" (le prix est déjà au
+      // kg/L). Seuils volontairement larges (30%/50%/×1.5) pour absorber une taxe/droit non connue
+      // qui gonfle le total (accise sur l'alcool, cas réel) sans jamais le faire baisser — mais
+      // seulement appliqué quand l'écart entre les deux hypothèses est sans appel, jamais sur un
+      // cas limite : en cas de doute, on garde l'ancien calcul (division), inchangé.
+      if ((finalUnit === "kg" || finalUnit === "L") && deterministicContent && printedPrice > 0 && it.totalPriceHT > 0) {
+        const impliedQty = it.totalPriceHT / printedPrice;
+        const qtyIfPerPackage = packageCount;
+        const qtyIfPerContent = packageCount * deterministicContent;
+        const relDiff = (a, b) => Math.abs(a - b) / Math.max(a, b);
+        alreadyPerContentUnit =
+          qtyIfPerContent > qtyIfPerPackage * 1.5 &&
+          relDiff(impliedQty, qtyIfPerContent) <= 0.3 &&
+          relDiff(impliedQty, qtyIfPerPackage) > 0.5;
+      }
+      finalUnitPrice = alreadyPerContentUnit ? printedPrice : Math.round((printedPrice / packageContent) * 10000) / 10000;
     }
 
     // Prix par pièce/colis pour un produit dont le contenu (poids/volume réel) est inconnu —
@@ -1865,7 +1889,11 @@ export default function App() {
     // avec une ligne voisine dense), pas une vraie incohérence de prix. Deux faux positifs réels
     // (2026-08, "4,12 KG" lu "412 KG", et une contamination par une ligne voisine) ont montré que
     // ça fait vérifier l'utilisateur pour rien alors que le prix importé était déjà correct.
-    const pricingDependsOnPackageContent = printedUnit !== "kg" && printedUnit !== "L";
+    // `alreadyPerContentUnit` (2026-09-02) exclut aussi le cas ci-dessus où le recoupement a jugé
+    // que packageContent, en réalité, n'est PAS entré dans le calcul de finalUnitPrice — sinon ce
+    // contrôle le multiplierait une seconde fois par erreur (même défaut, en miroir, que le bug
+    // qu'il corrige) et déclencherait une fausse incohérence sur une ligne désormais correcte.
+    const pricingDependsOnPackageContent = printedUnit !== "kg" && printedUnit !== "L" && !alreadyPerContentUnit;
     const printedTotal = it.totalPriceHT || 0;
     // Certaines factures ont DEUX colonnes de comptage distinctes (ex: "Colis" ET "Quantité"
     // séparées — cas réel du vin 2026-08 : 2 colis de 6 bouteilles de 75cl = 12 bouteilles, prix
