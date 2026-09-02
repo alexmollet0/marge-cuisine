@@ -1936,7 +1936,13 @@ export default function App() {
       if (diff > 0.15) priceInconsistent = true;
     }
 
-    return { finalUnit, finalUnitPrice, priceInconsistent, packagePriceUncertain, expectedTotal, pricingUnknown };
+    // [2026-09-02] `kgLPriceMismatch` exposé séparément (comme `packagePriceUncertain`) : contrairement
+    // au dépassement générique de `expectedTotal` (souvent une simple taxe/droit non détaillé, cas
+    // confirmé inoffensif), `kgLPriceMismatch` signale qu'AUCUNE interprétation plausible n'a été
+    // trouvée pour cette ligne (ni "déjà au bon prix", ni "prix par pièce mal classé") — un vrai
+    // doute, pas une fausse alerte. L'écran de scan (ScanItemCard) doit le traiter comme un doute
+    // sérieux, pas avec le ton rassurant réservé à priceInconsistent seul.
+    return { finalUnit, finalUnitPrice, priceInconsistent, packagePriceUncertain, kgLPriceMismatch, expectedTotal, pricingUnknown };
   };
 
   // Photo (pas PDF) : compresse, affiche l'aperçu, et ATTEND une confirmation explicite avant
@@ -2185,7 +2191,7 @@ export default function App() {
         .filter((it) => it.name && it.name.trim())
         .filter((it) => !looksLikeFooter(it))
         .map((it) => {
-        const { finalUnit, finalUnitPrice, priceInconsistent, packagePriceUncertain, expectedTotal, pricingUnknown } = computeItemPricing(it);
+        const { finalUnit, finalUnitPrice, priceInconsistent, packagePriceUncertain, kgLPriceMismatch, expectedTotal, pricingUnknown } = computeItemPricing(it);
         // Signal de confiance déclaré par l'IA elle-même ligne par ligne (voir prompt, règle
         // SIGNAL DE CONFIANCE) : une ligne lue sur un document flou/dense où un chiffre pourrait
         // appartenir à la mauvaise ligne ne doit jamais être traitée comme automatiquement sûre.
@@ -2267,6 +2273,7 @@ export default function App() {
           currentPriceIsReal,
           priceInconsistent,
           packagePriceUncertain,
+          kgLPriceMismatch,
           expectedTotal,
           pricingUnknown,
           priceUnusable,
