@@ -1782,6 +1782,7 @@ export default function App() {
     // déclaration plus bas.
     let kgLPriceMismatch = false;
     let alreadyPerContentUnit = false;
+    let packagePriceUncertain = false;
     if (printedUnit === "kg" || printedUnit === "L") {
       // Le prix imprimé est déjà un prix au kilo/litre selon l'IA. Recoupement systématique quand
       // on a une contenance fiable trouvée nous-mêmes dans le texte (ex: "75 CL" dans le titre) :
@@ -1868,6 +1869,18 @@ export default function App() {
           qtyIfPerContent > qtyIfPerPackage * 1.5 &&
           relDiff(impliedQty, qtyIfPerContent) <= 0.3 &&
           relDiff(impliedQty, qtyIfPerPackage) > 0.5;
+        // [2026-09-02] Cas résiduel trouvé au passage (facture Morgan, eaux en bouteilles de
+        // 50cl) : ni "prix par colis" ni "déjà au kg/L" ne collent — la quantité déduite du total
+        // ne correspond à aucune des deux hypothèses. Signature d'une facture qui compte son prix
+        // par une unité intermédiaire que l'app ne connaît pas (ex: prix par bouteille dans un lot
+        // de bouteilles, alors que packageContent raisonne en litres totaux). Comme pour
+        // pricingUnknown : mieux vaut le dire clairement (packagePriceUncertain) plutôt qu'importer
+        // un prix deviné — voir aussi pourquoi le contrôle plus bas (`expectedTotal`) ne peut PAS
+        // détecter ce cas tout seul, packageContent s'y annule algébriquement.
+        if (!alreadyPerContentUnit) {
+          const matchesPackage = relDiff(impliedQty, qtyIfPerPackage) <= 0.3;
+          if (!matchesPackage) packagePriceUncertain = true;
+        }
       }
       finalUnitPrice = alreadyPerContentUnit ? printedPrice : Math.round((printedPrice / packageContent) * 10000) / 10000;
     }
@@ -1910,15 +1923,20 @@ export default function App() {
         ? impliedCount
         : packageCount;
     const expectedTotal = countForCheck * packageContent * finalUnitPrice;
-    // Combine les deux garde-fous : celui de la branche "colis" (packageContent réellement utilisé
-    // pour calculer le prix) et celui de la branche "déjà au kg/L" ci-dessus (kgLPriceMismatch).
-    let priceInconsistent = kgLPriceMismatch;
+    // Combine les trois garde-fous : celui de la branche "colis" (packageContent réellement utilisé
+    // pour calculer le prix), celui de la branche "déjà au kg/L" ci-dessus (kgLPriceMismatch), et
+    // packagePriceUncertain (ci-dessus aussi) — ce dernier existe PARCE QUE le contrôle
+    // `expectedTotal` juste en dessous ne peut structurellement pas détecter une erreur dans ce cas
+    // précis : dès que `countForCheck` bascule sur `impliedCount` (juste au-dessus), packageContent
+    // s'annule algébriquement des deux côtés de sa propre formule et le contrôle valide n'importe
+    // quel prix, juste ou non — confirmé par test (2026-09-02, voir docs/HISTORIQUE-FONCTIONNALITES.md).
+    let priceInconsistent = kgLPriceMismatch || packagePriceUncertain;
     if (pricingDependsOnPackageContent && !pricingUnknown && printedTotal > 0 && expectedTotal > 0) {
       const diff = Math.abs(expectedTotal - printedTotal) / Math.max(printedTotal, 0.01);
       if (diff > 0.15) priceInconsistent = true;
     }
 
-    return { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal, pricingUnknown };
+    return { finalUnit, finalUnitPrice, priceInconsistent, packagePriceUncertain, expectedTotal, pricingUnknown };
   };
 
   // Photo (pas PDF) : compresse, affiche l'aperçu, et ATTEND une confirmation explicite avant
@@ -2167,7 +2185,7 @@ export default function App() {
         .filter((it) => it.name && it.name.trim())
         .filter((it) => !looksLikeFooter(it))
         .map((it) => {
-        const { finalUnit, finalUnitPrice, priceInconsistent, expectedTotal, pricingUnknown } = computeItemPricing(it);
+        const { finalUnit, finalUnitPrice, priceInconsistent, packagePriceUncertain, expectedTotal, pricingUnknown } = computeItemPricing(it);
         // Signal de confiance déclaré par l'IA elle-même ligne par ligne (voir prompt, règle
         // SIGNAL DE CONFIANCE) : une ligne lue sur un document flou/dense où un chiffre pourrait
         // appartenir à la mauvaise ligne ne doit jamais être traitée comme automatiquement sûre.
@@ -2248,6 +2266,7 @@ export default function App() {
           currentPrice,
           currentPriceIsReal,
           priceInconsistent,
+          packagePriceUncertain,
           expectedTotal,
           pricingUnknown,
           priceUnusable,
@@ -2431,6 +2450,7 @@ export default function App() {
   // encore validé — la ligne doit rester dans "à vérifier" jusqu'au clic explicite sur Valider.
   const isSafeScanItem = (item) =>
     !item.priceInconsistent && !item.bigChange && !item.priceUnusable && !item.lowConfidence && !item.unitChangeAffectsRecipes &&
+    !item.packagePriceUncertain &&
     (item.matchConfident || (item.assignTo === "new" && !item.guessedMatchId));
 
   // Une ligne rejoint la section "sûr" (éditable, coche pour importer) si elle est intrinsèquement

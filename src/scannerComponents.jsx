@@ -1109,7 +1109,11 @@ export function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, in
   // ressembler à une vraie erreur (triangle orange partout) quand c'est SEULEMENT ce doute-là : un
   // scan avec 7 lignes sur 8 "en alerte" faisait peur pour rien. `pricingUnknown`/`lowConfidence`/
   // `unitChangeAffectsRecipes` restent traités comme avant (doutes plus sérieux, jamais adoucis).
-  const hasSeriousPriceDoubt = item.pricingUnknown || item.lowConfidence || item.unitChangeAffectsRecipes;
+  // `packagePriceUncertain` (2026-09-02) rejoint ce groupe "sérieux" plutôt que le groupe adouci
+  // ci-dessus : contrairement à `priceInconsistent` seul (souvent une simple taxe non détaillée),
+  // celui-ci signale un prix réellement pas vérifiable automatiquement — pas question de le
+  // présenter comme "pas forcément une erreur".
+  const hasSeriousPriceDoubt = item.pricingUnknown || item.lowConfidence || item.unitChangeAffectsRecipes || item.packagePriceUncertain;
   // Un vrai souci d'identité/prix justifie un bouton d'alerte — une simple grosse variation de
   // prix (bigChange) non : le chef veut pouvoir valider normalement et juste voir la flèche/
   // pourcentage d'info affichée plus bas, pas se faire arrêter par un symbole danger pour un prix
@@ -1287,13 +1291,20 @@ export function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, in
 
           {item.pricingUnknown && <PricingCalculator item={item} onUpdate={onUpdate} t={t} />}
 
-          {item.priceInconsistent && (
+          {item.priceInconsistent && !item.packagePriceUncertain && (
             <div className="flex items-center gap-1.5 text-[10px] rounded px-2 py-1 bg-white/5 text-white/50">
               <Info size={11} className="shrink-0" />
               <span>
                 {t("scanPriceInconsistent")}
                 {item.expectedTotal !== null ? ` (${t("scanExpectedTotal")} ≈ ${item.expectedTotal.toFixed(2)}€, ${t("scanPrintedTotal")} ${(item.totalPriceHT || 0).toFixed(2)}€)` : ""}
               </span>
+            </div>
+          )}
+
+          {item.packagePriceUncertain && (
+            <div className="flex items-center gap-1.5 text-[10px] rounded px-2 py-1" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
+              <AlertTriangle size={11} className="shrink-0" />
+              <span>{t("scanPackagePriceUncertain")}</span>
             </div>
           )}
 
