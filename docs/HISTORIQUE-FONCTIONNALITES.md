@@ -732,6 +732,29 @@ Valeur: v=DMARC1; p=none; rua=mailto:contactchefup.app@gmail.com
 
 **Reste, si ça revient souvent sur ce type de facture (bière/boissons avec droits d'accise)** : envisager, à tête reposée et pas dans l'urgence, une reformulation du message d'avertissement pour ce cas précis plutôt qu'un changement de logique — pas fait ici, pas demandé. Compte de test `chefuptest.dutycheck@example.com` à supprimer via le tableau de bord admin.
 
+**✅ Suite immédiate le même jour, deux correctifs de produit demandés par l'utilisateur en réaction directe à cette investigation :**
+
+### ✅ Alerte "prix incohérent" adoucie visuellement (2026-09-02)
+
+Remarque de l'utilisateur en voyant le résultat du scan Morgan : "si tout s'affiche en rouge pour des fausses erreurs comme ça, ça fait un peu peur pour rien". Sur cette facture, 7 lignes sur 8 déclenchaient `priceInconsistent`, chacune avec un triangle orange (`AlertTriangle`, `TIER_COLORS.mid`) — carte bordée en orange, bouton de confirmation transformé en bouton d'alerte, bandeau "Vérifie ce prix avant d'importer". Un écran qui ressemble à "presque tout est cassé" pour un scan qui, on vient de le confirmer, était en réalité parfait.
+
+**Décision explicitement limitée au VISUEL, la logique de sécurité n'a pas bougé** : `isSafeScanItem`/le routage vers la pile "à vérifier" (`src/App.jsx`) restent identiques — une ligne `priceInconsistent` continue d'exiger une validation individuelle, exactement comme avant. Seule la présentation change, et seulement quand `priceInconsistent` est le SEUL doute sur la ligne (`src/scannerComponents.jsx`, `ScanItemCard`) :
+- Nouvelle variable `hasSeriousPriceDoubt` (= `pricingUnknown`/`lowConfidence`/`unitChangeAffectsRecipes`, PAS `priceInconsistent`) reprend exactement l'ancien traitement orange/`AlertTriangle` — ces trois-là restent des doutes plus sérieux, jamais adoucis.
+- `priceInconsistent` seul (`hasMildPriceNote`) obtient un traitement neutre déjà utilisé ailleurs dans le fichier pour "à noter, pas alarmant" (icône `Info`, `text-white/50`, pas de fond coloré) — même style que la note `bigChange` existante. Bordure de carte par défaut (plus d'orange), bouton de confirmation vert normal.
+- Texte reformulé pour expliquer la cause plutôt qu'alarmer (`scanPriceInconsistent`/nouvelle clé `scanPriceInconsistentNote`, 3 langues) : mentionne explicitement qu'un écart est souvent une taxe non détaillée séparément, pas forcément une erreur — appris directement du cas Morgan.
+
+Vérifié par `npm run build` (aucune erreur) — pas de test visuel en direct (simuler un vrai résultat de scan dans le navigateur automatisé demanderait un vrai appel IA ou de bidouiller l'état React, jugé disproportionné pour un changement de style suivant un patron déjà existant dans le même fichier).
+
+### ✅ TVA par recette (2026-09-02)
+
+Demande de l'utilisateur après avoir vu qu'une cliente (Morgan) avait créé une recette de bière : la TVA était figée au réglage global (10%, restauration sur place) alors que l'alcool servi sur place est à 20% en France — impossible à corriger recette par recette avant ce jour.
+
+**Ce qui a été fait** (`src/App.jsx`) : nouveau champ optionnel `recipe.vatOverride`. Nouvel helper `recipeVatRate(r) = r?.vatOverride ?? vatRate` (même principe que `targetMargin`/`settings.minMargin` déjà en place). `priceHT` accepte désormais un taux explicite (`priceHT(ttc, rate = vatRate)`), `recipeMargin(r)` l'utilise pour CHAQUE recette — donc tous les affichages qui appellent déjà `recipeMargin` (listes, classement TOP1/2/3, compteur "à corriger" du mini tableau de bord) tiennent compte de la TVA par recette sans changement supplémentaire, un seul point de calcul. Champ éditable ajouté sur la fiche recette, juste au-dessus de "Marge cible", avec un lien "Revenir à la TVA par défaut (X%)" qui n'apparaît que si une valeur différente du taux global est réglée.
+
+**Formule dupliquée resynchronisée** : `api/send-reminders.js` (`recipeMarginPercent`, utilisée pour le digest email "marge sous objectif") lit maintenant `recipe.vatOverride` en priorité, comme documenté dans CLAUDE.md pour cette duplication volontaire.
+
+**Vérifié en direct** (contournement d'authentification temporaire, jamais commité, restauré immédiatement après) : ouvert la recette de démo, passé la TVA de 10% à 20% → prix HT recalculé (19,00€ → 17,42€, exact), marge recalculée (75% → 73%, exact), lien de réinitialisation apparu, cliqué dessus → retour exact à 10%/75%. `npm run build` propre.
+
 ---
 
 ## Détail complet de l'implémentation Auth + Stripe (2026-08-02/05, résumé dans CLAUDE.md)

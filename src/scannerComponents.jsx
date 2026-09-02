@@ -1101,11 +1101,21 @@ export function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, in
   // du clic final n'a plus de sens, ça ferait revivre une décision déjà prise (repéré en test réel,
   // 2026-08 : "Café grain arabica" gardait son bouton orange après validation explicite du nom).
   const hasUnresolvedNameDoubt = !item.matchConfident && item.assignTo !== "new" && !item.reviewed;
+  // [2026-09-02] `priceInconsistent` seul (sans autre doute) s'est révélé être une fausse alerte
+  // très fréquente sur les factures de boissons avec droits/accise (le total imprimé inclut une
+  // taxe que l'app ne connaît pas — voir docs/HISTORIQUE-FONCTIONNALITES.md, cas réel Morgan). La
+  // ligne reste dans la pile "à vérifier" (comportement inchangé, `isSafeScanItem` dans App.jsx
+  // n'est pas touché — on ne relâche pas la vraie sécurité), mais visuellement elle ne doit plus
+  // ressembler à une vraie erreur (triangle orange partout) quand c'est SEULEMENT ce doute-là : un
+  // scan avec 7 lignes sur 8 "en alerte" faisait peur pour rien. `pricingUnknown`/`lowConfidence`/
+  // `unitChangeAffectsRecipes` restent traités comme avant (doutes plus sérieux, jamais adoucis).
+  const hasSeriousPriceDoubt = item.pricingUnknown || item.lowConfidence || item.unitChangeAffectsRecipes;
   // Un vrai souci d'identité/prix justifie un bouton d'alerte — une simple grosse variation de
   // prix (bigChange) non : le chef veut pouvoir valider normalement et juste voir la flèche/
   // pourcentage d'info affichée plus bas, pas se faire arrêter par un symbole danger pour un prix
   // qui monte.
-  const hasIdentityIssue = hasPriceDoubt || hasUnresolvedNameDoubt;
+  const hasIdentityIssue = hasSeriousPriceDoubt || hasUnresolvedNameDoubt;
+  const hasMildPriceNote = item.priceInconsistent && !hasIdentityIssue;
   // Calculé dès qu'il y a un prix connu à comparer, même si la variation est nulle — avant ce
   // correctif, seules les lignes avec une VRAIE variation (>1%) affichaient quoi que ce soit,
   // ce qui donnait l'impression fausse que les autres lignes n'avaient pas été comparées du
@@ -1150,7 +1160,8 @@ export function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, in
           {needsRename && (
             <span className="text-[10px] text-white/35 truncate">({t("scanProposedLabel")} : {item.name})</span>
           )}
-          {hasPriceDoubt && !item.imported && <AlertTriangle size={12} className="shrink-0 ml-auto" style={{ color: TIER_COLORS.mid }} />}
+          {hasSeriousPriceDoubt && !item.imported && <AlertTriangle size={12} className="shrink-0 ml-auto" style={{ color: TIER_COLORS.mid }} />}
+          {hasMildPriceNote && !item.imported && <Info size={12} className="shrink-0 ml-auto text-white/40" />}
         </div>
 
         {/* Texte tel que lu sur la facture (débarrassé seulement du code fournisseur) : visible
@@ -1241,9 +1252,14 @@ export function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, in
             mobile) : un doute sur le prix doit rester impossible à manquer jusqu'à l'import,
             contrairement au doute sur le nom qui, lui, se résout une fois validé (voir
             hasUnresolvedNameDoubt plus haut). */}
-        {hasPriceDoubt && !item.imported && (
+        {hasSeriousPriceDoubt && !item.imported && (
           <div className="flex items-center gap-1 mt-1.5 text-[10px] font-semibold" style={{ color: TIER_COLORS.mid }}>
             <AlertTriangle size={11} className="shrink-0" /> {t("scanPriceDoubtLabel")}
+          </div>
+        )}
+        {hasMildPriceNote && !item.imported && (
+          <div className="flex items-center gap-1 mt-1.5 text-[10px] font-semibold text-white/50">
+            <Info size={11} className="shrink-0" /> {t("scanPriceInconsistentNote")}
           </div>
         )}
         {/* Un écart de prix de plus de 40% (dans un sens comme dans l'autre) garde la ligne hors de
@@ -1272,8 +1288,8 @@ export function ScanItemCard({ item, onUpdate, onImport, onSkip, ingredients, in
           {item.pricingUnknown && <PricingCalculator item={item} onUpdate={onUpdate} t={t} />}
 
           {item.priceInconsistent && (
-            <div className="flex items-center gap-1.5 text-[10px] rounded px-2 py-1" style={{ background: `${TIER_COLORS.mid}18`, color: TIER_COLORS.mid }}>
-              <AlertTriangle size={11} className="shrink-0" />
+            <div className="flex items-center gap-1.5 text-[10px] rounded px-2 py-1 bg-white/5 text-white/50">
+              <Info size={11} className="shrink-0" />
               <span>
                 {t("scanPriceInconsistent")}
                 {item.expectedTotal !== null ? ` (${t("scanExpectedTotal")} ≈ ${item.expectedTotal.toFixed(2)}€, ${t("scanPrintedTotal")} ${(item.totalPriceHT || 0).toFixed(2)}€)` : ""}

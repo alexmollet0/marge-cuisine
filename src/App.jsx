@@ -566,7 +566,11 @@ export default function App() {
   const recipeCost = (r) => r.lines.reduce((s, l) => s + lineCost(l), 0);
   const recipeCostPerPortion = (r) => (r.portions > 0 ? recipeCost(r) / r.portions : 0);
   const vatRate = settings.vat ?? 10;
-  const priceHT = (ttc) => ttc / (1 + vatRate / 100);
+  // TVA par recette (2026-09-02) : certains plats (alcool servi sur place, 20% en France) n'ont
+  // pas le même taux que le reste de la carte (souvent 10%) — `vatOverride` prévaut sur le réglage
+  // global quand réglé, même principe que `targetMargin` ci-dessous (`r.targetMargin ?? settings.minMargin`).
+  const recipeVatRate = (r) => r?.vatOverride ?? vatRate;
+  const priceHT = (ttc, rate = vatRate) => ttc / (1 + rate / 100);
   const recipeMargin = (r) => {
     // [CORRECTION 2026-08-27] Une recette sans le moindre ingrédient n'a pas une marge de 100%,
     // elle a une marge INCONNUE. Le cas ne se produisait presque jamais avant (une recette créée à
@@ -576,7 +580,7 @@ export default function App() {
     // décrocherait même un badge TOP1 au classement.
     if (!r.lines || r.lines.length === 0) return null;
     const cpp = recipeCostPerPortion(r);
-    const ht = priceHT(r.sellPrice || 0);
+    const ht = priceHT(r.sellPrice || 0, recipeVatRate(r));
     return ht > 0 ? ((ht - cpp) / ht) * 100 : null;
   };
 
@@ -592,11 +596,12 @@ export default function App() {
 
   const totalCost = active ? recipeCost(active) : 0;
   const costPerPortion = active ? recipeCostPerPortion(active) : 0;
-  const sellHT = active ? priceHT(active.sellPrice || 0) : 0;
+  const activeVatRate = active ? recipeVatRate(active) : vatRate;
+  const sellHT = active ? priceHT(active.sellPrice || 0, activeVatRate) : 0;
   const margin = active ? recipeMargin(active) : null;
   const targetMargin = active?.targetMargin ?? 75;
   const suggestedHT = active && targetMargin < 100 ? costPerPortion / (1 - targetMargin / 100) : null;
-  const suggestedTTC = suggestedHT !== null ? suggestedHT * (1 + vatRate / 100) : null;
+  const suggestedTTC = suggestedHT !== null ? suggestedHT * (1 + activeVatRate / 100) : null;
   // Règle : on ne propose un prix conseillé que si la marge actuelle n'atteint pas encore l'objectif.
   // Si l'objectif est déjà atteint ou dépassé, on ne suggère jamais un prix plus bas.
   // On compare la valeur ARRONDIE (celle affichée à l'écran) pour éviter qu'un 74.8% affiché "75%" reste bloqué.
@@ -4892,7 +4897,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex justify-between text-black/50 text-xs">
-                  <span>{t("sellPriceHT")} ({t("vat")} {vatRate}%)</span>
+                  <span>{t("sellPriceHT")} ({t("vat")} {activeVatRate}%)</span>
                   <span>{sellHT.toFixed(2)}€</span>
                 </div>
                 {/* [DÉPLACÉ 2026-08-30] Vivait avant dans l'en-tête de la fiche, au milieu de
@@ -4962,6 +4967,20 @@ export default function App() {
               </div>
 
               <div className="border-t border-dashed border-black/30 mt-3 pt-3 text-xs space-y-2 print:hidden">
+                <div className="flex justify-between items-center text-black/60">
+                  <span>{t("recipeVatLabel")}</span>
+                  <div className="flex items-center gap-1">
+                    <NumField allowDecimal={false} value={activeVatRate} onChange={(v) => updateRecipe({ vatOverride: v })} className="w-12 bg-transparent text-right outline-none border-b border-black/20" />
+                    <span>%</span>
+                  </div>
+                </div>
+                {active.vatOverride != null && active.vatOverride !== vatRate && (
+                  <div className="flex justify-end">
+                    <button onClick={() => updateRecipe({ vatOverride: null })} className="text-[10px] text-black/40 hover:text-black underline decoration-dotted">
+                      {t("recipeVatResetToDefault")(vatRate)}
+                    </button>
+                  </div>
+                )}
                 <div className="flex justify-between items-center text-black/60">
                   <span>{t("targetMargin")}</span>
                   <div className="flex items-center gap-1">

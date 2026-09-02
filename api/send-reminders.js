@@ -124,13 +124,16 @@ function recipeMarginPercent(recipe, ingredientsById, vatRate) {
   // pas égale à 100%. Sans conséquence visible ici (100% n'a jamais déclenché d'alerte, qui ne
   // se déclenche que SOUS l'objectif), mais les deux formules doivent rester identiques — c'est
   // la règle posée pour cette duplication volontaire.
+  // [2026-09-02] `recipe.vatOverride` (TVA propre à une recette, ex: alcool à 20% sur une carte à
+  // 10%) prévaut sur le taux global — même règle que côté client (`recipeVatRate`, src/App.jsx).
   if (!recipe.lines || recipe.lines.length === 0) return null;
   const cost = (recipe.lines || []).reduce((sum, line) => {
     const ing = ingredientsById.get(line.ingredientId);
     return sum + (ing ? effectiveUnitPrice(ing) * line.qty : 0);
   }, 0);
   const cpp = recipe.portions > 0 ? cost / recipe.portions : 0;
-  const ht = (recipe.sellPrice || 0) / (1 + (vatRate ?? 10) / 100);
+  const effectiveVat = recipe.vatOverride ?? vatRate ?? 10;
+  const ht = (recipe.sellPrice || 0) / (1 + effectiveVat / 100);
   return ht > 0 ? ((ht - cpp) / ht) * 100 : null;
 }
 
