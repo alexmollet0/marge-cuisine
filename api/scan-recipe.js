@@ -19,9 +19,14 @@ export default async function handler(req, res) {
     });
   }
 
-  const { image, mediaType, text, ocrText } = req.body || {};
-  if (!image && !text) {
-    return res.status(400).json({ error: "Aucune image ni texte reçu." });
+  const { image, mediaType, text, ocrText, dishName } = req.body || {};
+  // "Recette express" (2026-09-02) : troisième mode d'entrée, distinct de la lecture d'une fiche
+  // existante (image/text) — ici RIEN n'est écrit nulle part, l'IA invente une base de recette
+  // réaliste à partir du seul nom d'un plat. Prompt entièrement séparé ci-dessous (isExpressMode)
+  // pour ne jamais risquer de faire régresser le mode "lecture de fiche" déjà en place.
+  const isExpressMode = typeof dishName === "string" && dishName.trim().length > 0;
+  if (!image && !text && !isExpressMode) {
+    return res.status(400).json({ error: "Aucune image, texte ni nom de plat reçu." });
   }
 
   // Même serrure souple que api/scan-invoice.js (voir checkUserSoft dans _lib.js) : cet endpoint
@@ -30,6 +35,65 @@ export default async function handler(req, res) {
   const auth = await checkUserSoft(req);
   if (auth.status === "missing" || auth.status === "invalid") {
     return res.status(401).json({ error: "Session expirée, reconnecte-toi puis réessaie." });
+  }
+
+  if (isExpressMode) {
+    // Bornes défensives : évite un texte absurdement long ou un nombre de portions farfelu
+    // d'atteindre le prompt (aucune conséquence de sécurité réelle, juste de l'hygiène d'entrée).
+    const cleanDishName = dishName.trim().slice(0, 100);
+    const portions = Number.isFinite(req.body?.portions) && req.body.portions > 0 ? Math.min(Math.round(req.body.portions), 200) : 4;
+    const expressPrompt = `Tu es un chef cuisinier qui aide un restaurateur à démarrer rapidement une nouvelle recette dans son application de gestion de marges, en lui proposant une base de recette réaliste à partir du seul nom d'un plat — contrairement à une lecture de document, ici RIEN n'est déjà écrit nulle part : c'est à TOI d'inventer des quantités raisonnables à partir de ta connaissance de la cuisine professionnelle française.
+Nom du plat donné par l'utilisateur : "${cleanDishName}". Nombre de portions demandé : ${portions}.
+Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de balises markdown), au format exact :
+
+{
+  "name": "nom du plat normalisé proprement (première lettre en majuscule, orthographe corrigée si besoin)",
+  "portions": ${portions},
+  "lines": [
+    { "name": "nom simple de l'ingrédient : juste la matière première en français, sans marque ni conditionnement (ex: 'Parmesan', 'Poulet', 'Salade romaine')", "qty": nombre, "unit": "kg" ou "L" ou "pièce" }
+  ]
+}
+
+RÈGLES :
+- Liste RÉALISTE d'ingrédients pour ce plat, comme le ferait un vrai chef de cuisine professionnelle en France, pour EXACTEMENT ${portions} portion(s) — adapte toujours les quantités au nombre de portions demandé (pas une recette pour 4 si on te demande 1).
+- Quantités TOUJOURS en grammes convertis en kg (ex: 150g → qty: 0.15, unit: "kg") ou en millilitres convertis en litres (ex: 50ml → qty: 0.05, unit: "L") pour tout ingrédient qui se pèse ou se mesure normalement (viande, poisson, légume, fromage, sauce, liquide...). N'utilise "pièce" QUE pour un ingrédient réellement compté à l'unité fixe (ex: 1 œuf, 1 citron) — jamais pour approximer le poids d'une portion de viande/poisson/légume.
+- Entre 5 et 12 ingrédients pour un plat normal (ni liste trop courte qui manquerait l'essentiel, ni liste interminable). N'inclus le sel/poivre/eau que s'ils ont un vrai poids notable dans la recette (ex: eau de cuisson d'un risotto) — omets-les s'ils sont juste un assaisonnement classique en quantité négligeable, ça n'apporte rien au calcul de marge.
+- Si le nom donné ne correspond à AUCUN plat reconnaissable (charabia, texte hors-sujet), réponds quand même avec "lines": [] plutôt que d'inventer n'importe quoi — c'est une réponse honnête et valide.
+Réponds toujours avec un JSON syntaxiquement valide.`;
+
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 2048,
+          temperature: 0.4,
+          messages: [{ role: "user", content: [{ type: "text", text: expressPrompt }] }],
+        }),
+      });
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        console.error(`[scan-recipe:express] HTTP ${response.status}`, detail.slice(0, 800));
+        return res.status(502).json({ error: "L'IA n'a pas pu générer cette recette." });
+      }
+      const data = await response.json();
+      const textBlock = (data.content || []).find((c) => c.type === "text");
+      let raw = (textBlock?.text || "{}").trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+      const firstBrace = raw.indexOf("{");
+      const lastBrace = raw.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) raw = raw.slice(firstBrace, lastBrace + 1);
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        console.error("[scan-recipe:express] JSON illisible", (raw || "(vide)").slice(0, 800));
+        return res.status(502).json({ error: "Réponse de l'IA illisible." });
+      }
+      return res.status(200).json(parsed);
+    } catch (e) {
+      return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+    }
   }
 
   const prompt = `Tu es un assistant qui lit des fiches techniques/recettes de cuisine (photo, éventuellement manuscrite, ou texte numérique déjà extrait d'un PDF), pour aider un restaurateur à saisir rapidement une recette qu'il utilise déjà.

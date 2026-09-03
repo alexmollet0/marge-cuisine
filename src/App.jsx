@@ -197,6 +197,24 @@ export default function App() {
   const menuCategories = menuSettings.customCategories?.length ? menuSettings.customCategories : defaultMenuCategories();
   const [addToMenuModalOpen, setAddToMenuModalOpen] = useState(false);
   const [addToMenuSection, setAddToMenuSection] = useState(null);
+  // "Recette express" (2026-09-02) : proposée dès le clic sur "+ Nouvelle recette" plutôt que
+  // d'atterrir directement sur une fiche vide — décision explicite de l'utilisateur, en réponse
+  // directe au constat que beaucoup de comptes neufs abandonnent sur une fiche vierge (voir
+  // CLAUDE.md, backlog). `expressFormOpen` distingue l'écran de choix (2 options) du petit
+  // formulaire (nom du plat + portions) à l'intérieur de la même fenêtre.
+  const [newRecipeChoiceOpen, setNewRecipeChoiceOpen] = useState(false);
+  const [expressFormOpen, setExpressFormOpen] = useState(false);
+  const [expressRecipeName, setExpressRecipeName] = useState("");
+  const [expressRecipePortions, setExpressRecipePortions] = useState(4);
+  const [expressRecipeLoading, setExpressRecipeLoading] = useState(false);
+  const [expressRecipeError, setExpressRecipeError] = useState(null);
+  const closeNewRecipeChoice = () => {
+    setNewRecipeChoiceOpen(false);
+    setExpressFormOpen(false);
+    setExpressRecipeName("");
+    setExpressRecipePortions(4);
+    setExpressRecipeError(null);
+  };
   const addRecipeToMenu = () => {
     if (!active) return;
     // Snapshot du prix au moment de l'ajout (voir `menuPrice`, plus bas dans la fiche) — c'est la
@@ -775,6 +793,121 @@ export default function App() {
     setRecipeSubView("detail");
     setFocusNameOnOpen(true);
     logActivity("recipe_created", { name: nr.name });
+  };
+
+  // "Recette express" (2026-09-02) : génère une base de recette à partir du seul nom d'un plat
+  // (`api/scan-recipe.js`, mode `dishName`) puis la crée directement, sans étape de vérification
+  // intermédiaire — contrairement au scanner de fiche recette (où l'OCR peut mal lire un document
+  // réel), une recette INVENTÉE par l'IA n'a pas de "mauvaise lecture" possible, juste un nom à
+  // rapprocher au mieux du garde-manger ; l'utilisateur atterrit de toute façon sur la fiche
+  // normale, éditable comme n'importe quelle recette. Chaque ingrédient créé reçoit un prix ESTIMÉ
+  // par catégorie (même mécanisme que `quickAddLine`/`createRecipeFromScan`, priceSource
+  // "estimate", déjà signalé par la pastille + légende existantes) — jamais un vrai prix inventé.
+  const createExpressRecipe = async () => {
+    const dishName = expressRecipeName.trim();
+    if (!dishName || expressRecipeLoading) return;
+    setExpressRecipeLoading(true);
+    setExpressRecipeError(null);
+    try {
+      const headers = { "content-type": "application/json" };
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      } catch (err) {}
+      const res = await fetch("/api/scan-recipe", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ dishName, portions: expressRecipePortions, lang }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "erreur");
+
+      const rawLines = Array.isArray(data.lines) ? data.lines : [];
+      const asText = (v) => (typeof v === "string" ? v : "");
+      // Même filet de sécurité que handleScanRecipeFile (normalizeScanUnit) : le prompt demande à
+      // l'IA de convertir g→kg/mL→L elle-même, mais on rattrape le cas où elle renvoie l'unité
+      // brute plutôt que de laisser passer une valeur invalide.
+      const normalizeUnit = (qty, rawUnit) => {
+        const u = (rawUnit || "").toString().trim().toLowerCase();
+        if (typeof qty === "number") {
+          if (["g", "gramme", "grammes"].includes(u)) return { qty: qty / 1000, unit: "kg" };
+          if (["ml", "millilitre", "millilitres"].includes(u)) return { qty: qty / 1000, unit: "L" };
+          if (["cl", "centilitre", "centilitres"].includes(u)) return { qty: qty / 100, unit: "L" };
+        }
+        if (u === "kg") return { qty, unit: "kg" };
+        if (["l", "litre", "litres"].includes(u)) return { qty, unit: "L" };
+        if (["pièce", "piece", "pieces", "pièces", "u", "pc"].includes(u)) return { qty, unit: "pièce" };
+        return { qty: null, unit: null };
+      };
+
+      const newIngredients = [];
+      const resolvedLines = rawLines
+        .filter((l) => l && typeof l === "object" && asText(l.name).trim())
+        .map((l) => {
+          const name = asText(l.name).trim();
+          const catalogGuess = guessCatalogEntry(name);
+          const normalized = normalizeUnit(typeof l.qty === "number" ? l.qty : null, asText(l.unit));
+          const qty = normalized.unit ? normalized.qty : 0;
+          const unit = normalized.unit || CATEGORY_DEFAULT_UNIT[catalogGuess ? catalogGuess.category : "autres"] || "kg";
+
+          const match = guessIngredientId(name);
+          let ingredientId;
+          if (match && match.confident) {
+            ingredientId = match.id;
+          } else {
+            // Une ligne déjà générée dans CETTE même réponse (ex: "parmesan" cité deux fois) ne
+            // doit pas créer deux ingrédients distincts — `ingredients` (état React) ne reflète pas
+            // encore les entrées ajoutées plus haut dans cette même boucle, `newIngredients` si.
+            const dup = newIngredients.find((ni) => ni.name.toLowerCase() === name.toLowerCase());
+            if (dup) {
+              ingredientId = dup.id;
+            } else {
+              const category = catalogGuess ? catalogGuess.category : "autres";
+              const sId = uid();
+              ingredientId = uid();
+              newIngredients.push({
+                id: ingredientId,
+                name,
+                unit,
+                catalogId: catalogGuess?.confident ? catalogGuess.catalogId : null,
+                category,
+                selectedSupplierId: sId,
+                suppliers: [{ id: sId, name: t("supplier"), price: CATEGORY_ESTIMATE_PRICE[category] || 5, priceSource: "estimate" }],
+                history: [],
+                lastUpdated: today(),
+              });
+            }
+          }
+          return { ingredientId, qty: qty || 0 };
+        });
+
+      if (resolvedLines.length === 0) throw new Error("empty");
+
+      if (newIngredients.length) setIngredients((ings) => [...ings, ...newIngredients]);
+
+      const newRecipe = {
+        id: uid(),
+        name: asText(data.name).trim() || dishName,
+        portions: typeof data.portions === "number" && data.portions > 0 ? data.portions : expressRecipePortions,
+        sellPrice: 0,
+        targetMargin: 75,
+        notes: "",
+        allergens: "",
+        allergensAuto: true,
+        createdAt: today(),
+        lines: resolvedLines,
+      };
+      setRecipes((rs) => [...rs, newRecipe]);
+      setActiveId(newRecipe.id);
+      setActiveTab("recipes");
+      setRecipeSubView("detail");
+      logActivity("recipe_created", { name: newRecipe.name, source: "express" });
+      closeNewRecipeChoice();
+    } catch (err) {
+      setExpressRecipeError(t("expressRecipeError"));
+    } finally {
+      setExpressRecipeLoading(false);
+    }
   };
 
   const duplicateRecipe = (r) => {
@@ -3297,6 +3430,81 @@ export default function App() {
         </div>
       )}
 
+      {newRecipeChoiceOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={closeNewRecipeChoice}>
+          <div
+            className="rounded-2xl p-5 w-full max-w-sm font-body border border-white/10"
+            style={{ background: "#201B15" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {!expressFormOpen ? (
+              <>
+                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-4">{t("newRecipeChoiceTitle")}</h3>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => { addRecipe(); closeNewRecipeChoice(); }}
+                    className="w-full text-left px-4 py-3 rounded-xl border border-white/15 hover:border-white/30 text-white text-sm font-semibold transition-colors"
+                  >
+                    {t("newRecipeFromScratch")}
+                  </button>
+                  <button
+                    onClick={() => setExpressFormOpen(true)}
+                    className="w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-colors"
+                    style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                  >
+                    {t("expressRecipeOption")}
+                    <span className="block text-[10px] font-normal opacity-80 mt-0.5">{t("expressRecipeHint")}</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("expressRecipeOption")}</h3>
+                <p className="text-white/50 text-xs mb-4 leading-relaxed">{t("expressRecipeHint")}</p>
+                <input
+                  value={expressRecipeName}
+                  onChange={(e) => setExpressRecipeName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") createExpressRecipe(); }}
+                  placeholder={t("expressRecipeNamePlaceholder")}
+                  disabled={expressRecipeLoading}
+                  autoFocus
+                  className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white text-sm outline-none mb-3 focus:border-white/30"
+                />
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xs text-white/50">{t("expressRecipePortionsLabel")}</span>
+                  <NumField
+                    allowDecimal={false}
+                    value={expressRecipePortions}
+                    onChange={setExpressRecipePortions}
+                    className="w-14 bg-white/5 border border-white/15 rounded px-2 py-1 text-right text-white text-sm outline-none"
+                  />
+                </div>
+                {expressRecipeError && (
+                  <p className="text-[11px] mb-3" style={{ color: TIER_COLORS.low }}>{expressRecipeError}</p>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setExpressFormOpen(false)}
+                    disabled={expressRecipeLoading}
+                    className="flex-1 text-xs font-display uppercase tracking-wide py-2.5 rounded border border-white/20 text-white/70 hover:border-white/40 disabled:opacity-50"
+                  >
+                    {t("cancelLabel")}
+                  </button>
+                  <button
+                    onClick={createExpressRecipe}
+                    disabled={!expressRecipeName.trim() || expressRecipeLoading}
+                    className="flex-1 text-xs font-display uppercase tracking-wide py-2.5 rounded-full disabled:opacity-50"
+                    style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                  >
+                    {expressRecipeLoading ? t("expressRecipeLoading") : t("expressRecipeGenerateButton")}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {scanRecipeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 print:hidden" onClick={closeScanRecipe}>
           <div
@@ -4484,7 +4692,7 @@ export default function App() {
                   {t("digitalMenuButton")}
                 </button>
                 <button
-                  onClick={addRecipe}
+                  onClick={() => setNewRecipeChoiceOpen(true)}
                   className="flex items-center gap-1 text-xs font-display uppercase tracking-wide px-3 py-1.5 rounded-full active:scale-95 transition-transform"
                   style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                 >
