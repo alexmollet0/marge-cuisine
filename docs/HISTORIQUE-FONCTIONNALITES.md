@@ -840,6 +840,20 @@ Pour vérifier la génération RÉELLE (impossible en local), la même technique
 
 ---
 
+## Premier vrai scan surveillé après le correctif du prompt : facture Sysco, `david.bernouin@gmail.com` (2026-09-03)
+
+En application directe de la décision prise la veille ("surveiller les prochains vrais scans plutôt que retoucher le prompt à l'aveugle" — voir plus haut), l'utilisateur a signalé un nouvel essai réel avec une facture Sysco France (format totalement différent de France Boissons : colonnes CARTONS/SOUS-CART./P.U. BRUT/% REM/QUANTITE/P.U. NET, articles alimentation générale plutôt que boissons).
+
+**Vérification faite par Claude, indépendamment de l'app** : appel direct à `/api/scan-invoice` en prod avec le PDF fourni (même technique que l'investigation France Boissons — compte de test créé via l'API Supabase, jeton extrait, appel direct). Script de calcul autonome (`computeItemPricing` complet, y compris la branche kg — un premier essai de script était incomplet sur cette branche et donnait un faux résultat rassurant sur une ligne, corrigé avant de conclure) relancé contre les 13 lignes réelles : les 12 lignes alimentaires ressortent toutes correctes au centime près face à la vraie facture, aucune fausse alerte. Confirmé ensuite par l'utilisateur : le résultat réel du compte de David Bernouin (tableau de bord admin) affiche exactement les mêmes prix, "12 ligne(s) alimentaire(s) · 1 écartée(s)" (la ligne "Participation aux frais énergétiques", à raison exclue des ingrédients).
+
+**Point technique intéressant relevé au passage (pas un bug)** : une ligne ("Penne rigate", conditionnement carton annoncé "ST3KG X4" mais seulement 3kg réellement livrés/facturés) aurait pu se faire signaler à tort par le garde-fou `kgLPriceMismatch` si un mécanisme antérieur (`isPurchaseCountNotMultipack`, déjà en place avant cette session) n'avait pas correctement neutralisé le recoupement dans ce cas précis — repéré en corrigeant le script de test qui, dans sa première version, ne testait pas du tout la branche "kg" de `extractDeterministicContent` et masquait donc ce genre de cas. Rien à corriger, juste une confirmation que ce garde-fou fonctionne comme prévu.
+
+**Anomalie comportementale notée, sans conséquence identifiée** : ce même compte a scanné la MÊME facture 3 fois de suite (confirmé par l'utilisateur — "ça a marché à chaque fois", pas d'erreur). Raison exacte inconnue (utilisateur prudent qui re-teste ? confusion sur si l'import a réussi ?) — pas d'accès à la chronologie complète pour trancher. Risque théorique considéré (import répété → doublons d'ingrédients dans le garde-manger) mais jugé peu probable : le système de mémoire des rapprochements (`rememberSupplierMapping`/`findMappedIngredientId`, `src/App.jsx`, déjà corrigé une fois par le passé — 2026-08-26 — spécifiquement pour ce cas d'usage) retient 3 clés de reconnaissance par ingrédient importé (texte brut exact, texte stable sans les chiffres, nom nettoyé), conçu pour justement reconnaître un produit déjà scanné lors d'un import précédent plutôt que d'en recréer un doublon. Non vérifié directement (le tableau de bord admin ne montre pas le contenu du garde-manger d'un compte) — à garder à l'esprit si un compte signale un jour des ingrédients en double après un scan répété.
+
+Compte de test à supprimer via le tableau de bord admin : `chefuptest.syscocheck@example.com`.
+
+---
+
 ## Détail complet de l'implémentation Auth + Stripe (2026-08-02/05, résumé dans CLAUDE.md)
 
 
