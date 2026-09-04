@@ -25,6 +25,14 @@ export const CATEGORY_ESTIMATE_PRICE = {
   epicerie: 4, epices: 20, boissons: 5, autres: 5,
 };
 
+// [BUG confirmé et corrigé, 2026-09-04] Repère de secours dédié pour un ingrédient compté à la
+// PIÈCE (œuf, citron, tête d'ail...) — les nombres de CATEGORY_ESTIMATE_PRICE ci-dessus sont
+// calibrés au kg/L ; les réutiliser tels quels pour une seule pièce donne un prix absurde (bug
+// réel signalé par l'utilisateur : "Œufs" catalogué en Crémerie/unité pièce recevait le 6€ pensé
+// pour 1kg de produit laitier, soit 6€ l'œuf). Volontairement bas et générique, un point de
+// départ à corriger, pas une vraie estimation de marché — comme CATEGORY_ESTIMATE_PRICE.
+export const PIECE_ESTIMATE_PRICE = 0.5;
+
 // Unité par défaut par catégorie pour un ingrédient créé depuis le scanner de fiche recette
 // quand la quantité est imprécise (voir impreciseQuantity, api/scan-recipe.js) — sert de
 // garde-fou pour ne jamais suivre aveuglément une unité "pièce" hasardeuse proposée par l'IA

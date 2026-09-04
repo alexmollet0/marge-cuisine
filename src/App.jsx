@@ -9,7 +9,7 @@ export { TR };
 // [2026-08-28] Catalogue produits/allergènes extrait vers un fichier dédié (même raison que
 // translations.js). `ALLERGEN_LABELS` reste réexporté pour PublicMenu.jsx.
 import {
-  CATEGORIES, CAT_MAP, CATEGORY_ESTIMATE_PRICE, CATEGORY_DEFAULT_UNIT, CATALOG, CATALOG_MAP,
+  CATEGORIES, CAT_MAP, CATEGORY_ESTIMATE_PRICE, PIECE_ESTIMATE_PRICE, CATEGORY_DEFAULT_UNIT, CATALOG, CATALOG_MAP,
   normUnit, unitDisplayLabel, ALLERGEN_LABELS, ALLERGEN_MAP, ALLERGEN_NAME_KEYWORDS,
   normalizeDiacritics, textIncludes, normalizeAllergenText, ingredientSourceName,
   detectAllergenCodesSet, detectAllergens, detectAllergenCodes, matchAllergenCodesFromText,
@@ -740,6 +740,9 @@ export default function App() {
     const known = ingredients.find((i) => textIncludes(ingredientDisplayName(i), name.trim()) && ingredientDisplayName(i).length <= name.trim().length + 3);
     if (known) return activeSupplier(known)?.price || 0;
     const guess = guessCatalogEntry(name);
+    // [BUG confirmé et corrigé, 2026-09-04] Un ingrédient à la pièce (ex: "Œufs", Crémerie) ne
+    // doit jamais recevoir le chiffre pensé pour 1kg/1L de sa catégorie (6€ l'œuf sinon).
+    if (guess?.unit === "pièce") return PIECE_ESTIMATE_PRICE;
     return CATEGORY_ESTIMATE_PRICE[guess?.category || "autres"] || 5;
   };
 
@@ -776,7 +779,7 @@ export default function App() {
           catalogId: guess?.confident ? guess.catalogId : null,
           category,
           selectedSupplierId: sId,
-          suppliers: [{ id: sId, name: t("supplier"), price: CATEGORY_ESTIMATE_PRICE[category] || 5, priceSource: "estimate" }],
+          suppliers: [{ id: sId, name: t("supplier"), price: unit === "pièce" ? PIECE_ESTIMATE_PRICE : CATEGORY_ESTIMATE_PRICE[category] || 5, priceSource: "estimate" }],
           history: [],
           lastUpdated: today(),
         },
@@ -911,11 +914,15 @@ export default function App() {
               // Prix estimé (2026-09-04) : demandé à l'IA ligne par ligne (`priceEstimateHT`,
               // api/scan-recipe.js) plutôt qu'une seule grille plate par catégorie — un magret de
               // canard et un poulet entier partaient tous les deux à 15€/kg ("Viandes"), signalé
-              // par l'utilisateur comme trop imprécis. Garde-fou large (÷5 à ×5 de la grille
-              // existante) : accepte une vraie variation de marché (magret plus cher que poulet)
-              // mais retombe sur l'ancienne estimation par catégorie si l'IA renvoie un chiffre
-              // absent ou totalement déraisonnable (ex: 0, négatif, ou une valeur démesurée).
-              const categoryFallbackPrice = CATEGORY_ESTIMATE_PRICE[category] || 5;
+              // par l'utilisateur comme trop imprécis. Garde-fou large (÷5 à ×5 du repère de
+              // secours) : accepte une vraie variation de marché (magret plus cher que poulet)
+              // mais retombe sur l'ancienne estimation si l'IA renvoie un chiffre absent ou
+              // totalement déraisonnable (ex: 0, négatif, ou une valeur démesurée).
+              // [BUG confirmé et corrigé, 2026-09-04] Repère de secours calibré selon L'UNITÉ, pas
+              // seulement la catégorie — un ingrédient à la PIÈCE (ex: "Œufs", catalogué en
+              // Crémerie) réutilisait sinon le nombre pensé pour 1kg de produit laitier (6€),
+              // donnant 6€ l'œuf. `CATEGORY_ESTIMATE_PRICE` reste utilisé tel quel pour kg/L.
+              const categoryFallbackPrice = unit === "pièce" ? PIECE_ESTIMATE_PRICE : CATEGORY_ESTIMATE_PRICE[category] || 5;
               const aiPrice = typeof l.priceEstimateHT === "number" && Number.isFinite(l.priceEstimateHT) ? l.priceEstimateHT : null;
               const price = aiPrice && aiPrice > categoryFallbackPrice / 5 && aiPrice < categoryFallbackPrice * 5 ? aiPrice : categoryFallbackPrice;
               newIngredients.push({
@@ -2894,7 +2901,7 @@ export default function App() {
           catalogId: catalogGuess?.confident ? catalogGuess.catalogId : null,
           category,
           selectedSupplierId: sId,
-          suppliers: [{ id: sId, name: t("supplier"), price: CATEGORY_ESTIMATE_PRICE[category] || 5, priceSource: "estimate" }],
+          suppliers: [{ id: sId, name: t("supplier"), price: unit === "pièce" ? PIECE_ESTIMATE_PRICE : CATEGORY_ESTIMATE_PRICE[category] || 5, priceSource: "estimate" }],
           history: [],
           lastUpdated: today(),
         });
@@ -4536,7 +4543,7 @@ export default function App() {
                     que priceSource "estimate" ailleurs dans l'app), à corriger plus tard. */}
                 <button
                   type="button"
-                  onClick={() => setWizardData((d) => ({ ...d, price: CATEGORY_ESTIMATE_PRICE[d.category] || 5, isEstimate: true }))}
+                  onClick={() => setWizardData((d) => ({ ...d, price: d.unit === "pièce" ? PIECE_ESTIMATE_PRICE : CATEGORY_ESTIMATE_PRICE[d.category] || 5, isEstimate: true }))}
                   className="w-full text-left text-[11px] mb-4 flex items-center gap-1.5"
                   style={{ color: TIER_COLORS.mid }}
                 >
