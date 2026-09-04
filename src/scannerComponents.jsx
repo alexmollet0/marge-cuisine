@@ -813,6 +813,33 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
       setTimeout(() => setCopied(false), 2000);
     });
   };
+  // Téléchargement du QR code (2026-09-04) : un simple `<a download href={dataUrl}>` ne fait
+  // RIEN en PWA installée (téléphone, mode standalone) — bug réel signalé par l'utilisateur,
+  // symptôme confirmé "rien ne se passe" — comportement connu de Safari/Chrome en mode
+  // application (l'attribut `download` sur une URL data: y est silencieusement ignoré, pas
+  // d'erreur). L'API de partage native (`navigator.share` avec un fichier) fonctionne dans ce
+  // contexte : ouvre la feuille de partage système, "Enregistrer l'image" y est toujours
+  // proposé. Repli sur l'ancien lien classique si l'API n'est pas disponible (ordinateur,
+  // anciens navigateurs) — comportement inchangé dans ce cas.
+  const downloadQrCode = async () => {
+    if (!qrDataUrl) return;
+    try {
+      const blob = await (await fetch(qrDataUrl)).blob();
+      const file = new File([blob], "carte-chefup-qr.png", { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file] });
+        return;
+      }
+    } catch (err) {
+      if (err?.name === "AbortError") return; // partage annulé par l'utilisateur, rien à faire
+    }
+    const link = document.createElement("a");
+    link.href = qrDataUrl;
+    link.download = "carte-chefup-qr.png";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
   const handleLogoFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -956,16 +983,20 @@ export function DigitalMenuModal({ open, onClose, menuSettings, setMenuSettings,
 
         {/* 3. TÉLÉCHARGER QR CODE */}
         {qrDataUrl ? (
-          <a
-            href={qrDataUrl}
-            download="carte-chefup-qr.png"
+          <button
+            onClick={downloadQrCode}
             className="flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-lg border border-white/15 text-white/70 hover:border-white/30 w-full"
           >
             <QrCode size={13} /> {t("digitalMenuDownloadQr")}
-          </a>
+          </button>
         ) : (
-          <div className="flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-lg border border-white/10 text-white/25 w-full cursor-not-allowed">
-            <QrCode size={13} /> {t("digitalMenuDownloadQr")}
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center justify-center gap-1.5 text-xs font-semibold uppercase tracking-wide px-3 py-2.5 rounded-lg border border-white/10 text-white/25 w-full cursor-not-allowed">
+              <QrCode size={13} /> {t("digitalMenuDownloadQr")}
+            </div>
+            {!menuSettings.published && (
+              <span className="text-[10px] text-white/30 text-center">{t("digitalMenuQrAfterPublish")}</span>
+            )}
           </div>
         )}
 
