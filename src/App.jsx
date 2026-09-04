@@ -155,6 +155,12 @@ export default function App() {
   // qu'un simple booléen, pour ne jamais afficher le message sur la mauvaise recette si on
   // navigue vite entre deux fiches juste après avoir cliqué.
   const [menuPricePushedId, setMenuPricePushedId] = useState(null);
+  // Bouton "Sauvegarder" explicite sur la fiche recette (2026-09-04) : la sauvegarde est déjà
+  // automatique (`useDebouncedSave`, 500ms) mais l'utilisateur a remonté qu'on n'a "pas
+  // l'impression" que ça enregistre et qu'on croit perdre la fiche en repartant en arrière —
+  // ce bouton force une écriture immédiate + confirmation visuelle plutôt que de changer le
+  // mécanisme de sauvegarde lui-même (qui fonctionne déjà).
+  const [recipeSaveState, setRecipeSaveState] = useState(null); // null | 'saving' | 'saved' | 'error'
   const [allergenSheetOpen, setAllergenSheetOpen] = useState(false);
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
   const [recipeSubView, setRecipeSubView] = useState("list"); // 'list' | 'detail'
@@ -205,14 +211,14 @@ export default function App() {
   const [newRecipeChoiceOpen, setNewRecipeChoiceOpen] = useState(false);
   const [expressFormOpen, setExpressFormOpen] = useState(false);
   const [expressRecipeName, setExpressRecipeName] = useState("");
-  const [expressRecipePortions, setExpressRecipePortions] = useState(4);
+  const [expressRecipePortions, setExpressRecipePortions] = useState(1);
   const [expressRecipeLoading, setExpressRecipeLoading] = useState(false);
   const [expressRecipeError, setExpressRecipeError] = useState(null);
   const closeNewRecipeChoice = () => {
     setNewRecipeChoiceOpen(false);
     setExpressFormOpen(false);
     setExpressRecipeName("");
-    setExpressRecipePortions(4);
+    setExpressRecipePortions(1);
     setExpressRecipeError(null);
   };
   const addRecipeToMenu = () => {
@@ -629,6 +635,18 @@ export default function App() {
   const nextMarginStep = marginRounded !== null ? Math.min(99, Math.ceil((marginRounded + 5) / 5) * 5) : null;
 
   const updateRecipe = (patch) => setRecipes((rs) => rs.map((r) => (r.id === active.id ? { ...r, ...patch } : r)));
+  const saveRecipeNow = async () => {
+    setRecipeSaveState("saving");
+    try {
+      await storage.set("recipes", JSON.stringify(recipes));
+      setRecipeSaveState("saved");
+    } catch (e) {
+      console.error("save failed", "recipes", e);
+      setRecipeSaveState("error");
+    } finally {
+      setTimeout(() => setRecipeSaveState(null), 2000);
+    }
+  };
   // [2026-08-27] Adapter une recette à un autre nombre de portions EN RECALCULANT les quantités.
   // Volontairement séparé du champ "portions" lui-même, qui reste inchangé — les deux usages
   // existent et sont contradictoires si on les mélange :
@@ -4834,6 +4852,35 @@ export default function App() {
                 <ArrowLeft size={14} /> {t("recipes")}
               </button>
               <div className="flex items-center gap-2.5">
+                <button
+                  onClick={saveRecipeNow}
+                  disabled={recipeSaveState === "saving"}
+                  className="flex items-center gap-1.5 text-xs font-display uppercase tracking-wide px-2.5 py-1 rounded-full disabled:opacity-70"
+                  style={
+                    recipeSaveState === "saved"
+                      ? { background: "rgba(16,185,129,0.15)", color: "#10B981" }
+                      : recipeSaveState === "error"
+                      ? { background: "rgba(239,68,68,0.15)", color: "#EF4444" }
+                      : { background: BRAND_GRADIENT, color: "#fff" }
+                  }
+                >
+                  {recipeSaveState === "saving" ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : recipeSaveState === "saved" ? (
+                    <Check size={13} />
+                  ) : recipeSaveState === "error" ? (
+                    <AlertTriangle size={13} />
+                  ) : (
+                    <Check size={13} />
+                  )}
+                  {recipeSaveState === "saving"
+                    ? t("saveRecipeSaving")
+                    : recipeSaveState === "saved"
+                    ? t("saveRecipeSaved")
+                    : recipeSaveState === "error"
+                    ? t("saveRecipeError")
+                    : t("saveRecipeButton")}
+                </button>
                 <button onClick={() => setLossModalOpen(true)} className="flex items-center gap-1.5 text-xs text-white/60 hover:text-[#C9793B] font-display uppercase tracking-wide">
                   <Percent size={13} /> {t("declareLossesButton")}
                 </button>
