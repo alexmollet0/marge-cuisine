@@ -1,6 +1,6 @@
 // Aide de tarification/activité (prix effectif, variation, sauvegarde debounced, journal
 // d'activité) — extrait de App.jsx le 2026-08-28.
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { storage } from "./storage.js";
 import { supabase } from "./supabaseClient.js";
 
@@ -14,6 +14,28 @@ export function useDebouncedSave(key, value, ready) {
     }, 500);
     return () => clearTimeout(t);
   }, [key, value, ready]);
+}
+
+// Décompte pour l'offre flash (2026-09-04, voir PROMO_END dans brand.js) — une minute de
+// résolution suffit pour un bandeau/landing (pas de vraie animation seconde par seconde
+// attendue), évite un re-rendu 60x plus fréquent pour rien. `expired` repasse à true tout
+// seul une fois PROMO_END dépassé : les blocs qui l'utilisent se cachent d'eux-mêmes, aucun
+// nettoyage de code à faire après la fin de l'offre.
+export function usePromoCountdown(end) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const remainingMs = end.getTime() - now;
+  if (remainingMs <= 0) return { expired: true, days: 0, hours: 0, minutes: 0 };
+  const totalMinutes = Math.floor(remainingMs / 60000);
+  return {
+    expired: false,
+    days: Math.floor(totalMinutes / (60 * 24)),
+    hours: Math.floor((totalMinutes % (60 * 24)) / 60),
+    minutes: totalMinutes % 60,
+  };
 }
 
 export function activeSupplier(ing) {

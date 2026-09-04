@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Loader2, Check } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING } from "./App.jsx";
-import { logActivity } from "./pricing.js";
+import { PROMO_CODE, PROMO_PERCENT, PROMO_END } from "./brand.js";
+import { logActivity, usePromoCountdown } from "./pricing.js";
 
 const TRIAL_DAYS = 7;
 const AUTH_LANG_KEY = "chefup:authLang";
@@ -22,6 +23,7 @@ export default function SubscriptionGate({ children }) {
   const [lang, setLang] = useState("fr");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const promo = usePromoCountdown(PROMO_END);
 
   const t = (key) => TR[lang]?.[key] ?? TR.fr[key] ?? key;
 
@@ -158,6 +160,11 @@ export default function SubscriptionGate({ children }) {
             ))}
           </ul>
           <p className="text-white/50 text-xs mb-5">{t("billingPaywallReminder")}</p>
+          {!status.founder && !promo.expired && (
+            <p className="text-xs font-semibold mb-4" style={{ color: BRAND_SOLID }}>
+              {t("promoLine")(PROMO_PERCENT, PROMO_CODE)} — {t("promoCountdownLabel")(promo.days, promo.hours, promo.minutes)}
+            </p>
+          )}
           {err && (
             <div className="mb-4 text-xs rounded-lg px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/20">{err}</div>
           )}
@@ -189,10 +196,15 @@ export default function SubscriptionGate({ children }) {
           {/* Pendant l'essai, un fondateur voit ce qu'il a à PERDRE (son tarif à vie) plutôt qu'un
               simple décompte de jours : c'est la même échéance, mais avec un enjeu. Nombre de
               places restantes ajouté au bandeau (2026-09-01, demandé par l'utilisateur) — la même
-              pression que sur la landing, mais visible aussi une fois dans l'app. */}
+              pression que sur la landing, mais visible aussi une fois dans l'app. Offre flash
+              (2026-09-04) greffée sur ce même bandeau pour qui n'est pas fondateur (déjà au
+              meilleur tarif possible, pas besoin de le pousser plus) — se retire toute seule après
+              PROMO_END (`promo.expired`), aucun nettoyage à faire après le 6 septembre. */}
           <span>
             {status.founder
               ? t("launchTrialBanner")(status.trialDaysLeft, PRICING.founding, status.spotsRemaining)
+              : !promo.expired
+              ? `${t("billingTrialBanner")(status.trialDaysLeft)} · ${t("promoLine")(PROMO_PERCENT, PROMO_CODE)} (${t("promoCountdownLabel")(promo.days, promo.hours, promo.minutes)})`
               : t("billingTrialBanner")(status.trialDaysLeft)}
           </span>
           {/* [AJOUT 2026-08-27] Bouton d'abonnement directement dans le bandeau. Jusqu'ici, le seul

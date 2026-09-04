@@ -78,6 +78,12 @@ export const TR = {
       return typeof spots === "number" && spots > 0 ? `${base} — plus que ${spots} places au total` : base;
     },
     launchPaywallTitle: (f) => `Garde ton tarif fondateur : ${f}€/mois à vie`,
+    // Offre flash (2026-09-04) — voir PROMO_CODE/PROMO_PERCENT/PROMO_END dans brand.js.
+    promoBadge: "Offre flash",
+    promoLine: (percent, code) => `Code ${code} : -${percent}% sur ton 1er mois`,
+    promoCondition: "Code à saisir au moment de payer.",
+    promoCountdownLabel: (days, hours, minutes) =>
+      days > 0 ? `Encore ${days}j ${hours}h` : hours > 0 ? `Encore ${hours}h ${minutes}min` : `Encore ${minutes}min`,
     billingSubscribeButton: "S'abonner maintenant", billingSecureNote: "Paiement sécurisé par Stripe.", billingCheckoutError: "Impossible d'ouvrir la page de paiement, réessaie dans un instant.",
     billingManageSubscription: "Abonnement", billingPortalError: "Impossible d'ouvrir la page d'abonnement, réessaie dans un instant.",
     myAccount: "Mon compte",
@@ -489,6 +495,11 @@ export const TR = {
       return typeof spots === "number" && spots > 0 ? `${base} — solo quedan ${spots} plazas en total` : base;
     },
     launchPaywallTitle: (f) => `Conserva tu precio fundador: ${f}€/mes de por vida`,
+    promoBadge: "Oferta flash",
+    promoLine: (percent, code) => `Código ${code}: -${percent}% en tu primer mes`,
+    promoCondition: "Código a introducir al pagar.",
+    promoCountdownLabel: (days, hours, minutes) =>
+      days > 0 ? `Quedan ${days}d ${hours}h` : hours > 0 ? `Quedan ${hours}h ${minutes}min` : `Quedan ${minutes}min`,
     billingSubscribeButton: "Suscribirme ahora", billingSecureNote: "Pago seguro con Stripe.", billingCheckoutError: "No se pudo abrir la página de pago, inténtalo de nuevo en un momento.",
     billingManageSubscription: "Suscripción", billingPortalError: "No se pudo abrir la página de suscripción, inténtalo de nuevo en un momento.",
     myAccount: "Mi cuenta",
@@ -898,6 +909,11 @@ export const TR = {
       return typeof spots === "number" && spots > 0 ? `${base} — only ${spots} spots left in total` : base;
     },
     launchPaywallTitle: (f) => `Keep your founder price: €${f}/month for life`,
+    promoBadge: "Flash offer",
+    promoLine: (percent, code) => `Code ${code}: -${percent}% off your 1st month`,
+    promoCondition: "Enter the code at checkout.",
+    promoCountdownLabel: (days, hours, minutes) =>
+      days > 0 ? `${days}d ${hours}h left` : hours > 0 ? `${hours}h ${minutes}min left` : `${minutes}min left`,
     billingSubscribeButton: "Subscribe now", billingSecureNote: "Secure payment by Stripe.", billingCheckoutError: "Couldn't open the payment page, try again in a moment.",
     billingManageSubscription: "Subscription", billingPortalError: "Couldn't open the subscription page, try again in a moment.",
     myAccount: "My account",

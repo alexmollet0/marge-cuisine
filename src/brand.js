@@ -87,6 +87,17 @@ export const priceChangeVisual = (item) => ({
   color: item.priceUp ? (item.bigChange ? TIER_COLORS.low : TIER_COLORS.mid) : "#10B981",
 });
 
+// Offre flash liée à une vidéo TikTok qui convertit bien (2026-09-04) — le coupon lui-même
+// (pourcentage, durée "une fois", expiration) vit entièrement côté Stripe Dashboard ; ces
+// constantes ne servent qu'à L'AFFICHAGE (landing + bandeau d'essai in-app), jamais à la
+// validité réelle du code. `PROMO_END` pilote un décompte qui se cache tout seul une fois
+// dépassé (voir `usePromoCountdown`, src/pricing.js) — aucun nettoyage manuel à faire après le
+// 6 septembre. Heure locale du navigateur (pas de suffixe fuseau) : acceptable pour une offre
+// grand public à échéance large (48h), l'audience étant très majoritairement en France.
+export const PROMO_CODE = "CHEF50";
+export const PROMO_PERCENT = 50;
+export const PROMO_END = new Date("2026-09-06T23:59:00");
+
 export const lightRawLabel = (raw) => {
   const s = (raw || "").trim();
   if (!s) return "";

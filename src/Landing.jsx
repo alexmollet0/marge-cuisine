@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Receipt, Percent, Printer, Package, QrCode, Camera, Check } from "lucide-react";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING, TIER_COLORS, marginTier } from "./App.jsx";
+import { PROMO_CODE, PROMO_PERCENT, PROMO_END } from "./brand.js";
+import { usePromoCountdown } from "./pricing.js";
 import { shouldAskConsent, grantConsent, denyConsent, initPixelIfConsented, trackAdEvent } from "./adPixel.js";
 
 // TVA restauration sur place, valeur par défaut de l'app (settings.vatRate) : le calculateur de
@@ -247,6 +249,12 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
   const [offer, setOffer] = useState(null);
   const spots = offer ? offer.remaining : null;
   const launchOfferOpen = !!offer && (spots === null || spots > 0);
+  // Offre flash (2026-09-04, voir PROMO_CODE/PROMO_END dans brand.js) — prend le relais visuel
+  // de l'offre de lancement une fois celle-ci fermée (`!launchOfferOpen`, vrai dès que les 7
+  // places fondateur sont prises) : jamais les deux en même temps, un seul message d'urgence à
+  // la fois. Se cache elle-même après PROMO_END (`promo.expired`), rien à retirer à la main.
+  const promo = usePromoCountdown(PROMO_END);
+  const promoActive = !launchOfferOpen && !promo.expired;
   // Bannière de consentement publicitaire : uniquement pour un visiteur venu d'une campagne, et
   // uniquement s'il n'a encore rien décidé. Voir src/adPixel.js pour le raisonnement complet.
   const [askConsent, setAskConsent] = useState(false);
@@ -410,6 +418,37 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           </div>
         )}
 
+        {/* Offre flash (2026-09-04) — même emplacement/style que l'offre de lancement ci-dessus,
+            mutuellement exclusifs (`promoActive` implique `!launchOfferOpen`). Le code s'applique
+            au moment de payer (pas à l'inscription) : le bouton reste "Commencer l'essai gratuit"
+            (même parcours que le reste de la page), le prix normal 49€ n'est pas modifié ici —
+            seule la landing annonce la remise, la vraie remise vit dans Stripe. */}
+        {promoActive && (
+          <div
+            className="max-w-md mx-auto mb-12 rounded-2xl border-2 px-5 py-4 text-center"
+            style={{ borderColor: BRAND_SOLID, background: `${BRAND_SOLID}14` }}
+          >
+            <div className="font-display uppercase text-[11px] tracking-widest mb-2" style={{ color: BRAND_SOLID }}>
+              {t("promoBadge")}
+            </div>
+            <div className="font-display text-white text-2xl sm:text-3xl leading-snug">
+              {t("promoLine")(PROMO_PERCENT, PROMO_CODE)}
+            </div>
+            <div className="text-white text-sm font-bold mt-3">
+              {t("promoCountdownLabel")(promo.days, promo.hours, promo.minutes)}
+            </div>
+            <p className="text-white/50 text-[11px] mt-2 leading-relaxed">{t("promoCondition")}</p>
+            <button
+              type="button"
+              onClick={handleStart}
+              className="w-full sm:w-auto px-8 py-2.5 mt-4 rounded-full font-display uppercase text-xs tracking-wide font-semibold"
+              style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+            >
+              {t("landingCtaStart")}
+            </button>
+          </div>
+        )}
+
         <div className="mb-12">
           <h2 className="text-center font-display text-white/90 uppercase text-xs tracking-widest mb-6">
             {t("landingHowItWorksTitle")}
@@ -500,6 +539,14 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
               {typeof spots === "number" ? ` · ${t("launchSpotsLeft")(spots)}` : ""}
             </div>
           )}
+          {promoActive && (
+            <div
+              className="inline-block rounded-full px-3 py-1 mb-2 font-display uppercase text-[10px] tracking-wide"
+              style={{ background: `${BRAND_SOLID}22`, color: BRAND_SOLID }}
+            >
+              {t("promoBadge")} · {t("promoLine")(PROMO_PERCENT, PROMO_CODE)}
+            </div>
+          )}
           <div className="flex items-end justify-center gap-1.5 mb-1">
             {/* Le tarif normal reste affiché à côté du tarif fondateur : c'est le prix réellement
                 facturé à tout compte hors des 50 places, pas un prix barré fictif. */}
@@ -518,7 +565,12 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           )}
           <p className="text-emerald-400/90 text-xs font-semibold mb-1">{t("landingPricingTrial")}</p>
           {launchOfferOpen && <p className="text-white/40 text-[11px] mb-4">{t("launchCondition")}</p>}
-          {!launchOfferOpen && <div className="mb-4" />}
+          {promoActive && (
+            <p className="text-white/40 text-[11px] mb-4">
+              {t("promoCondition")} {t("promoCountdownLabel")(promo.days, promo.hours, promo.minutes)}
+            </p>
+          )}
+          {!launchOfferOpen && !promoActive && <div className="mb-4" />}
 
           <ul className="text-left space-y-2 mb-6">
             {PRICING_FEATURE_KEYS.map((key) => (
