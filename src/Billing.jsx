@@ -190,23 +190,30 @@ export default function SubscriptionGate({ children }) {
     <>
       {!status.active && status.inTrial && (
         <div
-          className="print:hidden flex items-center justify-center gap-3 flex-wrap text-[11px] py-2 px-3 text-white font-semibold"
+          className="print:hidden flex flex-col items-center justify-center gap-2 text-center text-[11px] py-3 px-3 text-white font-semibold"
           style={{ background: BRAND_GRADIENT }}
         >
-          {/* Pendant l'essai, un fondateur voit ce qu'il a à PERDRE (son tarif à vie) plutôt qu'un
-              simple décompte de jours : c'est la même échéance, mais avec un enjeu. Nombre de
-              places restantes ajouté au bandeau (2026-09-01, demandé par l'utilisateur) — la même
-              pression que sur la landing, mais visible aussi une fois dans l'app. Offre flash
-              (2026-09-04) greffée sur ce même bandeau pour qui n'est pas fondateur (déjà au
-              meilleur tarif possible, pas besoin de le pousser plus) — se retire toute seule après
-              PROMO_END (`promo.expired`), aucun nettoyage à faire après le 6 septembre. */}
+          {/* [CORRECTIF 2026-09-04] Empilé et centré plutôt qu'une seule ligne en flex-wrap : sur
+              mobile, le texte (long une fois la promo ajoutée) retombait à la ligne en restant
+              aligné à gauche dans son propre bloc, alors que le bouton en dessous, seul sur SA
+              ligne, se centrait — deux alignements différents l'un sous l'autre, jugé "pas droit"
+              par l'utilisateur. Un vrai empilement centré (plutôt qu'un flex-wrap qui empile par
+              accident) résout ça pour de bon, quelle que soit la longueur du texte. */}
           <span>
             {status.founder
               ? t("launchTrialBanner")(status.trialDaysLeft, PRICING.founding, status.spotsRemaining)
-              : !promo.expired
-              ? `${t("billingTrialBanner")(status.trialDaysLeft)} · ${t("promoLine")(PROMO_PERCENT, PROMO_CODE)} (${t("promoCountdownLabel")(promo.days, promo.hours, promo.minutes)})`
               : t("billingTrialBanner")(status.trialDaysLeft)}
           </span>
+          {/* Offre flash (2026-09-04) : pastille distincte plutôt que concaténée dans la phrase
+              d'essai ci-dessus (l'ancienne version en une seule phrase à rallonge, avec point milieu
+              et parenthèses imbriquées, était aussi une partie du problème visuel) — visible
+              uniquement pour qui n'est pas fondateur (déjà au meilleur tarif possible). Se retire
+              toute seule après PROMO_END (`promo.expired`), aucun nettoyage à faire le 6 septembre. */}
+          {!status.founder && !promo.expired && (
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold" style={{ background: "rgba(255,255,255,0.18)" }}>
+              {t("promoLine")(PROMO_PERCENT, PROMO_CODE)} · {t("promoCountdownLabel")(promo.days, promo.hours, promo.minutes)}
+            </span>
+          )}
           {/* [AJOUT 2026-08-27] Bouton d'abonnement directement dans le bandeau. Jusqu'ici, le seul
               chemin pour s'abonner pendant l'essai passait par une petite icône de l'en-tête, puis
               une fenêtre "Mon compte", puis un bouton — trois clics et rien de visible. On annonce
