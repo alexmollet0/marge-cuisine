@@ -11,7 +11,7 @@ import { TR } from "./translations.js";
 import { TIER_COLORS, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW } from "./brand.js";
 import { NumField } from "./formComponents.jsx";
 
-export function marginMessage(roundedMargin, effectiveTarget, tier, lang) {
+export function marginMessage(roundedMargin, effectiveTarget, tier, lang, ownTarget) {
   if (roundedMargin === null) return null;
   const tr = (key) => (TR[lang] && TR[lang][key]) || TR.fr[key];
   const gapAbove = roundedMargin - effectiveTarget; // positif si au-dessus de l'objectif
@@ -22,7 +22,14 @@ export function marginMessage(roundedMargin, effectiveTarget, tier, lang) {
   if (tier === "mid") {
     return gapBelow <= 3 ? tr("marginCloseMsg") : tr("marginWatchMsg");
   }
-  // tier "low"
+  // tier "low" — le plancher de sécurité CRITICAL_MARGIN (70%) reste rouge même si la recette a
+  // sa PROPRE cible réglée plus bas (ex: 69%) et l'a atteinte : distinction ajoutée le 2026-09-04
+  // (signalé par l'utilisateur comme trompeur — "j'ai atteint ma cible, pourquoi c'est rouge ?")
+  // pour ne plus dire juste "insuffisante" dans ce cas précis, sans changer le comportement
+  // (le plancher reste actif, volontairement, seule la formulation change).
+  if (typeof ownTarget === "number" && roundedMargin >= ownTarget) {
+    return tr("marginBelowFloorMsg");
+  }
   return roundedMargin < 50 ? tr("marginLowMsg") : tr("marginLowFixMsg");
 }
 

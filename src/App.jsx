@@ -2942,8 +2942,15 @@ export default function App() {
   const marginLow = tier === "low";
   // Suggestion contextuelle : uniquement quand la marge est sous l'objectif (mid/low),
   // jamais sur une recette déjà au-dessus (pas de conseil "à corriger" quand tout va bien).
+  // [CORRECTIF 2026-09-04] Chaque texte de suggestion commence par "Cette marge est sous ton
+  // objectif" — plus vrai si la cible PROPRE à la recette est en réalité déjà atteinte mais que le
+  // plancher de sécurité à 70% (CRITICAL_MARGIN) garde quand même le tier sur "low" (voir
+  // marginMessage ci-dessus, même cas). Rien à "corriger" dans ce cas précis du point de vue de
+  // l'utilisateur : le message principal explique déjà le plancher, cette 2e boîte reste masquée.
   const marginSuggestion =
-    active && tier && tier !== "high" ? recipeSuggestion(active, ingredients, lineCost, ingredientDisplayName, lang) : null;
+    active && tier && tier !== "high" && !(typeof targetMargin === "number" && Math.round(margin) >= targetMargin)
+      ? recipeSuggestion(active, ingredients, lineCost, ingredientDisplayName, lang)
+      : null;
 
   const wizardExistingSuggestions = wizardQuery.trim()
     ? ingredients
@@ -5406,7 +5413,7 @@ export default function App() {
                     style={{ color: TIER_COLORS[tier], background: `${TIER_COLORS[tier]}18` }}
                   >
                     {tier === "high" ? <Check size={12} className="shrink-0" /> : <AlertTriangle size={12} className="shrink-0" />}
-                    {marginMessage(Math.round(margin), effectiveGreenTarget, tier, lang)}
+                    {marginMessage(Math.round(margin), effectiveGreenTarget, tier, lang, targetMargin)}
                   </div>
                   {marginSuggestion && (
                     <div

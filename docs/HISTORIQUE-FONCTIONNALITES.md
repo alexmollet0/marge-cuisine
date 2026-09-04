@@ -986,3 +986,18 @@ Deux retours de l'utilisateur pendant qu'il testait ses premières vraies recett
 
 Comptes de test à supprimer via le tableau de bord admin : `chefuptest.priceestcheck+<timestamp>@example.com` (plusieurs variantes créées pendant le test).
 
+---
+
+## Marge affichée en rouge malgré un objectif personnalisé atteint (2026-09-04)
+
+Signalé par l'utilisateur juste après le correctif ci-dessus, sur une recette "Filet de bœuf sauce poivre et frites" : marge cible réglée à 69% sur la fiche, marge réelle à 69% (objectif donc atteint), mais l'anneau et le message restaient rouges ("Marge insuffisante, à corriger rapidement.").
+
+**Cause trouvée** (pas un bug de calcul) : un plancher de sécurité codé en dur, `CRITICAL_MARGIN = 70` (`src/translations.js`). `marginTier` (`src/App.jsx`) classe toute marge sous 70% en "low" (rouge) **avant même de regarder l'objectif propre à la recette** — un commentaire existant dans le code confirmait que c'est voulu ("'En alerte' = tier rouge (sous CRITICAL_MARGIN), pas juste sous l'objectif choisi"). Le champ "Marge cible" de la fiche recette ne prévient nulle part de ce plancher, donc un restaurateur qui règle volontairement un objectif de 69% (ex: une activité à marges structurellement plus serrées) et l'atteint voit quand même un message d'alerte, sans explication — lu comme un bug, à raison.
+
+**Décision demandée à l'utilisateur avant de coder** (garder le plancher avec un message plus clair, ou laisser la cible personnalisée du restaurateur prévaloir même sous 70%) : **garder le plancher, clarifier le message.**
+- `marginMessage` (`src/adminAndOnboarding.jsx`) reçoit un nouveau paramètre `ownTarget` (la cible propre de la recette) — si le tier est "low" MAIS que la marge réelle a déjà atteint/dépassé cette cible propre, un nouveau message dédié s'affiche (`marginBelowFloorMsg`, FR/ES/EN) : "Ta cible personnalisée est atteinte, mais la marge reste sous le seuil de sécurité de 70% — à surveiller quand même." Sinon (vrai cas sous l'objectif), l'ancien message inchangé.
+- `marginSuggestion` (`src/App.jsx`, la boîte "Piste d'optimisation :" juste en dessous) : chacun de ses 4 textes commence par "Cette marge est sous ton objectif", devenu faux dans ce cas précis — la boîte reste maintenant masquée quand la cible propre est déjà atteinte, même si le tier reste "low" à cause du plancher.
+- Comportement du plancher lui-même **inchangé** : une recette sous 70% reste toujours visuellement "en alerte" (rouge), c'est uniquement la formulation qui distingue désormais "sous ton propre objectif, à corriger" de "objectif perso atteint, mais sous le seuil de sécurité général, à surveiller".
+
+**Vérifié** : `npm run build` propre. Logique revérifiée par lecture directe du code sur 3 scénarios (margin=69/cible=69 → nouveau message + boîte masquée ; margin=65/cible=69 → comportement inchangé, ancien message + boîte visible ; margin=80/cible=75, cas normal sans plancher → tier "high", inchangé). **Test visuel en direct dans le navigateur non concluant cette fois** (contournement d'authentification habituel + soucis ponctuels de l'outil navigateur — refs d'accessibilité périmées après re-rendu, captures d'écran qui timeout) — remplacé par cette vérification logique directe faute de mieux dans cette session ; à confirmer par l'utilisateur sur sa vraie recette au prochain chargement.
+
