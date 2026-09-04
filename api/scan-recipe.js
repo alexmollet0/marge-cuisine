@@ -50,7 +50,7 @@ Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de 
   "name": "nom du plat normalisé proprement (première lettre en majuscule, orthographe corrigée si besoin)",
   "portions": ${portions},
   "lines": [
-    { "name": "nom simple de l'ingrédient : juste la matière première en français, sans marque ni conditionnement (ex: 'Parmesan', 'Poulet', 'Salade romaine')", "qty": nombre, "unit": "kg" ou "L" ou "pièce" }
+    { "name": "nom simple de l'ingrédient : juste la matière première en français, sans marque ni conditionnement (ex: 'Parmesan', 'Poulet', 'Salade romaine')", "qty": nombre, "unit": "kg" ou "L" ou "pièce", "priceEstimateHT": nombre }
   ]
 }
 
@@ -59,6 +59,7 @@ RÈGLES :
 - Quantités TOUJOURS en grammes convertis en kg (ex: 150g → qty: 0.15, unit: "kg") ou en millilitres convertis en litres (ex: 50ml → qty: 0.05, unit: "L") pour tout ingrédient qui se pèse ou se mesure normalement (viande, poisson, légume, fromage, sauce, liquide...). N'utilise "pièce" QUE pour un ingrédient réellement compté à l'unité fixe (ex: 1 œuf, 1 citron) — jamais pour approximer le poids d'une portion de viande/poisson/légume.
 - Entre 5 et 12 ingrédients pour un plat normal (ni liste trop courte qui manquerait l'essentiel, ni liste interminable). N'inclus le sel/poivre/eau que s'ils ont un vrai poids notable dans la recette (ex: eau de cuisson d'un risotto) — omets-les s'ils sont juste un assaisonnement classique en quantité négligeable, ça n'apporte rien au calcul de marge.
 - Si le nom donné ne correspond à AUCUN plat reconnaissable (charabia, texte hors-sujet), réponds quand même avec "lines": [] plutôt que d'inventer n'importe quoi — c'est une réponse honnête et valide.
+- "priceEstimateHT" : prix HT réaliste au kg/L/pièce (même unité que "unit"), tel qu'un restaurateur français le paierait auprès d'un grossiste professionnel (type Metro/Transgourmet/Pomona) — PAS un prix de supermarché grand public. Fais-le varier normalement d'un ingrédient à l'autre selon sa vraie valeur marchande, même au sein d'un même type d'aliment (ex: un magret de canard coûte nettement plus cher qu'un poulet entier ou une escalope de dinde, un filet de bœuf plus cher qu'un morceau à mijoter) — ne mets jamais le même prix par réflexe à deux ingrédients différents. Reste une estimation à corriger ensuite avec de vraies factures, une approximation raisonnable suffit.
 Réponds toujours avec un JSON syntaxiquement valide.`;
 
     try {

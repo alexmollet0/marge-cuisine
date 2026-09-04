@@ -31,7 +31,7 @@ import { Logo } from "./Logo.jsx";
 export { Logo };
 import {
   ScanNameChoice, PricingCalculator, MenuRecipeRow, SimpleItemRow, SimpleItemsSection,
-  DigitalMenuModal, ScanItemCard,
+  DigitalMenuModal, ScanItemCard, translateMenuText,
 } from "./scannerComponents.jsx";
 import { marginMessage, InstallDiagram, AdminDashboard, AppTutorial, SCAN_ERR_CODES } from "./adminAndOnboarding.jsx";
 import { MenuWizard } from "./MenuWizard.jsx";
@@ -433,6 +433,31 @@ export default function App() {
   useDebouncedSave("supplierMappings", supplierMappings, ready);
   useDebouncedSave("menuSettings", menuSettings, ready);
   useDebouncedSave("simpleItems", simpleItems, ready);
+
+  // [CORRECTIF 2026-09-04] Traduction du nom d'un plat pour la carte digitale publique — ne se
+  // déclenchait auparavant QUE si le panneau "Ajouter des plats" était ouvert (la traduction
+  // vivait dans un useEffect local à MenuRecipeRow/SimpleItemRow, montés uniquement dans cet
+  // accordéon replié par défaut) : un plat ajouté à la carte directement depuis sa fiche recette
+  // (bouton "Ajouter à la carte digitale") pouvait donc rester non traduit indéfiniment pour un
+  // client étranger, sans rien qui l'indique. Effet global, toujours actif quel que soit
+  // l'onglet/panneau ouvert — un seul appel à la fois (`stale`), se relance automatiquement après
+  // chaque mise à jour tant qu'il reste un nom à traduire (recette OU article simple).
+  useEffect(() => {
+    if (!ready) return;
+    const staleRecipe = recipes.find((r) => r.menuIncluded && r.name?.trim() && r.menuNameI18n?._src !== r.name);
+    if (staleRecipe) {
+      translateMenuText(staleRecipe.name, lang).then((data) => {
+        if (data) setRecipes((rs) => rs.map((r) => (r.id === staleRecipe.id ? { ...r, menuNameI18n: { ...data, _src: staleRecipe.name } } : r)));
+      });
+      return;
+    }
+    const staleItem = simpleItems.find((it) => it.name?.trim() && it.menuNameI18n?._src !== it.name);
+    if (staleItem) {
+      translateMenuText(staleItem.name, lang).then((data) => {
+        if (data) setSimpleItems((its) => its.map((it) => (it.id === staleItem.id ? { ...it, menuNameI18n: { ...data, _src: staleItem.name } } : it)));
+      });
+    }
+  }, [ready, recipes, simpleItems, lang]);
 
   useEffect(() => {
     if (!ready) return;
@@ -883,6 +908,16 @@ export default function App() {
               const category = catalogGuess ? catalogGuess.category : "autres";
               const sId = uid();
               ingredientId = uid();
+              // Prix estimé (2026-09-04) : demandé à l'IA ligne par ligne (`priceEstimateHT`,
+              // api/scan-recipe.js) plutôt qu'une seule grille plate par catégorie — un magret de
+              // canard et un poulet entier partaient tous les deux à 15€/kg ("Viandes"), signalé
+              // par l'utilisateur comme trop imprécis. Garde-fou large (÷5 à ×5 de la grille
+              // existante) : accepte une vraie variation de marché (magret plus cher que poulet)
+              // mais retombe sur l'ancienne estimation par catégorie si l'IA renvoie un chiffre
+              // absent ou totalement déraisonnable (ex: 0, négatif, ou une valeur démesurée).
+              const categoryFallbackPrice = CATEGORY_ESTIMATE_PRICE[category] || 5;
+              const aiPrice = typeof l.priceEstimateHT === "number" && Number.isFinite(l.priceEstimateHT) ? l.priceEstimateHT : null;
+              const price = aiPrice && aiPrice > categoryFallbackPrice / 5 && aiPrice < categoryFallbackPrice * 5 ? aiPrice : categoryFallbackPrice;
               newIngredients.push({
                 id: ingredientId,
                 name,
@@ -890,7 +925,7 @@ export default function App() {
                 catalogId: catalogGuess?.confident ? catalogGuess.catalogId : null,
                 category,
                 selectedSupplierId: sId,
-                suppliers: [{ id: sId, name: t("supplier"), price: CATEGORY_ESTIMATE_PRICE[category] || 5, priceSource: "estimate" }],
+                suppliers: [{ id: sId, name: t("supplier"), price, priceSource: "estimate" }],
                 history: [],
                 lastUpdated: today(),
               });

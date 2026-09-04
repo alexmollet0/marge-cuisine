@@ -244,20 +244,13 @@ export function MenuRecipeRow({ r, lang, t, categories, onUpdate, onRemove }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [description, lang]);
 
-  // Traduction automatique du NOM du plat (2026-08-19) — jusqu'ici seule la description était
-  // traduite, mais un client étranger a d'abord besoin de comprendre le nom du plat lui-même
-  // ("Faux filet sauce poivre") pour se décider, pas seulement sa description. `r.name` reste la
-  // seule vérité utilisée partout ailleurs dans l'app (onglet Recettes, impression...) — seule une
-  // copie traduite (`menuNameI18n`) est calculée pour l'affichage public. `_src` mémorise le texte
-  // à partir duquel la traduction a été faite, pour ne jamais retraduire inutilement à chaque
-  // réouverture de cette fenêtre tant que le nom de la recette n'a pas changé depuis.
-  useEffect(() => {
-    if (!r.name?.trim() || r.menuNameI18n?._src === r.name) return;
-    translateMenuText(r.name, lang).then((data) => {
-      if (data) onUpdate({ menuNameI18n: { ...data, _src: r.name } });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [r.name, lang, r.menuNameI18n?._src]);
+  // [DÉPLACÉ 2026-09-04] La traduction automatique du NOM du plat vivait ici (useEffect local,
+  // depuis le 2026-08-19) — bug réel trouvé par l'utilisateur : cette ligne n'est montée que
+  // lorsque le panneau "Ajouter des plats" est ouvert (accordéon replié par défaut), donc un plat
+  // ajouté à la carte directement depuis sa fiche recette pouvait rester non traduit
+  // indéfiniment pour un client étranger, si ce panneau n'était jamais rouvert après coup. Logique
+  // identique, désormais dans un effet global toujours actif (`App.jsx`, composant `App`),
+  // indépendant de l'onglet/panneau ouvert.
 
   return (
     <div className="rounded-lg p-2" style={{ background: "#16130F" }}>
