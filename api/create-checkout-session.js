@@ -128,6 +128,10 @@ export default async function handler(req, res) {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/?checkout=success`,
       cancel_url: `${origin}/?checkout=cancel`,
+      // Champ "code promo" sur la page Stripe (2026-09-04, demandé pour pousser une offre
+      // ponctuelle liée à une vidéo TikTok qui convertit bien) — le coupon lui-même se crée et
+      // s'active/désactive côté Stripe Dashboard, rien à déployer pour changer l'offre en cours.
+      allow_promotion_codes: true,
     });
 
     return res.status(200).json({ url: session.url, founder: useFoundingPrice });
