@@ -1019,3 +1019,13 @@ Suite directe du correctif "prix par ingrédient (IA)" ci-dessus, trouvé par l'
 
 Comptes de test à supprimer via le tableau de bord admin : `chefuptest.gambascheck+<timestamp>@example.com`, `chefuptest.piececheck+<timestamp>@example.com`.
 
+---
+
+## Premier vrai scan vérifié depuis les correctifs de prix : facture Metro, `contact@letoutducru-foodtruck.com` (2026-09-05) + "+N autres" jamais dépliable dans le tableau de bord admin
+
+**Vérification indépendante d'un vrai scan** (photo de facture Metro France envoyée par l'utilisateur, recalcul à la main ligne par ligne) : Buchette sucre (10,70€/1000 pièces → 0,01€/pièce), Beurre 250g (1,600€/0,250kg → 6,40€/kg), Pistache ×7 lignes (7,49€/kg, prix imprimé directement sur la facture, identique sur les 7 malgré des poids réels différents), Pâté de campagne (6,846€/kg imprimé → 6,85€/kg), Quart arrière de veau (2,790€/kg imprimé → 2,79€/kg), Côte échine de porc ×7 lignes (6,790€/kg imprimé → 6,79€/kg) — **tout exact au centime**, sous-totaux par rayon Boucherie (165,60€) et Charcuterie (143,03€) recalculés et confirmés aussi. Les 2 lignes écartées correspondent bien aux 2 seuls articles non-alimentaires (gobelets carton + kit bois jetable, rayon Droguerie). Réserve : capture arrêtée avant la fin de la facture (page 2), les ~7 dernières lignes n'ont pas pu être vérifiées faute de les voir affichées côté app.
+
+**Bug réel trouvé en voulant justement voir ces 7 lignes restantes** : l'utilisateur a cliqué sur "+7 autres" dans le tableau de bord admin (résumé d'un scan, chronologie d'un compte) — rien ne se passe. Cause : `ScanEvidence` (`src/adminAndOnboarding.jsx`) plafonne l'affichage à 12 lignes et affiche "+ N autre(s)" comme un simple `<div>` de texte, jamais relié à un `onClick`. **Corrigé** : état `expanded` + transformé en vrai bouton (déplie/replie la liste complète), même style que le bouton "Voir la facture" déjà présent juste en dessous (`ev.stopPropagation()` pour ne pas interférer avec le reste de la ligne de chronologie, comme ce bouton voisin le fait déjà).
+
+**Vérifié** : `npm run build` propre. Composant purement admin (visible `alexmollet0@gmail.com` seul), pas de moyen de tester en conditions réelles dans cet environnement (connexion admin impossible sans les identifiants) — logique revue par lecture directe, pattern identique au bouton voisin déjà fonctionnel dans le même composant. À confirmer par l'utilisateur au prochain clic réel, une fois déployé.
+
