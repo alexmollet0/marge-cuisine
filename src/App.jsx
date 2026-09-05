@@ -363,6 +363,17 @@ export default function App() {
   const [expandedReviewIdx, setExpandedReviewIdx] = useState(null);
   const fileInputRef = useRef(null);
   const fileInputLibraryRef = useRef(null);
+  // Entonnoir scanner (2026-09-05) : deux comptes réels ont ouvert l'onglet Scanner sans qu'aucun
+  // scan n'aboutisse jamais (ni succès ni échec dans scan_failed) — impossible de savoir si le
+  // sélecteur de fichier natif du téléphone ne rendait jamais la main, ou si le restaurateur ne
+  // cliquait même pas sur le bouton. Ce repère + `scan_file_selected` (dans handleScanFile) et
+  // `scan_analyze_clicked` (dans confirmScanImage) rendent visible où ça décroche vraiment, au
+  // lieu de deviner. Centralisé ici pour que TOUS les boutons qui ouvrent un sélecteur (écran
+  // initial, écrans d'erreur "réessayer avec un autre fichier") soient couverts sans en oublier un.
+  const openScanPicker = (source) => {
+    logActivity("scan_button_clicked", { source });
+    (source === "camera" ? fileInputRef : fileInputLibraryRef).current?.click();
+  };
 
   // Scanner de fiche recette : état totalement séparé du scanner de factures ci-dessus (autre
   // fichier serveur, autre écran de vérification) pour ne jamais risquer de régresser le scanner
@@ -2146,6 +2157,9 @@ export default function App() {
     const file = e.target.files?.[0];
     e.target.value = ""; // permet de re-sélectionner le même fichier plus tard
     if (!file) return;
+    // Confirme que le sélecteur natif du téléphone a bien rendu la main avec un fichier — voir
+    // `openScanPicker` ci-dessus, point de repère central de l'entonnoir scanner (2026-09-05).
+    logActivity("scan_file_selected", { source: e.target === fileInputRef.current ? "camera" : "library", fileType: file.type || "?" });
     setScanOpen(true);
     setScanErr(null);
     setScanResult(null);
@@ -2231,6 +2245,9 @@ export default function App() {
     const source = valid(imageOverride) ? imageOverride : scanPendingImage;
     if (!valid(source)) return;
     const { base64, mediaType } = source;
+    // Dernier repère de l'entonnoir scanner (2026-09-05, voir openScanPicker) : confirme que
+    // l'utilisateur a bien dépassé l'écran d'aperçu, pas juste regardé sa photo sans continuer.
+    logActivity("scan_analyze_clicked", {});
     setScanning(true);
     setScanErr(null);
     setScanPendingImage(null);
@@ -3870,7 +3887,7 @@ export default function App() {
                   </button>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => fileInputLibraryRef.current?.click()}
+                      onClick={() => openScanPicker("library")}
                       className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]"
                     >
                       {t("scanRetryOtherFile")}
@@ -3958,7 +3975,7 @@ export default function App() {
                       </button>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => fileInputLibraryRef.current?.click()}
+                          onClick={() => openScanPicker("library")}
                           className="flex-1 text-[11px] uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-[#C9793B] hover:text-[#C9793B]"
                         >
                           {t("scanRetryOtherFile")}
@@ -5518,14 +5535,14 @@ export default function App() {
                 {t("scanRecommendedBadge")}
               </span>
               <button
-                onClick={() => fileInputLibraryRef.current?.click()}
+                onClick={() => openScanPicker("library")}
                 className="mt-1.5 w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
                 style={{ background: "#3B82F6", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(59,130,246,0.4)" }}
               >
                 <Upload size={15} /> {t("scanUploadFile")}
               </button>
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => openScanPicker("camera")}
                 className="w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform border border-white/20 text-white/60"
               >
                 <Camera size={15} /> {t("scanTakePhoto")}

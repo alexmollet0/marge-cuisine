@@ -126,6 +126,12 @@ const ACTIVITY_LABELS = {
   tab_opened: "Onglet ouvert",
   digital_menu_published: "Carte digitale publiée",
   subscribe_clicked: "Clic « S'abonner »",
+  // Entonnoir scanner (2026-09-05), voir CLAUDE.md — deux comptes réels ouvraient l'onglet Scanner
+  // sans qu'aucun scan n'aboutisse jamais (ni succès ni échec), sans aucun moyen de savoir où ça
+  // décrochait. Ces 3 repères rendent le décrochage visible au lieu de deviner.
+  scan_button_clicked: "Bouton scan cliqué",
+  scan_file_selected: "Fichier reçu du sélecteur",
+  scan_analyze_clicked: "Analyser cliqué",
 };
 const ACTIVITY_ICON = {
   login: { Icon: LogIn, color: "#9CA3AF" },
@@ -137,6 +143,9 @@ const ACTIVITY_ICON = {
   tab_opened: { Icon: LayoutGrid, color: "#9CA3AF" },
   digital_menu_published: { Icon: QrCode, color: "#10B981" },
   subscribe_clicked: { Icon: CreditCard, color: BRAND_SOLID },
+  scan_button_clicked: { Icon: ImageIcon, color: "#9CA3AF" },
+  scan_file_selected: { Icon: Check, color: "#38BDF8" },
+  scan_analyze_clicked: { Icon: ArrowRight, color: BRAND_SOLID },
 };
 // Codes d'échec de scan connus. Toute valeur hors de cette liste retombe sur "unknown" côté
 // affichage, pour ne jamais montrer une clé de traduction brute au restaurateur.
@@ -196,6 +205,9 @@ function activityDetail(e) {
     return m.finishedAll ? `Terminé (jusqu'à « ${stepLabel} »)` : `Passé à l'étape « ${stepLabel} »`;
   }
   if (e.type === "tab_opened") return TAB_LABELS_FR[m.tab] || m.tab || "";
+  if (e.type === "scan_button_clicked" || e.type === "scan_file_selected") {
+    return m.source === "camera" ? "appareil photo" : "fichier/galerie";
+  }
   return "";
 }
 

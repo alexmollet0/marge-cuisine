@@ -1029,3 +1029,24 @@ Comptes de test à supprimer via le tableau de bord admin : `chefuptest.gambasch
 
 **Vérifié** : `npm run build` propre. Composant purement admin (visible `alexmollet0@gmail.com` seul), pas de moyen de tester en conditions réelles dans cet environnement (connexion admin impossible sans les identifiants) — logique revue par lecture directe, pattern identique au bouton voisin déjà fonctionnel dans le même composant. À confirmer par l'utilisateur au prochain clic réel, une fois déployé.
 
+---
+
+## Entonnoir scanner instrumenté après 2 comptes réels bloqués sans aucun scan abouti (2026-09-05)
+
+**Contexte** : suite directe du support client `lepine.timothy@orange.fr` — un 2e compte réel (un essai) a montré exactement le même symptôme (ouvre l'onglet Scanner, jamais aucun scan qui aboutit, ni succès ni échec dans la chronologie). Deux comptes indépendants avec le même schéma = plus une coïncidence isolée, un vrai pattern à investiguer.
+
+**Investigation avant tout code** : relecture attentive du flux `handleScanFile`/`confirmScanImage` (`src/App.jsx`) — code déjà bien blindé (garde-fous documentés contre les blocages silencieux, ex: délai de 20s sur l'OCR client ajouté après un bug similaire le 2026-08-24). Test réel en local (contournement d'authentification, upload simulé via un fichier factice injecté dans l'input caché) : le flux se déroule sans accroc jusqu'à un écran d'erreur clair — aucun bug universel reproduit sur ce navigateur. Conclusion honnête donnée à l'utilisateur : impossible de confirmer une cause précise sans plus d'informations sur l'appareil/réseau réel de Timothy, mais aussi impossible de continuer à deviner.
+
+**Décision** : plutôt qu'attendre indéfiniment une réponse ou deviner davantage, instrumenter le point aveugle exact — jusqu'ici la chronologie ne montrait que "Onglet ouvert : Scanner", sans aucun moyen de savoir si le sélecteur de fichier natif du téléphone ne rendait jamais la main (bug réel possible sur certains navigateurs/PWA), ou si le restaurateur ne cliquait même pas sur les boutons.
+
+**3 nouveaux repères ajoutés** (même mécanisme que les étapes de parcours existantes, `logActivity`/`scan-events`) :
+1. `scan_button_clicked` (`source: "camera"|"library"`) — au clic sur "Importer un fichier"/"Prendre une photo" (écran initial ET écrans "réessayer avec un autre fichier"), centralisé dans un nouveau helper `openScanPicker` pour ne pas en oublier un des 4 boutons qui ouvrent le sélecteur.
+2. `scan_file_selected` — dans `handleScanFile`, juste après avoir confirmé qu'un fichier a bien été reçu (`e.target.files?.[0]` non vide) : confirme que le sélecteur natif du téléphone a vraiment rendu la main avec un fichier, le point le plus susceptible de casser silencieusement sur un navigateur/PWA particulier.
+3. `scan_analyze_clicked` — dans `confirmScanImage` : confirme que l'utilisateur a dépassé l'écran d'aperçu (photo + bouton "Analyser"), pas juste regardé sa photo sans continuer.
+
+Volontairement PAS ajouté sur `retryLastScan` quand il réutilise la dernière image en mémoire (ce n'est pas une nouvelle tentative de sélection, juste un renvoi) — seulement sur ses 2 boutons "réessayer avec un autre fichier", qui ouvrent bien un nouveau sélecteur.
+
+**Rendu dans le tableau de bord admin** (`ACTIVITY_LABELS`/`ACTIVITY_ICON`/`activityDetail`, `src/adminAndOnboarding.jsx`) : "Bouton scan cliqué" / "Fichier reçu du sélecteur" / "Analyser cliqué", avec la source (appareil photo/fichier) affichée pour les deux premiers. Combinés aux événements déjà existants (`scan_invoice`/`scan_failed`), la chronologie complète d'une tentative de scan est maintenant lisible de bout en bout : clic → fichier reçu → aperçu confirmé → résultat (ou silence à l'une de ces étapes, ce qui répond enfin à la vraie question).
+
+**Vérifié** : `npm run build` propre. Testé en local (contournement d'authentification, fichier factice injecté dans l'input caché) : le clic sur "Importer un fichier" ne provoque aucune erreur JS (seuls les échecs réseau attendus, `/api/scan-events` inatteignable sous `vite` seul sans `vercel dev`). Rendu du tableau de bord admin non testable dans cet environnement (connexion admin impossible) — à confirmer par l'utilisateur au prochain compte qui décroche.
+
