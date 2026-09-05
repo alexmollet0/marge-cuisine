@@ -208,6 +208,9 @@ function activityDetail(e) {
 function ScanEvidence({ meta }) {
   const [imageState, setImageState] = useState("idle"); // idle | loading | error
   const [imageUrl, setImageUrl] = useState(null);
+  // [BUG confirmé et corrigé, 2026-09-05] "+ N autre(s)" était un simple texte, jamais cliquable —
+  // signalé par l'utilisateur qui essayait de déplier la liste complète pour vérifier un vrai scan.
+  const [expanded, setExpanded] = useState(false);
   const items = Array.isArray(meta?.items) ? meta.items.filter((it) => it && it.name) : [];
 
   const loadImage = async (ev) => {
@@ -236,13 +239,21 @@ function ScanEvidence({ meta }) {
     <div className="mt-1.5">
       {items.length > 0 && (
         <div className="rounded-lg px-2 py-1.5 mb-1.5 space-y-0.5" style={{ background: "rgba(255,255,255,0.04)" }}>
-          {items.slice(0, 12).map((it, i) => (
+          {items.slice(0, expanded ? items.length : 12).map((it, i) => (
             <div key={i} className="flex items-center justify-between gap-2 text-[10px] text-white/50">
               <span className="truncate">{it.name}</span>
               <span className="font-mono shrink-0">{typeof it.price === "number" ? `${it.price.toFixed(2)}€${it.unit ? `/${it.unit}` : ""}` : "?"}</span>
             </div>
           ))}
-          {items.length > 12 && <div className="text-[10px] text-white/30">+ {items.length - 12} autre(s)</div>}
+          {items.length > 12 && (
+            <button
+              type="button"
+              onClick={(ev) => { ev.stopPropagation(); setExpanded((v) => !v); }}
+              className="text-[10px] text-white/30 hover:text-white/60 underline decoration-dotted"
+            >
+              {expanded ? "Réduire" : `+ ${items.length - 12} autre(s)`}
+            </button>
+          )}
         </div>
       )}
       {meta?.imagePath && (
