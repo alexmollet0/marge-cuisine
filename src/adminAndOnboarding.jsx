@@ -245,7 +245,7 @@ function ScanEvidence({ meta }) {
     }
   };
 
-  if (!items.length && !meta?.imagePath) return null;
+  if (!items.length && !meta?.imagePath && !meta?.imageUploadFailed) return null;
 
   return (
     <div className="mt-1.5">
@@ -267,6 +267,12 @@ function ScanEvidence({ meta }) {
             </button>
           )}
         </div>
+      )}
+      {!meta?.imagePath && meta?.imageUploadFailed && (
+        // [2026-09-06] L'upload de la photo est volontairement best-effort (ne doit jamais faire
+        // échouer le scan lui-même) — jusqu'ici son échec était invisible, laissant croire à tort
+        // qu'aucune photo n'avait jamais été prise. Rend le manque explicite au lieu de silencieux.
+        <p className="text-[10px] text-white/30 italic">Photo non conservée (échec d'enregistrement).</p>
       )}
       {meta?.imagePath && (
         <>

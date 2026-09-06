@@ -70,9 +70,16 @@ export default async function handler(req, res) {
         const meta = b.meta && typeof b.meta === "object" ? { ...b.meta } : {};
         // Un scan échoué garde aussi sa photo/PDF d'origine quand disponible (pas toujours le cas —
         // un fichier illisible côté navigateur n'a par exemple jamais pu être décodé du tout).
+        // [2026-09-06] `imageUploadFailed` : l'upload est volontairement best-effort (ne doit
+        // jamais faire échouer le scan), mais jusqu'ici son échec était totalement invisible —
+        // un vrai cas rencontré (scan abouti, 0 ligne alimentaire) n'a laissé aucune trace
+        // permettant de savoir si la photo avait juste été refusée à l'enregistrement. Ce
+        // drapeau ne récupère pas la photo manquante, il rend juste le manque visible au lieu
+        // de le laisser passer pour un simple silence.
         if (b.type === "scan_failed" && b.image) {
           const imagePath = await uploadScanImage(supabaseAdmin, user.id, b.image, b.mediaType);
           if (imagePath) meta.imagePath = imagePath;
+          else meta.imageUploadFailed = true;
         }
         const { error } = await supabaseAdmin
           .from("activity_events")
@@ -125,6 +132,7 @@ export default async function handler(req, res) {
         if (b.image) {
           const imagePath = await uploadScanImage(supabaseAdmin, user.id, b.image, b.mediaType);
           if (imagePath) meta.imagePath = imagePath;
+          else meta.imageUploadFailed = true; // voir commentaire équivalent plus haut (scan_failed)
         }
         await supabaseAdmin
           .from("activity_events")

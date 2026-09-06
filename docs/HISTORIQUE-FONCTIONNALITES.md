@@ -1050,3 +1050,15 @@ Volontairement PAS ajouté sur `retryLastScan` quand il réutilise la dernière 
 
 **Vérifié** : `npm run build` propre. Testé en local (contournement d'authentification, fichier factice injecté dans l'input caché) : le clic sur "Importer un fichier" ne provoque aucune erreur JS (seuls les échecs réseau attendus, `/api/scan-events` inatteignable sous `vite` seul sans `vercel dev`). Rendu du tableau de bord admin non testable dans cet environnement (connexion admin impossible) — à confirmer par l'utilisateur au prochain compte qui décroche.
 
+---
+
+## Photo de scan manquante rendue visible ("photo non conservée") (2026-09-06)
+
+**Cas réel qui a révélé le trou** : un nouvel essai (`joslin.martinez000@gmail.com`) a produit un scan qui ABOUTIT (pas d'échec) mais avec 0 ligne alimentaire détectée et fournisseur non lu — signal potentiellement intéressant (vraie facture illisible ? document qui n'est pas une facture ?), mais **impossible à vérifier** : le bouton "Voir la facture" n'apparaissait pas du tout dans le tableau de bord admin pour ce scan précis, sans aucune explication.
+
+**Cause** : `uploadScanImage` (`api/_lib.js`) est volontairement "best-effort" — conçu pour ne jamais faire échouer le scan lui-même si l'enregistrement de la photo rate. Mais son échec ne laissait absolument aucune trace : impossible de distinguer "aucune photo enregistrée car l'upload a échoué" de "aucune photo car rien n'a jamais été envoyé".
+
+**Corrigé** (`api/scan-events.js`) : nouveau drapeau `imageUploadFailed` posé quand `uploadScanImage` renvoie `null` malgré une image reçue du client, sur les deux chemins concernés (scan réussi ET `scan_failed`). Affiché dans le tableau de bord admin (`ScanEvidence`, `src/adminAndOnboarding.jsx`) par une petite note explicite "Photo non conservée (échec d'enregistrement)" quand c'est le cas — auparavant, ce scénario ne montrait littéralement rien (le composant entier se masquait, `if (!items.length && !meta?.imagePath) return null`, corrigé pour tenir compte du nouveau drapeau). Ne récupère pas la photo manquante pour les scans déjà passés, mais rend le manque visible pour tous les scans à venir — but purement diagnostic, aucun changement de comportement du scan lui-même.
+
+**Vérifié** : `npm run build` propre, `node --check api/scan-events.js` propre. Pas de vraie photo à disposition dans cet environnement pour déclencher un échec d'upload réel et confirmer visuellement le nouveau message — logique relue attentivement (chemin `else` symétrique à celui déjà existant pour `imagePath`). À confirmer par l'utilisateur si ce cas se reproduit.
+
