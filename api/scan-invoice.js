@@ -308,7 +308,20 @@ Le champ "name" d'un item doit TOUJOURS correspondre à du texte que tu peux ré
 
     const data = await response.json();
     const textBlock = (data.content || []).find((c) => c.type === "text");
-    let raw = (textBlock?.text || "{}").trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+    // [BUG confirmé et corrigé, 2026-09-08] `textBlock?.text || "{}"` retombait silencieusement
+    // sur un objet JSON vide dès que l'IA ne renvoyait AUCUN bloc texte (`data.content` vide ou
+    // sans type "text") — ce "{}" est un JSON parfaitement valide, donc rien ne levait d'erreur :
+    // le scan repartait en SUCCÈS avec 0 ligne et fournisseur null, indiscernable pour le client
+    // d'une vraie facture vide. Cas réel confirmé par l'utilisateur (tableau de bord admin) : une
+    // même grosse facture (27-33 lignes, vin/épicerie) rescannée plusieurs fois de suite donnait
+    // tantôt le bon résultat complet, tantôt "0 ligne · fournisseur non lu" sans la moindre erreur
+    // visible — signe d'une réponse parfois tronquée/vide sur un document dense, jamais signalée.
+    // Un bloc texte absent est maintenant traité comme un vrai échec (mêmes conséquences qu'un
+    // JSON illisible ci-dessous : `scan_failed`, jamais un succès trompeur à 0 ligne).
+    if (!textBlock) {
+      return fail(res, 502, "ai_unreadable", "Réponse sans bloc texte (probablement tronquée)", JSON.stringify({ stopReason: data.stop_reason, contentTypes: (data.content || []).map((c) => c.type) }));
+    }
+    let raw = textBlock.text.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
 
     // Filet de sécurité : si l'IA a malgré tout ajouté du texte avant/après le JSON,
     // on ne garde que ce qu'il y a entre la première { et la dernière }.
