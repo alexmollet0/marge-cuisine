@@ -214,12 +214,22 @@ export default function App() {
   const [expressRecipePortions, setExpressRecipePortions] = useState(1);
   const [expressRecipeLoading, setExpressRecipeLoading] = useState(false);
   const [expressRecipeError, setExpressRecipeError] = useState(null);
+  // Prix de vente demandé AVANT la génération (2026-09-08, demandé explicitement par
+  // l'utilisateur) — pour "Plat du jour" ET "Recette express" : la marge doit être visible
+  // IMMÉDIATEMENT à l'arrivée sur la fiche, pas seulement après une étape manuelle en plus.
+  const [expressSellPrice, setExpressSellPrice] = useState(0);
+  // "Plat du jour" (2026-09-08) : PAS une fonctionnalité séparée des recettes — un simple
+  // indicateur (`recipeType`) sur les recettes déjà existantes, pour réutiliser tout le mécanisme
+  // déjà en place (calcul de marge, impression, allergènes, carte digitale) sans le dupliquer.
+  // Ce filtre pilote à la fois la liste affichée ET quel formulaire "+ Nouvelle recette" ouvre.
+  const [recipeTypeFilter, setRecipeTypeFilter] = useState("recette"); // "recette" | "plat_du_jour"
   const closeNewRecipeChoice = () => {
     setNewRecipeChoiceOpen(false);
     setExpressFormOpen(false);
     setExpressRecipeName("");
     setExpressRecipePortions(1);
     setExpressRecipeError(null);
+    setExpressSellPrice(0);
   };
   const addRecipeToMenu = () => {
     if (!active) return;
@@ -654,6 +664,11 @@ export default function App() {
     .slice(0, 3)
     .map((x) => x.id);
 
+  // "Plat du jour" (2026-09-08) : liste de l'onglet Recettes filtrée par la bascule "Recettes"/
+  // "Plats du jour" — `?? "recette"` pour toute recette créée avant l'introduction de ce champ
+  // (jamais migrées, restent classées "Recettes" par défaut, comportement inchangé pour elles).
+  const visibleRecipes = recipes.filter((r) => (r.recipeType || "recette") === recipeTypeFilter);
+
   const totalCost = active ? recipeCost(active) : 0;
   const costPerPortion = active ? recipeCostPerPortion(active) : 0;
   const activeVatRate = active ? recipeVatRate(active) : vatRate;
@@ -842,7 +857,7 @@ export default function App() {
   const addRecipe = () => {
     const nr = {
       id: uid(), name: t("newRecipeName"), portions: 4, sellPrice: 0, targetMargin: 75,
-      notes: "", allergens: "", allergensAuto: true, createdAt: today(), lines: [],
+      notes: "", allergens: "", allergensAuto: true, createdAt: today(), lines: [], recipeType: "recette",
     };
     setRecipes((rs) => [...rs, nr]);
     setActiveId(nr.id);
@@ -850,6 +865,26 @@ export default function App() {
     setRecipeSubView("detail");
     setFocusNameOnOpen(true);
     logActivity("recipe_created", { name: nr.name });
+  };
+
+  // "Plat du jour" — ajout rapide SANS IA (2026-09-08, demandé explicitement par l'utilisateur
+  // pour un compte dont le garde-manger est encore vide : il doit pouvoir créer un plat du jour
+  // quand même, en tapant lui-même ses ingrédients sur la fiche via la saisie rapide déjà
+  // existante — même mécanisme que `addRecipe` ci-dessus, mais avec portions/prix de vente
+  // déjà remplis dès la création (demandé pour voir la marge tout de suite) et tagué
+  // `recipeType: "plat_du_jour"` pour apparaître dans le bon onglet.
+  const addQuickDailyDish = () => {
+    const name = expressRecipeName.trim() || t("dailyDishDefaultName");
+    const nr = {
+      id: uid(), name, portions: expressRecipePortions || 1, sellPrice: expressSellPrice || 0, targetMargin: 75,
+      notes: "", allergens: "", allergensAuto: true, createdAt: today(), lines: [], recipeType: "plat_du_jour",
+    };
+    setRecipes((rs) => [...rs, nr]);
+    setActiveId(nr.id);
+    setActiveTab("recipes");
+    setRecipeSubView("detail");
+    logActivity("recipe_created", { name: nr.name, source: "daily_quick" });
+    closeNewRecipeChoice();
   };
 
   // "Recette express" (2026-09-02) : génère une base de recette à partir du seul nom d'un plat
@@ -860,9 +895,15 @@ export default function App() {
   // normale, éditable comme n'importe quelle recette. Chaque ingrédient créé reçoit un prix ESTIMÉ
   // par catégorie (même mécanisme que `quickAddLine`/`createRecipeFromScan`, priceSource
   // "estimate", déjà signalé par la pastille + légende existantes) — jamais un vrai prix inventé.
-  const createExpressRecipe = async () => {
+  // `mode`: "dishName" (Recette express, nom obligatoire) | "stock" ("Plat du jour depuis mon
+  // stock", 2026-09-08 — nom optionnel, l'IA propose un plat à partir des ingrédients déjà connus
+  // du garde-manger). Même appel serveur, même logique de rapprochement/prix estimé ensuite —
+  // seule la requête envoyée et le `recipeType` posé sur la recette finale diffèrent.
+  const createExpressRecipe = async (mode = "dishName") => {
     const dishName = expressRecipeName.trim();
-    if (!dishName || expressRecipeLoading) return;
+    const isStock = mode === "stock";
+    if (!isStock && !dishName) return;
+    if (expressRecipeLoading) return;
     setExpressRecipeLoading(true);
     setExpressRecipeError(null);
     try {
@@ -871,10 +912,21 @@ export default function App() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
       } catch (err) {}
+      const body = isStock
+        ? {
+            // Noms seulement (pas les prix) : suffisant pour que l'IA sache ce qui est déjà là,
+            // et le rapprochement (`guessIngredientId` plus bas) retrouve le VRAI prix tout seul
+            // pour tout ingrédient déjà connu — jamais besoin de l'envoyer à l'IA.
+            stockIngredients: ingredients.map((i) => ingredientDisplayName(i)).filter(Boolean).slice(0, 80),
+            dishName: dishName || undefined,
+            portions: expressRecipePortions,
+            lang,
+          }
+        : { dishName, portions: expressRecipePortions, lang };
       const res = await fetch("/api/scan-recipe", {
         method: "POST",
         headers,
-        body: JSON.stringify({ dishName, portions: expressRecipePortions, lang }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "erreur");
@@ -958,21 +1010,24 @@ export default function App() {
 
       const newRecipe = {
         id: uid(),
-        name: asText(data.name).trim() || dishName,
+        name: asText(data.name).trim() || dishName || t("dailyDishDefaultName"),
         portions: typeof data.portions === "number" && data.portions > 0 ? data.portions : expressRecipePortions,
-        sellPrice: 0,
+        // Prix de vente demandé AVANT génération (2026-09-08) : marge visible immédiatement à
+        // l'arrivée sur la fiche, plus besoin d'une étape manuelle en plus après coup.
+        sellPrice: expressSellPrice || 0,
         targetMargin: 75,
         notes: "",
         allergens: "",
         allergensAuto: true,
         createdAt: today(),
         lines: resolvedLines,
+        recipeType: isStock ? "plat_du_jour" : "recette",
       };
       setRecipes((rs) => [...rs, newRecipe]);
       setActiveId(newRecipe.id);
       setActiveTab("recipes");
       setRecipeSubView("detail");
-      logActivity("recipe_created", { name: newRecipe.name, source: "express" });
+      logActivity("recipe_created", { name: newRecipe.name, source: isStock ? "daily_stock" : "express" });
       closeNewRecipeChoice();
     } catch (err) {
       setExpressRecipeError(t("expressRecipeError"));
@@ -3541,6 +3596,65 @@ export default function App() {
                   </button>
                 </div>
               </>
+            ) : recipeTypeFilter === "plat_du_jour" ? (
+              <>
+                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("dailyDishTab")}</h3>
+                <p className="text-white/50 text-xs mb-4 leading-relaxed">{t("dailyDishHint")}</p>
+                <input
+                  value={expressRecipeName}
+                  onChange={(e) => setExpressRecipeName(e.target.value)}
+                  placeholder={t("dailyDishNamePlaceholder")}
+                  disabled={expressRecipeLoading}
+                  autoFocus
+                  className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white text-sm outline-none mb-3 focus:border-white/30"
+                />
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/50">{t("expressRecipePortionsLabel")}</span>
+                    <NumField
+                      allowDecimal={false}
+                      value={expressRecipePortions}
+                      onChange={setExpressRecipePortions}
+                      className="w-14 bg-white/5 border border-white/15 rounded px-2 py-1 text-right text-white text-sm outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/50">{t("sellPriceTTC")}</span>
+                    <NumField
+                      value={expressSellPrice}
+                      onChange={setExpressSellPrice}
+                      className="w-16 bg-white/5 border border-white/15 rounded px-2 py-1 text-right text-white text-sm outline-none"
+                    />
+                  </div>
+                </div>
+                {expressRecipeError && (
+                  <p className="text-[11px] mb-3" style={{ color: TIER_COLORS.low }}>{expressRecipeError}</p>
+                )}
+                <div className="space-y-2">
+                  <button
+                    onClick={() => createExpressRecipe("stock")}
+                    disabled={expressRecipeLoading}
+                    className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full disabled:opacity-50"
+                    style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                  >
+                    {expressRecipeLoading ? t("expressRecipeLoading") : t("dailyDishFromStockButton")}
+                  </button>
+                  <button
+                    onClick={addQuickDailyDish}
+                    disabled={expressRecipeLoading}
+                    className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-white/40 disabled:opacity-50"
+                  >
+                    {t("dailyDishQuickAddButton")}
+                  </button>
+                  <button
+                    onClick={closeNewRecipeChoice}
+                    disabled={expressRecipeLoading}
+                    className="w-full text-xs font-display uppercase tracking-wide py-2 text-white/40 hover:text-white/70 disabled:opacity-50"
+                  >
+                    {t("cancelLabel")}
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("expressRecipeOption")}</h3>
@@ -3548,20 +3662,32 @@ export default function App() {
                 <input
                   value={expressRecipeName}
                   onChange={(e) => setExpressRecipeName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") createExpressRecipe(); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") createExpressRecipe("dishName"); }}
                   placeholder={t("expressRecipeNamePlaceholder")}
                   disabled={expressRecipeLoading}
                   autoFocus
                   className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white text-sm outline-none mb-3 focus:border-white/30"
                 />
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs text-white/50">{t("expressRecipePortionsLabel")}</span>
-                  <NumField
-                    allowDecimal={false}
-                    value={expressRecipePortions}
-                    onChange={setExpressRecipePortions}
-                    className="w-14 bg-white/5 border border-white/15 rounded px-2 py-1 text-right text-white text-sm outline-none"
-                  />
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/50">{t("expressRecipePortionsLabel")}</span>
+                    <NumField
+                      allowDecimal={false}
+                      value={expressRecipePortions}
+                      onChange={setExpressRecipePortions}
+                      className="w-14 bg-white/5 border border-white/15 rounded px-2 py-1 text-right text-white text-sm outline-none"
+                    />
+                  </div>
+                  {/* Prix de vente demandé AVANT génération (2026-09-08) : marge visible dès
+                      l'arrivée sur la fiche, plus besoin d'une étape manuelle en plus après coup. */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/50">{t("sellPriceTTC")}</span>
+                    <NumField
+                      value={expressSellPrice}
+                      onChange={setExpressSellPrice}
+                      className="w-16 bg-white/5 border border-white/15 rounded px-2 py-1 text-right text-white text-sm outline-none"
+                    />
+                  </div>
                 </div>
                 {expressRecipeError && (
                   <p className="text-[11px] mb-3" style={{ color: TIER_COLORS.low }}>{expressRecipeError}</p>
@@ -3575,7 +3701,7 @@ export default function App() {
                     {t("cancelLabel")}
                   </button>
                   <button
-                    onClick={createExpressRecipe}
+                    onClick={() => createExpressRecipe("dishName")}
                     disabled={!expressRecipeName.trim() || expressRecipeLoading}
                     className="flex-1 text-xs font-display uppercase tracking-wide py-2.5 rounded-full disabled:opacity-50"
                     style={{ background: BRAND_GRADIENT, color: "#fff" }}
@@ -4632,19 +4758,19 @@ export default function App() {
                 affiché à l'impression de toute façon, hors de la fiche recette). N'affiche rien
                 tant qu'aucune marge n'est calculable (pas de division par zéro sur un garde-manger
                 vide) — dans ce cas, seul le logo/titre reste au-dessus des bandeaux suivants. */}
-            {recipes.length > 0 && (() => {
-              const margins = recipes.map((r) => recipeMargin(r)).filter((m) => m !== null);
+            {visibleRecipes.length > 0 && (() => {
+              const margins = visibleRecipes.map((r) => recipeMargin(r)).filter((m) => m !== null);
               const avgMargin = margins.length ? Math.round(margins.reduce((s, m) => s + m, 0) / margins.length) : null;
               const avgTier = avgMargin !== null ? marginTier(avgMargin, settings.minMargin) : null;
               // "En alerte" = tier rouge (sous CRITICAL_MARGIN), pas juste sous l'objectif choisi —
               // même définition que la couleur "problème" déjà utilisée partout ailleurs (badges de
               // la liste, panneau "en un coup d'œil"), pour ne jamais introduire un 2e sens du mot
               // "alerte" dans l'app.
-              const alertCount = recipes.filter((r) => marginTier(recipeMargin(r), r.targetMargin ?? settings.minMargin) === "low").length;
+              const alertCount = visibleRecipes.filter((r) => marginTier(recipeMargin(r), r.targetMargin ?? settings.minMargin) === "low").length;
               return (
                 <div className="flex items-stretch rounded-xl overflow-hidden mb-5 border border-white/10" style={{ background: "#201B15" }}>
                   <div className="flex-1 px-3 py-2.5 text-center min-w-0">
-                    <div className="font-display text-white text-lg leading-none">{recipes.length}</div>
+                    <div className="font-display text-white text-lg leading-none">{visibleRecipes.length}</div>
                     <div className="text-white/40 text-[9px] uppercase tracking-wide mt-1 truncate">{t("recipes")}</div>
                   </div>
                   <div className="w-px bg-white/10" />
@@ -4740,8 +4866,31 @@ export default function App() {
               className="hidden"
               onChange={handleScanRecipeFile}
             />
+            {/* Bascule "Recettes" / "Plats du jour" (2026-09-08) : PAS deux écrans séparés — un
+                simple filtre sur les mêmes recettes (`recipeType`), pour réutiliser tout le
+                mécanisme déjà en place (marge, impression, allergènes, carte digitale) sans le
+                dupliquer. Pilote aussi quel formulaire "+ Nouvelle recette" ouvre plus bas. */}
+            <div className="flex items-center rounded-full border border-white/15 overflow-hidden mb-4 w-fit">
+              <button
+                onClick={() => setRecipeTypeFilter("recette")}
+                className="px-4 py-1.5 text-xs font-display uppercase tracking-wide transition-colors"
+                style={recipeTypeFilter === "recette" ? { background: BRAND_GRADIENT, color: "#fff" } : { color: "rgba(255,255,255,0.5)" }}
+              >
+                {t("recipes")}
+              </button>
+              <button
+                onClick={() => setRecipeTypeFilter("plat_du_jour")}
+                className="px-4 py-1.5 text-xs font-display uppercase tracking-wide transition-colors"
+                style={recipeTypeFilter === "plat_du_jour" ? { background: BRAND_GRADIENT, color: "#fff" } : { color: "rgba(255,255,255,0.5)" }}
+              >
+                {t("dailyDishTab")}
+              </button>
+            </div>
+
             <div className="flex items-center justify-between mb-4 flex-wrap gap-y-2">
-              <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">{t("recipes")}</h2>
+              <h2 className="font-display text-white/90 uppercase text-sm tracking-widest">
+                {recipeTypeFilter === "plat_du_jour" ? t("dailyDishTab") : t("recipes")}
+              </h2>
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 <div className="flex items-center rounded-full border border-white/15 overflow-hidden shrink-0">
                   <button
@@ -4776,20 +4925,32 @@ export default function App() {
                   {t("digitalMenuButton")}
                 </button>
                 <button
-                  onClick={() => setNewRecipeChoiceOpen(true)}
+                  onClick={() => {
+                    if (recipeTypeFilter === "plat_du_jour") {
+                      // Pas d'écran de choix intermédiaire pour "Plat du jour" — le formulaire
+                      // lui-même propose les 2 façons de créer ("Ajout rapide" / "Depuis mon
+                      // stock"), inutile d'ajouter un clic en plus.
+                      setNewRecipeChoiceOpen(true);
+                      setExpressFormOpen(true);
+                    } else {
+                      setNewRecipeChoiceOpen(true);
+                    }
+                  }}
                   className="flex items-center gap-1 text-xs font-display uppercase tracking-wide px-3 py-1.5 rounded-full active:scale-95 transition-transform"
                   style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
                 >
-                  <Plus size={14} /> {t("newRecipe")}
+                  <Plus size={14} /> {recipeTypeFilter === "plat_du_jour" ? t("newDailyDish") : t("newRecipe")}
                 </button>
               </div>
             </div>
 
-            {recipes.length === 0 ? (
-              <div className="text-white/40 text-sm text-center py-16 font-body">{t("noRecipeYet")}</div>
+            {visibleRecipes.length === 0 ? (
+              <div className="text-white/40 text-sm text-center py-16 font-body">
+                {recipeTypeFilter === "plat_du_jour" ? t("noDailyDishYet") : t("noRecipeYet")}
+              </div>
             ) : recipeListLayout === "grid" ? (
               <div className="grid grid-cols-3 gap-2">
-                {recipes.map((r) => {
+                {visibleRecipes.map((r) => {
                   const m = recipeMargin(r);
                   const rt = marginTier(m, r.targetMargin ?? settings.minMargin);
                   return (
@@ -4833,7 +4994,7 @@ export default function App() {
               </div>
             ) : (
               <div className="space-y-2">
-                {recipes.map((r) => {
+                {visibleRecipes.map((r) => {
                   const cpp = recipeCostPerPortion(r);
                   const m = recipeMargin(r);
                   const rt = marginTier(m, r.targetMargin ?? settings.minMargin);

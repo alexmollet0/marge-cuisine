@@ -19,12 +19,20 @@ export default async function handler(req, res) {
     });
   }
 
-  const { image, mediaType, text, ocrText, dishName } = req.body || {};
+  const { image, mediaType, text, ocrText, dishName, stockIngredients } = req.body || {};
   // "Recette express" (2026-09-02) : troisième mode d'entrée, distinct de la lecture d'une fiche
   // existante (image/text) — ici RIEN n'est écrit nulle part, l'IA invente une base de recette
   // réaliste à partir du seul nom d'un plat. Prompt entièrement séparé ci-dessous (isExpressMode)
   // pour ne jamais risquer de faire régresser le mode "lecture de fiche" déjà en place.
-  const isExpressMode = typeof dishName === "string" && dishName.trim().length > 0;
+  // "Plat du jour depuis mon stock" (2026-09-08) : variante du même mode express — au lieu d'un
+  // nom de plat, l'IA reçoit la liste des ingrédients déjà connus du garde-manger et propose un
+  // plat qui les utilise en priorité. Même schéma JSON, même logique de réponse ; seul le prompt
+  // change (voir plus bas), donc partage volontairement le même `isExpressMode`.
+  const cleanStock = Array.isArray(stockIngredients)
+    ? stockIngredients.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim().slice(0, 60)).slice(0, 80)
+    : [];
+  const hasStock = cleanStock.length > 0;
+  const isExpressMode = (typeof dishName === "string" && dishName.trim().length > 0) || hasStock;
   if (!image && !text && !isExpressMode) {
     return res.status(400).json({ error: "Aucune image, texte ni nom de plat reçu." });
   }
@@ -40,10 +48,17 @@ export default async function handler(req, res) {
   if (isExpressMode) {
     // Bornes défensives : évite un texte absurdement long ou un nombre de portions farfelu
     // d'atteindre le prompt (aucune conséquence de sécurité réelle, juste de l'hygiène d'entrée).
-    const cleanDishName = dishName.trim().slice(0, 100);
+    const cleanDishName = (dishName || "").trim().slice(0, 100);
     const portions = Number.isFinite(req.body?.portions) && req.body.portions > 0 ? Math.min(Math.round(req.body.portions), 200) : 4;
-    const expressPrompt = `Tu es un chef cuisinier qui aide un restaurateur à démarrer rapidement une nouvelle recette dans son application de gestion de marges, en lui proposant une base de recette réaliste à partir du seul nom d'un plat — contrairement à une lecture de document, ici RIEN n'est déjà écrit nulle part : c'est à TOI d'inventer des quantités raisonnables à partir de ta connaissance de la cuisine professionnelle française.
-Nom du plat donné par l'utilisateur : "${cleanDishName}". Nombre de portions demandé : ${portions}.
+    // "Plat du jour depuis mon stock" (2026-09-08) : seule l'intro du prompt change selon le mode
+    // — même schéma JSON, mêmes règles ci-dessous, pour ne dupliquer aucune des règles déjà
+    // éprouvées (unités, priceEstimateHT...) entre les deux variantes.
+    const introPrompt = hasStock
+      ? `Tu es un chef cuisinier qui aide un restaurateur à trouver une idée de PLAT DU JOUR dans son application de gestion de marges, à partir des ingrédients déjà disponibles dans son garde-manger : ${cleanStock.join(", ")}.${cleanDishName ? ` Envie/thème donné par l'utilisateur : "${cleanDishName}".` : ""} Nombre de portions demandé : ${portions}.
+Propose un plat RÉALISTE et cohérent, comme le ferait un vrai chef professionnel, qui utilise PRINCIPALEMENT les ingrédients déjà listés ci-dessus (pas besoin de tous les utiliser — choisis ceux qui vont bien ensemble). Tu peux ajouter quelques ingrédients complémentaires courants (herbes, condiments, une base comme riz/pâtes/pommes de terre) qui ne sont PAS dans la liste si c'est nécessaire pour un plat cohérent, mais privilégie fortement ce qui est déjà disponible — c'est tout l'intérêt de la demande (éviter le gaspillage, ne pas racheter ce qu'on a déjà). Si la liste est vide ou trop pauvre pour un vrai plat, propose quand même un plat du jour classique et polyvalent de brasserie française plutôt que de renvoyer une liste vide.`
+      : `Tu es un chef cuisinier qui aide un restaurateur à démarrer rapidement une nouvelle recette dans son application de gestion de marges, en lui proposant une base de recette réaliste à partir du seul nom d'un plat — contrairement à une lecture de document, ici RIEN n'est déjà écrit nulle part : c'est à TOI d'inventer des quantités raisonnables à partir de ta connaissance de la cuisine professionnelle française.
+Nom du plat donné par l'utilisateur : "${cleanDishName}". Nombre de portions demandé : ${portions}.`;
+    const expressPrompt = `${introPrompt}
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de balises markdown), au format exact :
 
 {
@@ -80,7 +95,15 @@ Réponds toujours avec un JSON syntaxiquement valide.`;
       }
       const data = await response.json();
       const textBlock = (data.content || []).find((c) => c.type === "text");
-      let raw = (textBlock?.text || "{}").trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
+      // [BUG confirmé et corrigé le 2026-09-08 dans api/scan-invoice.js, même correctif appliqué
+      // ici par cohérence] Un bloc texte absent (réponse tronquée/vide) ne doit jamais retomber
+      // silencieusement sur "{}" (JSON valide, donc aucune erreur ne se déclencherait) — traité
+      // explicitement comme un échec.
+      if (!textBlock) {
+        console.error("[scan-recipe:express] réponse sans bloc texte", JSON.stringify({ stopReason: data.stop_reason }));
+        return res.status(502).json({ error: "Réponse de l'IA illisible." });
+      }
+      let raw = textBlock.text.trim().replace(/^```json\s*/i, "").replace(/```$/i, "").trim();
       const firstBrace = raw.indexOf("{");
       const lastBrace = raw.lastIndexOf("}");
       if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) raw = raw.slice(firstBrace, lastBrace + 1);
