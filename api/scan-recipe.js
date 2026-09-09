@@ -85,6 +85,14 @@ export default async function handler(req, res) {
     // en conflit (si un ingrédient apparaît dans les deux listes par erreur de saisie, l'exclusion
     // gagne — plus sûr pour l'utilisateur qui a explicitement dit ne pas l'avoir).
     const excludedClause = hasExcluded ? ` Ingrédients à NE JAMAIS utiliser, même en petite quantité, même comme simple assaisonnement : ${cleanExcluded.join(", ")}.` : "";
+    // Simplicité quand le garde-manger n'est pas connu (2026-09-09, "il m'a sorti galette de riz
+    // j'en ai pas") — sans stock, l'IA n'a aucune idée de ce qu'un restaurant a réellement sous la
+    // main ; chaque ingrédient complémentaire qu'elle invente elle-même est un risque de tomber sur
+    // quelque chose d'inhabituel. Ne s'applique qu'en l'absence de stock connu — avec un stock, on
+    // sait déjà ce qui est disponible, moins besoin de cette prudence.
+    const simplicityClause = !hasStock
+      ? " Comme le garde-manger du restaurateur n'est pas connu ici, reste volontairement SOBRE sur les ingrédients complémentaires que tu ajoutes toi-même : uniquement le strict nécessaire pour un plat cohérent (une base courante comme riz/pâtes/pommes de terre, un assaisonnement basique, un légume simple), jamais une préparation ou un produit spécifique et peu courant qu'un restaurant n'a pas forcément sous la main (ex: une galette déjà préparée, un fromage rare, une sauce du commerce précise) — en cas de doute sur la disponibilité d'un ingrédient, préfère toujours l'option la plus commune."
+      : "";
     // Variété d'une génération à l'autre (2026-09-09, "quand je recommence ça me fait toujours la
     // même recette") — Sonnet 5 n'accepte pas `temperature` sur ce point d'accès (voir plus bas), et
     // même avec Haiku la même contrainte stricte (mêmes ingrédients imposés, même budget) tend à
@@ -102,7 +110,7 @@ export default async function handler(req, res) {
     const styleHint = styleHints[Math.floor(Math.random() * styleHints.length)];
     const introPrompt = isDailyMode
       ? `Tu es un chef cuisinier qui aide un restaurateur à trouver une idée de PLAT DU JOUR dans son application de gestion de marges — il n'a pas d'idée, c'est à TOI de lui en proposer une.
-${hasStock ? `Ingrédients déjà disponibles dans son garde-manger (à privilégier fortement, pas besoin de tous les utiliser) : ${cleanStock.join(", ")}.\n` : ""}${hasWanted ? `Ingrédients que le restaurateur veut ABSOLUMENT utiliser dans ce plat, même si non listés ci-dessus : ${cleanWanted.join(", ")}. Ils doivent obligatoirement apparaître dans "lines".\n` : ""}${cleanDishName ? `Envie/thème donné en plus : "${cleanDishName}".\n` : ""}Nombre de portions demandé : ${portions}.${categoryClause}${excludedClause}
+${hasStock ? `Ingrédients déjà disponibles dans son garde-manger (à privilégier fortement, pas besoin de tous les utiliser) : ${cleanStock.join(", ")}.\n` : ""}${hasWanted ? `Ingrédients que le restaurateur veut ABSOLUMENT utiliser dans ce plat, même si non listés ci-dessus : ${cleanWanted.join(", ")}. Ils doivent obligatoirement apparaître dans "lines".\n` : ""}${cleanDishName ? `Envie/thème donné en plus : "${cleanDishName}".\n` : ""}Nombre de portions demandé : ${portions}.${categoryClause}${excludedClause}${simplicityClause}
 Propose un plat RÉALISTE et cohérent, comme le ferait un vrai chef professionnel. Tu peux ajouter quelques ingrédients complémentaires courants (herbes, condiments, une base comme riz/pâtes/pommes de terre) qui ne sont dans aucune des listes ci-dessus si c'est nécessaire pour un plat cohérent, mais privilégie fortement ce qui est déjà disponible — c'est tout l'intérêt de la demande (éviter le gaspillage, ne pas racheter ce qu'on a déjà). Si aucun ingrédient n'est fourni/imposé, propose quand même un plat du jour classique et polyvalent de brasserie française plutôt que de renvoyer une liste vide.
 Pour cette proposition précise, oriente-toi plutôt vers : ${styleHint} — évite de retomber systématiquement sur l'idée la plus évidente/classique si un restaurateur redemandait une suggestion avec les mêmes contraintes, varie réellement d'une proposition à l'autre.`
       : `Tu es un chef cuisinier qui aide un restaurateur à démarrer rapidement une nouvelle recette dans son application de gestion de marges, en lui proposant une base de recette réaliste à partir du seul nom d'un plat — contrairement à une lecture de document, ici RIEN n'est déjà écrit nulle part : c'est à TOI d'inventer des quantités raisonnables à partir de ta connaissance de la cuisine professionnelle française.

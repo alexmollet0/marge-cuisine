@@ -239,6 +239,12 @@ export default function App() {
   // ("je n'ai pas d'idée, propose-moi un plat") — reste un petit lien optionnel pour qui veut quand
   // même orienter la génération avec un nom/thème.
   const [expressNameFieldOpen, setExpressNameFieldOpen] = useState(false);
+  // Aperçu avant validation (2026-09-09, "il m'a sorti galette de riz j'en ai pas... faudrait que
+  // avant j'ai une liste d'ingrédients et que je puisse enlever des choses") — le champ "à éviter"
+  // ne suffit pas : impossible de deviner à l'avance ce que l'IA va proposer. La génération ne crée
+  // donc plus la recette directement ; elle remplit `expressPreview`, affiché dans un écran où
+  // chaque ligne peut être décochée avant validation (voir confirmExpressPreview plus bas).
+  const [expressPreview, setExpressPreview] = useState(null);
   // "Plat du jour" (2026-09-08) : PAS une fonctionnalité séparée des recettes — un simple
   // indicateur (`recipeType`) sur les recettes déjà existantes, pour réutiliser tout le mécanisme
   // déjà en place (calcul de marge, impression, allergènes, carte digitale) sans le dupliquer.
@@ -256,6 +262,7 @@ export default function App() {
     setExpressExcludedIngredients("");
     setExpressDishCategory("main");
     setExpressNameFieldOpen(false);
+    setExpressPreview(null);
   };
   const addRecipeToMenu = () => {
     if (!active) return;
@@ -1014,8 +1021,12 @@ export default function App() {
 
           const match = guessIngredientId(name);
           let ingredientId;
+          let displayPrice = 0;
+          let isNew = false;
           if (match && match.confident) {
             ingredientId = match.id;
+            const existing = ingredients.find((i) => i.id === match.id);
+            displayPrice = existing ? effectiveUnitPrice(existing) : typeof l.priceEstimateHT === "number" ? l.priceEstimateHT : 0;
           } else {
             // Une ligne déjà générée dans CETTE même réponse (ex: "parmesan" cité deux fois) ne
             // doit pas créer deux ingrédients distincts — `ingredients` (état React) ne reflète pas
@@ -1023,7 +1034,9 @@ export default function App() {
             const dup = newIngredients.find((ni) => ni.name.toLowerCase() === name.toLowerCase());
             if (dup) {
               ingredientId = dup.id;
+              displayPrice = dup.suppliers[0]?.price || 0;
             } else {
+              isNew = true;
               const category = catalogGuess ? catalogGuess.category : "autres";
               const sId = uid();
               ingredientId = uid();
@@ -1041,6 +1054,7 @@ export default function App() {
               const categoryFallbackPrice = unit === "pièce" ? PIECE_ESTIMATE_PRICE : CATEGORY_ESTIMATE_PRICE[category] || 5;
               const aiPrice = typeof l.priceEstimateHT === "number" && Number.isFinite(l.priceEstimateHT) ? l.priceEstimateHT : null;
               const price = aiPrice && aiPrice > categoryFallbackPrice / 5 && aiPrice < categoryFallbackPrice * 5 ? aiPrice : categoryFallbackPrice;
+              displayPrice = price;
               newIngredients.push({
                 id: ingredientId,
                 name,
@@ -1054,49 +1068,72 @@ export default function App() {
               });
             }
           }
-          return { ingredientId, qty: qty || 0 };
+          return { ingredientId, qty: qty || 0, name, unit, displayPrice, isNew, included: true };
         });
 
       if (resolvedLines.length === 0) throw new Error("empty");
 
-      if (newIngredients.length) setIngredients((ings) => [...ings, ...newIngredients]);
-
-      const newRecipe = {
-        id: uid(),
-        name: asText(data.name).trim() || dishName || t("dailyDishDefaultName"),
+      // Aperçu avant validation (2026-09-09) : plus aucune écriture d'état (setIngredients/
+      // setRecipes) à ce stade — l'utilisateur doit d'abord pouvoir décocher les lignes qu'il n'a
+      // pas avant que quoi que ce soit soit réellement créé. `newIngredients` (candidats pantry) et
+      // `resolvedLines` (candidats lignes de recette) restent en mémoire dans `expressPreview`
+      // jusqu'à confirmExpressPreview, qui filtre les deux par ligne conservée.
+      setExpressPreview({
+        dishName: asText(data.name).trim() || dishName || t("dailyDishDefaultName"),
         portions: typeof data.portions === "number" && data.portions > 0 ? data.portions : expressRecipePortions,
-        // Prix de vente demandé AVANT génération (2026-09-08) : marge visible immédiatement à
-        // l'arrivée sur la fiche, plus besoin d'une étape manuelle en plus après coup.
-        sellPrice: expressSellPrice || 0,
-        // Marge cible (2026-09-09) : posée sur LA RECETTE elle-même (pas juste utilisée pour le
-        // budget envoyé à l'IA) — sinon la fiche jugerait la marge obtenue contre le 75% générique
-        // au lieu de l'objectif réellement choisi par l'utilisateur pour ce plat.
-        targetMargin: expressTargetMargin || 75,
-        // Instructions de préparation générées par l'IA (2026-09-09, demandé par l'utilisateur pour
-        // savoir comment réaliser le plat, pas juste sa marge) — même champ "notes" déjà affiché/
-        // imprimé sur la fiche recette (voir plus bas dans ce fichier), aucun nouveau champ créé.
         notes: asText(data.notes).trim(),
-        allergens: "",
-        allergensAuto: true,
-        createdAt: today(),
         lines: resolvedLines,
-        recipeType: isStock ? "plat_du_jour" : "recette",
-        // Catégorie choisie dans le formulaire (2026-09-09) — pré-remplit l'étiquette/la section de
-        // carte digitale (même champ que l'ajout manuel, voir addRecipeToMenu), pas un ajout à la
-        // carte en soi (menuIncluded reste false tant que l'utilisateur ne le décide pas).
-        menuCategory: isStock ? expressDishCategory : null,
-      };
-      setRecipes((rs) => [...rs, newRecipe]);
-      setActiveId(newRecipe.id);
-      setActiveTab("recipes");
-      setRecipeSubView("detail");
-      logActivity("recipe_created", { name: newRecipe.name, source: isStock ? "daily_stock" : "express" });
-      closeNewRecipeChoice();
+        newIngredients,
+        isStock,
+        sellPrice: expressSellPrice || 0,
+        targetMargin: expressTargetMargin || 75,
+        dishCategory: expressDishCategory,
+        mode,
+      });
     } catch (err) {
       setExpressRecipeError(t("expressRecipeError"));
     } finally {
       setExpressRecipeLoading(false);
     }
+  };
+
+  // Décocher une ligne de l'aperçu (2026-09-09) — "je puisse enlever des choses" : ne touche à
+  // aucune donnée réelle de l'app, juste le brouillon en mémoire avant validation.
+  const toggleExpressPreviewLine = (idx) => {
+    setExpressPreview((p) => (p ? { ...p, lines: p.lines.map((l, i) => (i === idx ? { ...l, included: !l.included } : l)) } : p));
+  };
+
+  // Valide l'aperçu (2026-09-09) : SEUL moment où la recette et les nouveaux ingrédients
+  // deviennent réels — filtre les lignes décochées ET les ingrédients pantry qui n'auraient été
+  // créés que pour elles (jamais un ingrédient fantôme pour une ligne finalement retirée).
+  const confirmExpressPreview = () => {
+    if (!expressPreview) return;
+    const keptLines = expressPreview.lines.filter((l) => l.included);
+    if (keptLines.length === 0) return;
+    const keptIds = new Set(keptLines.map((l) => l.ingredientId));
+    const keptNewIngredients = expressPreview.newIngredients.filter((ni) => keptIds.has(ni.id));
+    if (keptNewIngredients.length) setIngredients((ings) => [...ings, ...keptNewIngredients]);
+
+    const newRecipe = {
+      id: uid(),
+      name: expressPreview.dishName,
+      portions: expressPreview.portions,
+      sellPrice: expressPreview.sellPrice,
+      targetMargin: expressPreview.targetMargin,
+      notes: expressPreview.notes,
+      allergens: "",
+      allergensAuto: true,
+      createdAt: today(),
+      lines: keptLines.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty })),
+      recipeType: expressPreview.isStock ? "plat_du_jour" : "recette",
+      menuCategory: expressPreview.isStock ? expressPreview.dishCategory : null,
+    };
+    setRecipes((rs) => [...rs, newRecipe]);
+    setActiveId(newRecipe.id);
+    setActiveTab("recipes");
+    setRecipeSubView("detail");
+    logActivity("recipe_created", { name: newRecipe.name, source: expressPreview.isStock ? "daily_stock" : "express" });
+    closeNewRecipeChoice();
   };
 
   const duplicateRecipe = (r) => {
@@ -3635,11 +3672,88 @@ export default function App() {
       {newRecipeChoiceOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 print:hidden" onClick={closeNewRecipeChoice}>
           <div
-            className="rounded-2xl p-5 w-full max-w-sm font-body border border-white/10"
+            className={`rounded-2xl p-5 w-full font-body border border-white/10 ${expressPreview ? "max-w-lg max-h-[85vh] overflow-y-auto" : "max-w-sm"}`}
             style={{ background: "#201B15" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {!expressFormOpen ? (
+            {expressPreview ? (
+              <>
+                {/* Aperçu avant validation (2026-09-09) : rien n'est encore créé — chaque ligne peut
+                    être décochée ("je n'ai pas ça"), le coût/la marge se recalculent en direct,
+                    "Recommencer" relance une génération, "Valider" crée enfin la recette. */}
+                <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{expressPreview.dishName}</h3>
+                <p className="text-white/40 text-[11px] mb-3">{t("dailyDishPreviewHint")}</p>
+                <div className="space-y-1.5 mb-3">
+                  {expressPreview.lines.map((l, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
+                      style={{ background: "rgba(255,255,255,0.04)", opacity: l.included ? 1 : 0.4 }}
+                    >
+                      <span className={`text-white flex-1 ${l.included ? "" : "line-through"}`}>
+                        {l.name} <span className="text-white/40 text-xs">· {l.qty} {l.unit}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpressPreviewLine(idx)}
+                        className="text-[11px] uppercase tracking-wide px-2 py-1 rounded-full border"
+                        style={
+                          l.included
+                            ? { borderColor: "rgba(255,255,255,0.25)", color: "rgba(255,255,255,0.6)" }
+                            : { borderColor: BRAND_SOLID, color: BRAND_SOLID }
+                        }
+                      >
+                        {l.included ? t("dailyDishRemoveLine") : t("dailyDishRestoreLine")}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {(() => {
+                  const keptLines = expressPreview.lines.filter((l) => l.included);
+                  const totalCost = keptLines.reduce((s, l) => s + l.qty * l.displayPrice, 0);
+                  const priceHT = expressPreview.sellPrice > 0 ? expressPreview.sellPrice / (1 + vatRate / 100) : 0;
+                  const costPerPortion = totalCost / (expressPreview.portions || 1);
+                  const actualMargin = priceHT > 0 ? ((priceHT - costPerPortion) / priceHT) * 100 : null;
+                  return (
+                    <div className="flex items-center justify-between text-xs text-white/60 mb-4 px-1">
+                      <span>{t("dailyDishPreviewCost")} {totalCost.toFixed(2)}€</span>
+                      {actualMargin !== null && (
+                        <span style={{ color: TIER_COLORS[actualMargin >= 70 ? "high" : "low"] }}>
+                          {t("dailyDishPreviewMargin")} {actualMargin.toFixed(0)}%
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+                {expressRecipeError && (
+                  <p className="text-[11px] mb-3" style={{ color: TIER_COLORS.low }}>{expressRecipeError}</p>
+                )}
+                <div className="space-y-2">
+                  <button
+                    onClick={confirmExpressPreview}
+                    disabled={expressRecipeLoading || expressPreview.lines.every((l) => !l.included)}
+                    className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full disabled:opacity-50"
+                    style={{ background: BRAND_GRADIENT, color: "#fff" }}
+                  >
+                    {t("dailyDishValidateButton")}
+                  </button>
+                  <button
+                    onClick={() => { setExpressPreview(null); createExpressRecipe(expressPreview.mode); }}
+                    disabled={expressRecipeLoading}
+                    className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full border border-white/20 text-white/70 hover:border-white/40 disabled:opacity-50"
+                  >
+                    {expressRecipeLoading ? t("expressRecipeLoading") : t("dailyDishRegenerateButton")}
+                  </button>
+                  <button
+                    onClick={() => setExpressPreview(null)}
+                    disabled={expressRecipeLoading}
+                    className="w-full text-xs font-display uppercase tracking-wide py-2 text-white/40 hover:text-white/70 disabled:opacity-50"
+                  >
+                    {t("cancelLabel")}
+                  </button>
+                </div>
+              </>
+            ) : !expressFormOpen ? (
               <>
                 <h3 className="font-display text-white uppercase tracking-wide text-sm mb-4">{t("newRecipeChoiceTitle")}</h3>
                 <div className="space-y-2">
