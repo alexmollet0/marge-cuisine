@@ -1145,3 +1145,25 @@ Comptes de test à supprimer via le tableau de bord admin : `chefuptest.stockche
 
 **Non vérifié/reste à surveiller** : pas de garantie qu'un prix isolé (sans budget serré) soit toujours parfaitement réaliste — le garde-fou empêche seulement de le sous-évaluer PAR RÉFLEXE face à une contrainte de budget, ce n'est pas une base de prix figée. Comptes de test à supprimer via le tableau de bord admin : `chefuptest.pricefloor+<timestamp>@example.com`.
 
+---
+
+## "Plat du jour" : IA plus intelligente, variété entre générations, catégorie, ingrédients à exclure (2026-09-09, suite du même jour)
+
+**Le retour, encore une fois concret** : test avec "poivrons" imposé, 10€ de prix de vente, marge cible 80% → recette à seulement 70% de marge avec de la viande chère, alors qu'un plat à base de poulet aurait tenu la marge visée. En recommençant avec les mêmes contraintes, toujours la même recette. Deux questions posées en plus : le coût réel d'une génération, et la possibilité d'utiliser une IA plus intelligente. Enfin, deux demandes de fonctionnalité : choisir Entrée/Plat/Dessert, et pouvoir exclure facilement un ingrédient qu'on n'a pas avant même de générer (plutôt que plusieurs recettes proposées d'un coup, jugé trop coûteux en appels IA pour un seul plat retenu au final).
+
+**Réponses factuelles données à l'utilisateur** : oui, chaque génération consomme des crédits Anthropic (facturés par token) — avec Haiku 4.5 c'était quelques centimes par appel, négligeable au volume d'usage réel (une génération occasionnelle, pas un scan par facture). Le modèle plus intelligent est un vrai levier disponible : Sonnet 5, déjà utilisé pour le scanner de factures car plus fiable, coûte plus cher par appel mais reste négligeable à ce volume.
+
+**Corrigé/ajouté** (`api/scan-recipe.js`, `src/App.jsx`, `src/translations.js`) :
+1. **Modèle passé de Haiku 4.5 à Sonnet 5** pour le mode express/plat du jour — même contrainte technique déjà rencontrée sur `api/scan-invoice.js` : `temperature` non accepté par ce point d'accès sur Sonnet 5, `thinking: { type: "disabled" }` obligatoire (sinon la réponse peut être coupée avant le JSON).
+2. **Règle de composition économique renforcée** dans la contrainte de budget : sous budget serré, l'IA doit d'abord considérer une protéine/base bon marché (poulet, œuf, légumineuse, poisson blanc économique, plat végétarien) plutôt que la première idée "classique" chère par réflexe — pas juste une contrainte de prix passive, une vraie orientation de composition.
+3. **Variété forcée par un style tiré au hasard côté serveur** (7 orientations : brasserie française, méditerranéen, bistronomique, mijoté, rapide/généreux, Asie du Sud-Est, grillades/plancha) injecté dans le prompt à chaque appel — remplace la piste "augmenter la température", indisponible sur Sonnet 5 pour ce point d'accès.
+4. **Nouveau champ "Ingrédients à éviter"** (`excludedIngredients`), combiné aux ingrédients imposés/stock sans jamais les contredire — approche retenue plutôt que "plusieurs recettes proposées" (multiplierait le coût IA pour un seul plat réellement utilisé), disponible uniquement sur "Plat du jour" (moins pertinent pour "Recette express", qui a déjà un nom de plat précis).
+5. **Nouveau sélecteur Entrée/Plat/Dessert** (`dishCategory`) — réutilise directement `MENU_CATEGORIES`/`menuCategory` déjà existants pour la carte digitale (mêmes 3 valeurs, pas de nouveau système), posé sur la recette créée dès la génération ou l'ajout rapide, et déjà utilisé par le badge de catégorie existant sur l'écran Recettes (aucun changement d'affichage nécessaire).
+
+**Vérifié contre la vraie API en prod** :
+- Scénario exact du retour (poivrons, 10€, marge cible 80%, 4 portions) : **"Poulet sauté aux poivrons et oignons"**, poulet fermier à 4,5-5,2€/kg (réaliste), marge réelle 80,5% puis 83,1% sur 2 appels — largement dans l'esprit demandé, contre 70% avant.
+- **Variété** : avec un garde-manger généraliste (poulet/riz/tomate/oignon/fromage), 3 appels de suite donnent 3 plats différents ("Riz sauté au poulet...", "Fricassée de poulet...", "Riz sauté au poulet et gratin..."). Avec un seul ingrédient très ciblé ("poivrons" seul), les 2 appels retombent sur le même plat — jugé cohérent, pas un bug résiduel : c'est objectivement le pairing le moins cher qui respecte le budget, la variété n'a pas vocation à proposer un choix moins bon.
+- Testé visuellement en local (contournement d'authentification) : sélecteur Entrée/Plat/Dessert et champ "Ingrédients à éviter" s'affichent correctement dans le formulaire "Plat du jour", et l'étiquette "Entrées" apparaît bien sur la fiche créée via l'ajout rapide après sélection.
+
+**Non vérifié/reste à surveiller** : le coût réel par appel Sonnet 5 sur ce point d'accès n'a pas été mesuré précisément (pas d'accès direct à la facturation Anthropic depuis cette session) — à surveiller sur le solde de crédits si l'usage de "Plat du jour"/"Recette express" devient très fréquent. Comptes de test à supprimer via le tableau de bord admin : `chefuptest.sonnetcheck+<timestamp>@example.com`, `chefuptest.varietycheck+<timestamp>@example.com`.
+
