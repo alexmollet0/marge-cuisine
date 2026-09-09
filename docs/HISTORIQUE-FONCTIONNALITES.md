@@ -1127,3 +1127,21 @@ Comptes de test à supprimer via le tableau de bord admin : `chefuptest.stockche
 
 **Non testé** : le rapprochement avec un VRAI garde-manger combinant stock + ingrédients imposés en même temps (le test API a utilisé uniquement `wantedIngredients`, sans `stockIngredients`, faute d'un compte réel avec un garde-manger peuplé à disposition) — la logique de combinaison des deux (côté prompt) est nouvelle et n'a pas encore été vue à l'œuvre simultanément sur un cas réel.
 
+---
+
+## Effet de bord du correctif ci-dessus trouvé par l'utilisateur en testant : prix sous-évalué pour tenir le budget (2026-09-09, même jour)
+
+**Le retour** : test réel du formulaire "Plat du jour" avec "cuisse de poulet" en ingrédient imposé → prix retourné 3,20€/kg, jugé anormalement bas par l'utilisateur (un vrai prix grossiste tourne plutôt autour de 4,50-6€/kg).
+
+**Cause identifiée sans avoir besoin de log serveur** : conséquence directe et prévisible du correctif du dessus, déjà signalée comme risque dans sa propre doc ("le budget porte sur les prix ESTIMÉS par l'IA elle-même"). La contrainte de budget ("reste sous X€ HT") ne précisait pas COMMENT la respecter — rien n'empêchait l'IA de tricher en baissant artificiellement `priceEstimateHT` d'un ingrédient plutôt que de vraiment adapter la composition du plat (morceaux moins chers, quantités plus justes). Un budget respecté avec un prix faux ne sert à rien pour le restaurateur : c'est exactement le problème que le correctif visait à éviter, revenu par une autre porte.
+
+**Corrigé** (`api/scan-recipe.js`, section RÈGLES du prompt express/plat du jour) : règle explicite ajoutée — `priceEstimateHT` doit TOUJOURS rester un prix grossiste réaliste, même sous contrainte de budget ; pour respecter le budget, l'IA doit jouer sur le CHOIX des ingrédients/morceaux et les QUANTITÉS, jamais sur le prix lui-même ; si le budget est intenable avec des prix réalistes, mieux vaut le dépasser que mentir sur un prix.
+
+**Ajouté au passage, demandé par l'utilisateur dans le même message** : un champ **"notes"** (étapes de préparation) généré par l'IA sur "Plat du jour" ET "Recette express" — jusqu'ici ces deux modes créaient une recette avec `notes: ""`, laissant le restaurateur sans savoir comment réaliser concrètement le plat proposé. Réutilise le champ `notes` déjà existant sur la fiche recette (zone de texte visible + imprimée, `src/App.jsx`) — aucun nouveau champ de données créé, juste rempli automatiquement à la création au lieu de rester vide. Le prompt (`api/scan-recipe.js`) demande désormais explicitement des instructions concrètes (3-8 lignes, jamais vides si des ingrédients sont proposés), sur le même principe que le champ `notes` déjà extrait par le scanner de fiche technique existante (mode lecture de document, `data.notes`, inchangé).
+
+**Vérifié contre la vraie API en prod**, même scénario que le retour utilisateur (ingrédients imposés "cuisse de poulet" + "steak haché", prix de vente 10€, marge cible 80%, 4 portions) :
+- Cuisse de poulet remontée à **3,80€/kg** (contre 3,20€ avant le correctif) — le budget est légèrement dépassé en conséquence (coût réel 8,97€ HT contre 7,27€ visé → marge réelle 75,3% au lieu de 80%), ce qui est le compromis assumé et voulu : un budget dépassé plutôt qu'un prix mensonger.
+- Instructions générées et cohérentes : "Façonner les steaks hachés en galettes de 120g... Cuire les cuisses de poulet à la poêle... Assembler les burgers...".
+
+**Non vérifié/reste à surveiller** : pas de garantie qu'un prix isolé (sans budget serré) soit toujours parfaitement réaliste — le garde-fou empêche seulement de le sous-évaluer PAR RÉFLEXE face à une contrainte de budget, ce n'est pas une base de prix figée. Comptes de test à supprimer via le tableau de bord admin : `chefuptest.pricefloor+<timestamp>@example.com`.
+
