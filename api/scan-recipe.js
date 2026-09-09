@@ -84,7 +84,9 @@ export default async function handler(req, res) {
     // Ingrédients à éviter (2026-09-09) : combinés aux ingrédients imposés/stock ci-dessus, jamais
     // en conflit (si un ingrédient apparaît dans les deux listes par erreur de saisie, l'exclusion
     // gagne — plus sûr pour l'utilisateur qui a explicitement dit ne pas l'avoir).
-    const excludedClause = hasExcluded ? ` Ingrédients à NE JAMAIS utiliser, même en petite quantité, même comme simple assaisonnement : ${cleanExcluded.join(", ")}.` : "";
+    const excludedClause = hasExcluded
+      ? ` Ingrédients à NE JAMAIS utiliser, même en petite quantité, même comme simple assaisonnement : ${cleanExcluded.join(", ")}. ⚠️ Si le plat le plus évident dépend STRUCTURELLEMENT d'un de ces ingrédients exclus (ex: des nems sans galette de riz, un tiramisu sans mascarpone, une pizza sans pâte) : NE PROPOSE JAMAIS ce même plat juste privé de son ingrédient essentiel, ça n'aurait plus aucun sens — choisis un plat RÉELLEMENT DIFFÉRENT et cohérent qui n'en a pas besoin du tout, avec un nom et des instructions qui correspondent vraiment à ce nouveau plat.`
+      : "";
     // Simplicité quand le garde-manger n'est pas connu (2026-09-09, "il m'a sorti galette de riz
     // j'en ai pas") — sans stock, l'IA n'a aucune idée de ce qu'un restaurant a réellement sous la
     // main ; chaque ingrédient complémentaire qu'elle invente elle-même est un risque de tomber sur

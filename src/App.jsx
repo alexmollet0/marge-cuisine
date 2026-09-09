@@ -933,7 +933,11 @@ export default function App() {
   // stock", 2026-09-08 — nom optionnel, l'IA propose un plat à partir des ingrédients déjà connus
   // du garde-manger). Même appel serveur, même logique de rapprochement/prix estimé ensuite —
   // seule la requête envoyée et le `recipeType` posé sur la recette finale diffèrent.
-  const createExpressRecipe = async (mode = "dishName") => {
+  // `extraExcluded` (2026-09-09, "faut qu'il change de recette !") : ingrédient(s) à exclure pour
+  // CET appel précis, en plus de ceux déjà tapés dans le formulaire — utilisé par
+  // `excludeLineAndRegenerate` pour regénérer immédiatement sans passer par un re-render (le state
+  // React ne serait pas encore à jour au moment de l'appel suivant si on relisait juste le state).
+  const createExpressRecipe = async (mode = "dishName", extraExcluded = []) => {
     const dishName = expressRecipeName.trim();
     const isStock = mode === "stock";
     if (!isStock && !dishName) return;
@@ -963,11 +967,15 @@ export default function App() {
         .filter(Boolean)
         .slice(0, 20);
       // Ingrédients à exclure (2026-09-09, "si j'ai pas les ingrédients qu'il me dit c'est relou") —
-      // uniquement pertinent pour "Plat du jour" (isStock) : "Recette express" a déjà un nom de
-      // plat précis, moins de sens à en exclure des ingrédients par avance.
-      const excludedIngredients = isStock
-        ? expressExcludedIngredients.split(/[,\n]/).map((s) => s.trim()).filter(Boolean).slice(0, 20)
-        : [];
+      // combine le champ du formulaire ET les exclusions ponctuelles venues de l'aperçu
+      // (`extraExcluded`). Envoyé pour LES DEUX modes désormais (pas seulement "Plat du jour") :
+      // "Recette express" peut tout autant proposer un ingrédient que l'utilisateur n'a pas.
+      const excludedIngredients = [
+        ...new Set([
+          ...expressExcludedIngredients.split(/[,\n]/).map((s) => s.trim()).filter(Boolean),
+          ...extraExcluded.map((s) => s.trim()).filter(Boolean),
+        ]),
+      ].slice(0, 20);
       const body = isStock
         ? {
             // Noms seulement (pas les prix) : suffisant pour que l'IA sache ce qui est déjà là,
@@ -982,7 +990,7 @@ export default function App() {
             targetCostTotal,
             lang,
           }
-        : { dishName, wantedIngredients, portions: expressRecipePortions, targetCostTotal, lang };
+        : { dishName, wantedIngredients, excludedIngredients, portions: expressRecipePortions, targetCostTotal, lang };
       const res = await fetch("/api/scan-recipe", {
         method: "POST",
         headers,
@@ -1097,10 +1105,24 @@ export default function App() {
     }
   };
 
-  // Décocher une ligne de l'aperçu (2026-09-09) — "je puisse enlever des choses" : ne touche à
-  // aucune donnée réelle de l'app, juste le brouillon en mémoire avant validation.
-  const toggleExpressPreviewLine = (idx) => {
-    setExpressPreview((p) => (p ? { ...p, lines: p.lines.map((l, i) => (i === idx ? { ...l, included: !l.included } : l)) } : p));
+  // [BUG confirmé et corrigé, 2026-09-09] "Je n'ai pas ça" décochait juste la ligne SANS régénérer
+  // le reste — sur un plat comme des nems, retirer la galette de riz laissait un nom et des
+  // instructions qui n'avaient plus aucun sens ("faut qu'il change de recette !", constaté par
+  // l'utilisateur). Simplement soustraire une ligne ne suffit pas quand elle est structurelle au
+  // plat proposé : retirer un ingrédient relance maintenant une VRAIE génération qui l'exclut (voir
+  // aussi la règle ajoutée côté prompt, api/scan-recipe.js), avec un nom/des instructions cohérents
+  // pour le nouveau plat — jamais l'ancien plat juste amputé.
+  const excludeLineAndRegenerate = (idx) => {
+    if (!expressPreview) return;
+    const line = expressPreview.lines[idx];
+    if (!line) return;
+    const mode = expressPreview.mode;
+    setExpressExcludedIngredients((prev) => {
+      const existing = prev.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+      return existing.some((e) => e.toLowerCase() === line.name.toLowerCase()) ? prev : [...existing, line.name].join(", ");
+    });
+    setExpressPreview(null);
+    createExpressRecipe(mode, [line.name]);
   };
 
   // Valide l'aperçu (2026-09-09) : SEUL moment où la recette et les nouveaux ingrédients
@@ -3678,9 +3700,11 @@ export default function App() {
           >
             {expressPreview ? (
               <>
-                {/* Aperçu avant validation (2026-09-09) : rien n'est encore créé — chaque ligne peut
-                    être décochée ("je n'ai pas ça"), le coût/la marge se recalculent en direct,
-                    "Recommencer" relance une génération, "Valider" crée enfin la recette. */}
+                {/* Aperçu avant validation (2026-09-09, revu le même jour) : rien n'est encore créé.
+                    "Je n'ai pas ça" ne se contente plus de barrer une ligne — ça relance une VRAIE
+                    génération qui exclut cet ingrédient (voir excludeLineAndRegenerate), pour ne
+                    jamais garder un nom/des instructions qui n'ont plus de sens sans lui (ex: des
+                    nems sans galette de riz). */}
                 <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{expressPreview.dishName}</h3>
                 <p className="text-white/40 text-[11px] mb-3">{t("dailyDishPreviewHint")}</p>
                 <div className="space-y-1.5 mb-3">
@@ -3688,29 +3712,25 @@ export default function App() {
                     <div
                       key={idx}
                       className="flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
-                      style={{ background: "rgba(255,255,255,0.04)", opacity: l.included ? 1 : 0.4 }}
+                      style={{ background: "rgba(255,255,255,0.04)" }}
                     >
-                      <span className={`text-white flex-1 ${l.included ? "" : "line-through"}`}>
+                      <span className="text-white flex-1">
                         {l.name} <span className="text-white/40 text-xs">· {l.qty} {l.unit}</span>
                       </span>
                       <button
                         type="button"
-                        onClick={() => toggleExpressPreviewLine(idx)}
-                        className="text-[11px] uppercase tracking-wide px-2 py-1 rounded-full border"
-                        style={
-                          l.included
-                            ? { borderColor: "rgba(255,255,255,0.25)", color: "rgba(255,255,255,0.6)" }
-                            : { borderColor: BRAND_SOLID, color: BRAND_SOLID }
-                        }
+                        onClick={() => excludeLineAndRegenerate(idx)}
+                        disabled={expressRecipeLoading}
+                        className="text-[11px] uppercase tracking-wide px-2 py-1 rounded-full border disabled:opacity-50"
+                        style={{ borderColor: "rgba(255,255,255,0.25)", color: "rgba(255,255,255,0.6)" }}
                       >
-                        {l.included ? t("dailyDishRemoveLine") : t("dailyDishRestoreLine")}
+                        {t("dailyDishRemoveLine")}
                       </button>
                     </div>
                   ))}
                 </div>
                 {(() => {
-                  const keptLines = expressPreview.lines.filter((l) => l.included);
-                  const totalCost = keptLines.reduce((s, l) => s + l.qty * l.displayPrice, 0);
+                  const totalCost = expressPreview.lines.reduce((s, l) => s + l.qty * l.displayPrice, 0);
                   const priceHT = expressPreview.sellPrice > 0 ? expressPreview.sellPrice / (1 + vatRate / 100) : 0;
                   const costPerPortion = totalCost / (expressPreview.portions || 1);
                   const actualMargin = priceHT > 0 ? ((priceHT - costPerPortion) / priceHT) * 100 : null;
@@ -3731,7 +3751,7 @@ export default function App() {
                 <div className="space-y-2">
                   <button
                     onClick={confirmExpressPreview}
-                    disabled={expressRecipeLoading || expressPreview.lines.every((l) => !l.included)}
+                    disabled={expressRecipeLoading || expressPreview.lines.length === 0}
                     className="w-full text-xs font-display uppercase tracking-wide py-2.5 rounded-full disabled:opacity-50"
                     style={{ background: BRAND_GRADIENT, color: "#fff" }}
                   >
