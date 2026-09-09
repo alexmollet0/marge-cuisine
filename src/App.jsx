@@ -218,6 +218,20 @@ export default function App() {
   // l'utilisateur) — pour "Plat du jour" ET "Recette express" : la marge doit être visible
   // IMMÉDIATEMENT à l'arrivée sur la fiche, pas seulement après une étape manuelle en plus.
   const [expressSellPrice, setExpressSellPrice] = useState(0);
+  // Marge CIBLE demandée en plus du prix de vente (2026-09-09, corrige un vrai retour utilisateur :
+  // un prix de vente seul ne fait qu'AFFICHER la marge obtenue au hasard — un premier essai réel a
+  // généré un plat à 42% alors que le prix de vente était renseigné). Sert à calculer un budget de
+  // coût maximum envoyé à l'IA (voir `createExpressRecipe`), pour qu'elle compose le plat DANS la
+  // marge visée plutôt que librement. Défaut = objectif global déjà réglé par l'utilisateur.
+  const [expressTargetMargin, setExpressTargetMargin] = useState(settings.minMargin ?? 75);
+  // Ingrédients que l'utilisateur veut imposer (2026-09-09, "je veux écrire poulet, steak haché
+  // etc.") — texte libre, séparé virgule/retour à la ligne, combiné avec le stock du garde-manger
+  // (jamais à la place) : les deux sources d'ingrédients sont envoyées ensemble à l'IA.
+  const [expressWantedIngredients, setExpressWantedIngredients] = useState("");
+  // Nom masqué par défaut pour "Plat du jour" (2026-09-09) : demander un nom va à l'encontre du but
+  // ("je n'ai pas d'idée, propose-moi un plat") — reste un petit lien optionnel pour qui veut quand
+  // même orienter la génération avec un nom/thème.
+  const [expressNameFieldOpen, setExpressNameFieldOpen] = useState(false);
   // "Plat du jour" (2026-09-08) : PAS une fonctionnalité séparée des recettes — un simple
   // indicateur (`recipeType`) sur les recettes déjà existantes, pour réutiliser tout le mécanisme
   // déjà en place (calcul de marge, impression, allergènes, carte digitale) sans le dupliquer.
@@ -230,6 +244,9 @@ export default function App() {
     setExpressRecipePortions(1);
     setExpressRecipeError(null);
     setExpressSellPrice(0);
+    setExpressTargetMargin(settings.minMargin ?? 75);
+    setExpressWantedIngredients("");
+    setExpressNameFieldOpen(false);
   };
   const addRecipeToMenu = () => {
     if (!active) return;
@@ -876,7 +893,7 @@ export default function App() {
   const addQuickDailyDish = () => {
     const name = expressRecipeName.trim() || t("dailyDishDefaultName");
     const nr = {
-      id: uid(), name, portions: expressRecipePortions || 1, sellPrice: expressSellPrice || 0, targetMargin: 75,
+      id: uid(), name, portions: expressRecipePortions || 1, sellPrice: expressSellPrice || 0, targetMargin: expressTargetMargin || 75,
       notes: "", allergens: "", allergensAuto: true, createdAt: today(), lines: [], recipeType: "plat_du_jour",
     };
     setRecipes((rs) => [...rs, nr]);
@@ -912,17 +929,35 @@ export default function App() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
       } catch (err) {}
+      // Budget de coût maximum envoyé à l'IA (2026-09-09) — corrige un vrai retour utilisateur :
+      // demander un prix de vente sans marge cible ne fait qu'AFFICHER la marge obtenue au hasard
+      // (premier essai réel : 42%, jugé inutile). Même formule que `recipeMargin` (App.jsx, plus
+      // bas) pour que le budget calculé ici corresponde exactement à ce que la fiche affichera une
+      // fois créée : coût total ≤ prixVenteHT × (1 - margeCible/100) × portions. `null` si pas de
+      // prix renseigné — l'IA compose alors librement, comme avant.
+      const priceHT = expressSellPrice > 0 ? expressSellPrice / (1 + vatRate / 100) : 0;
+      const targetCostTotal =
+        priceHT > 0 ? Math.round(priceHT * (1 - (expressTargetMargin || 75) / 100) * (expressRecipePortions || 1) * 100) / 100 : null;
+      // Ingrédients imposés par l'utilisateur (2026-09-09, "je veux écrire poulet, steak haché") —
+      // combinés au stock du garde-manger, jamais à sa place.
+      const wantedIngredients = expressWantedIngredients
+        .split(/[,\n]/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 20);
       const body = isStock
         ? {
             // Noms seulement (pas les prix) : suffisant pour que l'IA sache ce qui est déjà là,
             // et le rapprochement (`guessIngredientId` plus bas) retrouve le VRAI prix tout seul
             // pour tout ingrédient déjà connu — jamais besoin de l'envoyer à l'IA.
             stockIngredients: ingredients.map((i) => ingredientDisplayName(i)).filter(Boolean).slice(0, 80),
+            wantedIngredients,
             dishName: dishName || undefined,
             portions: expressRecipePortions,
+            targetCostTotal,
             lang,
           }
-        : { dishName, portions: expressRecipePortions, lang };
+        : { dishName, wantedIngredients, portions: expressRecipePortions, targetCostTotal, lang };
       const res = await fetch("/api/scan-recipe", {
         method: "POST",
         headers,
@@ -1015,7 +1050,10 @@ export default function App() {
         // Prix de vente demandé AVANT génération (2026-09-08) : marge visible immédiatement à
         // l'arrivée sur la fiche, plus besoin d'une étape manuelle en plus après coup.
         sellPrice: expressSellPrice || 0,
-        targetMargin: 75,
+        // Marge cible (2026-09-09) : posée sur LA RECETTE elle-même (pas juste utilisée pour le
+        // budget envoyé à l'IA) — sinon la fiche jugerait la marge obtenue contre le 75% générique
+        // au lieu de l'objectif réellement choisi par l'utilisateur pour ce plat.
+        targetMargin: expressTargetMargin || 75,
         notes: "",
         allergens: "",
         allergensAuto: true,
@@ -3599,16 +3637,39 @@ export default function App() {
             ) : recipeTypeFilter === "plat_du_jour" ? (
               <>
                 <h3 className="font-display text-white uppercase tracking-wide text-sm mb-1">{t("dailyDishTab")}</h3>
-                <p className="text-white/50 text-xs mb-4 leading-relaxed">{t("dailyDishHint")}</p>
+                <p className="text-white/50 text-xs mb-3 leading-relaxed">{t("dailyDishHint")}</p>
+                {/* Nom MASQUÉ par défaut (2026-09-09) — demander un nom va à l'encontre du but
+                    ("je n'ai pas d'idée, propose-moi un plat") : simple lien optionnel plutôt
+                    qu'un champ imposé en haut du formulaire. */}
+                {!expressNameFieldOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setExpressNameFieldOpen(true)}
+                    className="text-[11px] text-white/40 hover:text-white/70 underline decoration-dotted mb-3"
+                  >
+                    {t("dailyDishNameToggle")}
+                  </button>
+                ) : (
+                  <input
+                    value={expressRecipeName}
+                    onChange={(e) => setExpressRecipeName(e.target.value)}
+                    placeholder={t("dailyDishNamePlaceholder")}
+                    disabled={expressRecipeLoading}
+                    autoFocus
+                    className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white text-sm outline-none mb-3 focus:border-white/30"
+                  />
+                )}
+                {/* Ingrédients imposés (2026-09-09, "je veux écrire poulet, steak haché") — combinés
+                    au stock du garde-manger, jamais à sa place (voir createExpressRecipe). */}
+                <label className="text-[11px] text-white/50 block mb-1">{t("dailyDishWantedLabel")}</label>
                 <input
-                  value={expressRecipeName}
-                  onChange={(e) => setExpressRecipeName(e.target.value)}
-                  placeholder={t("dailyDishNamePlaceholder")}
+                  value={expressWantedIngredients}
+                  onChange={(e) => setExpressWantedIngredients(e.target.value)}
+                  placeholder={t("dailyDishWantedPlaceholder")}
                   disabled={expressRecipeLoading}
-                  autoFocus
                   className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white text-sm outline-none mb-3 focus:border-white/30"
                 />
-                <div className="flex items-center gap-4 mb-4">
+                <div className="flex items-center gap-3 mb-4 flex-wrap">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-white/50">{t("expressRecipePortionsLabel")}</span>
                     <NumField
@@ -3625,6 +3686,20 @@ export default function App() {
                       onChange={setExpressSellPrice}
                       className="w-16 bg-white/5 border border-white/15 rounded px-2 py-1 text-right text-white text-sm outline-none"
                     />
+                  </div>
+                  {/* Marge CIBLE (2026-09-09) — corrige le vrai problème signalé : sans ça, le prix
+                      de vente ne fait qu'AFFICHER la marge obtenue au hasard (42% sur un essai
+                      réel). Sert à calculer le budget de coût envoyé à l'IA, voir
+                      createExpressRecipe. */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/50">{t("targetMargin")}</span>
+                    <NumField
+                      allowDecimal={false}
+                      value={expressTargetMargin}
+                      onChange={setExpressTargetMargin}
+                      className="w-14 bg-white/5 border border-white/15 rounded px-2 py-1 text-right text-white text-sm outline-none"
+                    />
+                    <span className="text-xs text-white/50">%</span>
                   </div>
                 </div>
                 {expressRecipeError && (
@@ -3668,7 +3743,7 @@ export default function App() {
                   autoFocus
                   className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white text-sm outline-none mb-3 focus:border-white/30"
                 />
-                <div className="flex items-center gap-4 mb-4">
+                <div className="flex items-center gap-3 mb-4 flex-wrap">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-white/50">{t("expressRecipePortionsLabel")}</span>
                     <NumField
@@ -3687,6 +3762,18 @@ export default function App() {
                       onChange={setExpressSellPrice}
                       className="w-16 bg-white/5 border border-white/15 rounded px-2 py-1 text-right text-white text-sm outline-none"
                     />
+                  </div>
+                  {/* Marge cible (2026-09-09) : même correctif que "Plat du jour" — sans elle, le
+                      prix de vente ne fait qu'AFFICHER la marge obtenue au hasard. */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/50">{t("targetMargin")}</span>
+                    <NumField
+                      allowDecimal={false}
+                      value={expressTargetMargin}
+                      onChange={setExpressTargetMargin}
+                      className="w-14 bg-white/5 border border-white/15 rounded px-2 py-1 text-right text-white text-sm outline-none"
+                    />
+                    <span className="text-xs text-white/50">%</span>
                   </div>
                 </div>
                 {expressRecipeError && (

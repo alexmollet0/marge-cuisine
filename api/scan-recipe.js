@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { image, mediaType, text, ocrText, dishName, stockIngredients } = req.body || {};
+  const { image, mediaType, text, ocrText, dishName, stockIngredients, wantedIngredients, targetCostTotal } = req.body || {};
   // "Recette express" (2026-09-02) : troisième mode d'entrée, distinct de la lecture d'une fiche
   // existante (image/text) — ici RIEN n'est écrit nulle part, l'IA invente une base de recette
   // réaliste à partir du seul nom d'un plat. Prompt entièrement séparé ci-dessous (isExpressMode)
@@ -32,10 +32,23 @@ export default async function handler(req, res) {
     ? stockIngredients.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim().slice(0, 60)).slice(0, 80)
     : [];
   const hasStock = cleanStock.length > 0;
-  const isExpressMode = (typeof dishName === "string" && dishName.trim().length > 0) || hasStock;
+  // Ingrédients imposés par l'utilisateur (2026-09-09, "je veux écrire poulet, steak haché") —
+  // combinés au stock ci-dessus, jamais à sa place ; suffisant à eux seuls pour déclencher le mode
+  // express (un compte au garde-manger encore vide doit pouvoir taper ses ingrédients directement).
+  const cleanWanted = Array.isArray(wantedIngredients)
+    ? wantedIngredients.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim().slice(0, 60)).slice(0, 20)
+    : [];
+  const hasWanted = cleanWanted.length > 0;
+  const isExpressMode = (typeof dishName === "string" && dishName.trim().length > 0) || hasStock || hasWanted;
   if (!image && !text && !isExpressMode) {
     return res.status(400).json({ error: "Aucune image, texte ni nom de plat reçu." });
   }
+  // Budget de coût maximum (2026-09-09) — calculé côté client à partir de prix de vente + marge
+  // cible + portions (même formule que `recipeMargin`, src/App.jsx, pour que ce budget corresponde
+  // exactement à ce que la fiche affichera). Corrige un vrai retour utilisateur : sans ça, l'IA
+  // composait librement et la marge tombait où elle voulait (42% obtenu sur un essai réel malgré
+  // un prix de vente renseigné) — inutile pour un restaurateur qui vise une marge précise.
+  const cleanBudget = Number.isFinite(targetCostTotal) && targetCostTotal > 0 ? Math.round(targetCostTotal * 100) / 100 : null;
 
   // Même serrure souple que api/scan-invoice.js (voir checkUserSoft dans _lib.js) : cet endpoint
   // consomme lui aussi des crédits d'IA et était tout aussi ouvert. Le bouton qui l'appelle est
@@ -50,15 +63,25 @@ export default async function handler(req, res) {
     // d'atteindre le prompt (aucune conséquence de sécurité réelle, juste de l'hygiène d'entrée).
     const cleanDishName = (dishName || "").trim().slice(0, 100);
     const portions = Number.isFinite(req.body?.portions) && req.body.portions > 0 ? Math.min(Math.round(req.body.portions), 200) : 4;
-    // "Plat du jour depuis mon stock" (2026-09-08) : seule l'intro du prompt change selon le mode
-    // — même schéma JSON, mêmes règles ci-dessous, pour ne dupliquer aucune des règles déjà
-    // éprouvées (unités, priceEstimateHT...) entre les deux variantes.
-    const introPrompt = hasStock
-      ? `Tu es un chef cuisinier qui aide un restaurateur à trouver une idée de PLAT DU JOUR dans son application de gestion de marges, à partir des ingrédients déjà disponibles dans son garde-manger : ${cleanStock.join(", ")}.${cleanDishName ? ` Envie/thème donné par l'utilisateur : "${cleanDishName}".` : ""} Nombre de portions demandé : ${portions}.
-Propose un plat RÉALISTE et cohérent, comme le ferait un vrai chef professionnel, qui utilise PRINCIPALEMENT les ingrédients déjà listés ci-dessus (pas besoin de tous les utiliser — choisis ceux qui vont bien ensemble). Tu peux ajouter quelques ingrédients complémentaires courants (herbes, condiments, une base comme riz/pâtes/pommes de terre) qui ne sont PAS dans la liste si c'est nécessaire pour un plat cohérent, mais privilégie fortement ce qui est déjà disponible — c'est tout l'intérêt de la demande (éviter le gaspillage, ne pas racheter ce qu'on a déjà). Si la liste est vide ou trop pauvre pour un vrai plat, propose quand même un plat du jour classique et polyvalent de brasserie française plutôt que de renvoyer une liste vide.`
+    // "Plat du jour" (2026-09-08, étendu le 2026-09-09) : seule l'intro du prompt change selon le
+    // mode — même schéma JSON, mêmes règles ci-dessous, pour ne dupliquer aucune des règles déjà
+    // éprouvées (unités, priceEstimateHT...) entre les variantes. `isDailyMode` regroupe stock ET
+    // ingrédients imposés : les deux sources se combinent, jamais l'une à la place de l'autre.
+    const isDailyMode = hasStock || hasWanted;
+    const introPrompt = isDailyMode
+      ? `Tu es un chef cuisinier qui aide un restaurateur à trouver une idée de PLAT DU JOUR dans son application de gestion de marges — il n'a pas d'idée, c'est à TOI de lui en proposer une.
+${hasStock ? `Ingrédients déjà disponibles dans son garde-manger (à privilégier fortement, pas besoin de tous les utiliser) : ${cleanStock.join(", ")}.\n` : ""}${hasWanted ? `Ingrédients que le restaurateur veut ABSOLUMENT utiliser dans ce plat, même si non listés ci-dessus : ${cleanWanted.join(", ")}. Ils doivent obligatoirement apparaître dans "lines".\n` : ""}${cleanDishName ? `Envie/thème donné en plus : "${cleanDishName}".\n` : ""}Nombre de portions demandé : ${portions}.
+Propose un plat RÉALISTE et cohérent, comme le ferait un vrai chef professionnel. Tu peux ajouter quelques ingrédients complémentaires courants (herbes, condiments, une base comme riz/pâtes/pommes de terre) qui ne sont dans aucune des listes ci-dessus si c'est nécessaire pour un plat cohérent, mais privilégie fortement ce qui est déjà disponible — c'est tout l'intérêt de la demande (éviter le gaspillage, ne pas racheter ce qu'on a déjà). Si aucun ingrédient n'est fourni/imposé, propose quand même un plat du jour classique et polyvalent de brasserie française plutôt que de renvoyer une liste vide.`
       : `Tu es un chef cuisinier qui aide un restaurateur à démarrer rapidement une nouvelle recette dans son application de gestion de marges, en lui proposant une base de recette réaliste à partir du seul nom d'un plat — contrairement à une lecture de document, ici RIEN n'est déjà écrit nulle part : c'est à TOI d'inventer des quantités raisonnables à partir de ta connaissance de la cuisine professionnelle française.
 Nom du plat donné par l'utilisateur : "${cleanDishName}". Nombre de portions demandé : ${portions}.`;
-    const expressPrompt = `${introPrompt}
+    // Contrainte de budget (2026-09-09) : corrige un vrai retour utilisateur — un prix de vente
+    // renseigné sans marge cible ne fait qu'AFFICHER la marge obtenue au hasard (42% observé sur
+    // un essai réel, jugé inutile). Consigne forte plutôt qu'une simple suggestion : c'est
+    // précisément ce qui manquait pour que "prix de vente + marge cible" serve à quelque chose.
+    const budgetClause = cleanBudget
+      ? `\n\nCONTRAINTE DE BUDGET IMPORTANTE : le coût total des ingrédients pour les ${portions} portion(s) (somme de qty × priceEstimateHT sur toutes les lignes) ne doit PAS dépasser environ ${cleanBudget}€ HT — c'est le budget qui permet au restaurateur d'atteindre la marge qu'il vise sur ce plat précis. Choisis des morceaux/produits plus économiques et des quantités raisonnables plutôt que des produits de luxe si nécessaire pour rester dans ce budget, tout en gardant un plat cohérent et savoureux. Un léger dépassement (jusqu'à 15%) est acceptable si le respecter strictement rendrait le plat absurde, mais vise activement à respecter ce budget — ce n'est pas une simple suggestion.`
+      : "";
+    const expressPrompt = `${introPrompt}${budgetClause}
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de balises markdown), au format exact :
 
 {
