@@ -5249,7 +5249,7 @@ export default function App() {
                           <AlertTriangle size={10} />
                         </span>
                       )}
-                      <div className="text-white font-medium text-[11px] leading-tight line-clamp-2 px-0.5">{r.name}</div>
+                      <div className="text-white font-medium text-[11px] leading-tight line-clamp-2 px-0.5" title={r.name}>{r.name}</div>
                       {m !== null ? (
                         <span
                           className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full"
@@ -5282,7 +5282,7 @@ export default function App() {
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <div className="text-white font-medium text-sm truncate">{r.name}</div>
+                            <div className="text-white font-medium text-sm truncate" title={r.name}>{r.name}</div>
                             {topRecipeIds.includes(r.id) && (
                               <span
                                 className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
@@ -5465,11 +5465,34 @@ export default function App() {
                 la chasse fixe et la colonne étroite étaient là pour imiter un ticket de caisse,
                 elles ne faisaient que rendre la fiche moins lisible et plus longue à parcourir. */}
             <div className="ticket px-4 sm:px-8 py-7 sm:py-9 print:py-4 w-full font-body text-[15px]">
-              <input
-                ref={recipeNameInputRef}
+              {/* [BUG confirmé et corrigé, 2026-09-09] Nom de plat trop long invisible sur la fin —
+                  un <input> en une seule ligne coupe silencieusement le texte qui dépasse (pas
+                  d'ellipse, pas de retour à la ligne, aucun signe qu'il manque quelque chose).
+                  Devenu plus fréquent avec les noms générés par l'IA ("Poêlée de saucisses fumées
+                  aux poivrons et riz créole gratinée au fromage"...), nettement plus longs qu'un nom
+                  tapé à la main. Un simple rétrécissement de police ne suffit pas à tous les cas
+                  (un nom très long reste coupé même en plus petit) — remplacé par un <textarea> qui
+                  s'agrandit tout seul et passe à la ligne, pour que le nom entier reste TOUJOURS
+                  visible quelle que soit sa longueur ; la police se réduit en plus pour les noms
+                  vraiment longs, pour ne pas rendre l'en-tête démesurément haut. */}
+              <textarea
+                ref={(el) => {
+                  recipeNameInputRef.current = el;
+                  if (el) {
+                    el.style.height = "auto";
+                    el.style.height = `${el.scrollHeight}px`;
+                  }
+                }}
                 value={active.name}
-                onChange={(e) => updateRecipe({ name: e.target.value })}
-                className="w-full bg-transparent font-display text-2xl sm:text-3xl uppercase tracking-wide mb-2 print:mb-1 outline-none text-center border-b border-black/10 pb-3 print:pb-1.5"
+                onChange={(e) => {
+                  updateRecipe({ name: e.target.value });
+                  e.target.style.height = "auto";
+                  e.target.style.height = `${e.target.scrollHeight}px`;
+                }}
+                rows={1}
+                className={`w-full bg-transparent font-display uppercase tracking-wide mb-2 print:mb-1 outline-none text-center border-b border-black/10 pb-3 print:pb-1.5 resize-none overflow-hidden leading-tight ${
+                  active.name.length > 45 ? "text-lg sm:text-xl" : active.name.length > 30 ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"
+                }`}
               />
               <div className="flex justify-center mb-2 print:mb-1">
                 <div
