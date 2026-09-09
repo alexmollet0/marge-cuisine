@@ -1105,3 +1105,25 @@ Volontairement PAS ajouté sur `retryLastScan` quand il réutilise la dernière 
 
 Comptes de test à supprimer via le tableau de bord admin : `chefuptest.stockcheck+<timestamp>@example.com`.
 
+---
+
+## "Plat du jour" corrigé en profondeur suite à un vrai retour utilisateur (2026-09-09)
+
+**Le retour, sans détour** : "c'est pas bon du tout" — 3 défauts concrets sur la fonctionnalité livrée la veille :
+1. Le champ "nom du plat" contredit le but même de la fonctionnalité ("le but c'est qu'on me propose un plat du jour car je n'ai pas d'idée").
+2. Impossible de taper des ingrédients précis à utiliser ("je veux écrire poulet, steak haché") — seul le stock automatique du garde-manger était pris en compte.
+3. **Le vrai problème de fond** : demander un prix de vente ne servait qu'à AFFICHER la marge obtenue, jamais à la viser. Premier essai réel : marge à 42%, jugé "ça ne sert à rien du tout".
+
+**Corrigé, les 3 points** :
+1. **Nom masqué par défaut** (`expressNameFieldOpen`) — remplacé par un petit lien "+ Donner un nom (optionnel)", le formulaire s'ouvre directement sur ce qui compte (ingrédients + portions + prix + marge cible).
+2. **Nouveau champ "Ingrédients à utiliser"** (texte libre, `expressWantedIngredients`, séparé virgule/retour ligne) — envoyé à l'IA en plus du stock du garde-manger (jamais à sa place), avec la consigne "doivent obligatoirement apparaître dans les lignes". Suffit à lui seul à déclencher le mode express même sans aucun stock (`isExpressMode` étendu côté serveur).
+3. **"Marge cible" (%)** ajoutée à côté de "Prix de vente" (défaut = `settings.minMargin`, même objectif global déjà réglé par l'utilisateur) — sert à calculer un budget de coût maximum (`targetCostTotal`), **exactement selon la même formule que `recipeMargin`** (App.jsx : `coût ≤ prixVenteHT × (1 - margeCible/100) × portions`) pour que le budget corresponde à ce que la fiche affichera vraiment. Envoyé à l'IA comme une consigne FORTE ("CONTRAINTE DE BUDGET IMPORTANTE... ce n'est pas une simple suggestion"), pas une simple mention en passant. La marge cible choisie est aussi posée sur la recette elle-même (`targetMargin`), pas laissée au 75% générique.
+   **Nuance assumée et à dire clairement à l'utilisateur** : le budget porte sur les prix ESTIMÉS par l'IA elle-même — une fois les VRAIS prix du garde-manger substitués (ingrédients déjà connus), la marge finale peut légèrement dériver de la cible. Pas une garantie mathématique, mais nettement mieux qu'une génération sans aucune contrainte.
+4. **Même correctif appliqué à "Recette express"** (pas seulement "Plat du jour") — même souci de fond, même champ "Marge cible" ajouté au même formulaire.
+
+**Vérifié contre la vraie API en prod**, avec les chiffres exacts du retour utilisateur (prix de vente 10€, marge cible 80%, ingrédients imposés "poulet, steak haché", 4 portions) : l'IA propose "Burger maison steak-poulet et frites" qui utilise bien les deux ingrédients demandés, coût total réel 7,85€ HT contre un budget visé de 7,27€ (dépassement de 8%, dans la tolérance donnée au prompt) → **marge réelle 78,4%** pour une cible de 80% — très loin des 42% obtenus avant ce correctif, largement dans l'esprit demandé.
+
+**Vérifié aussi** : `npm run build` propre, `node --check api/scan-recipe.js` propre. Test visuel en local (contournement d'authentification) : formulaire "Plat du jour" confirmé avec le nom masqué (lien "+ Donner un nom"), le champ "Ingrédients à utiliser" avec le bon placeholder, et les 3 champs Portions/Prix de vente/Marge cible côte à côte ; "Ajout rapide" testé avec marge cible 80% → confirmé posé sur `targetMargin` de la recette créée (visible en bas de fiche : "Marge cible 80%"), pas resté au générique 75%.
+
+**Non testé** : le rapprochement avec un VRAI garde-manger combinant stock + ingrédients imposés en même temps (le test API a utilisé uniquement `wantedIngredients`, sans `stockIngredients`, faute d'un compte réel avec un garde-manger peuplé à disposition) — la logique de combinaison des deux (côté prompt) est nouvelle et n'a pas encore été vue à l'œuvre simultanément sur un cas réel.
+

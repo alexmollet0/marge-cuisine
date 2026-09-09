@@ -1054,7 +1054,10 @@ export default function App() {
         // budget envoyé à l'IA) — sinon la fiche jugerait la marge obtenue contre le 75% générique
         // au lieu de l'objectif réellement choisi par l'utilisateur pour ce plat.
         targetMargin: expressTargetMargin || 75,
-        notes: "",
+        // Instructions de préparation générées par l'IA (2026-09-09, demandé par l'utilisateur pour
+        // savoir comment réaliser le plat, pas juste sa marge) — même champ "notes" déjà affiché/
+        // imprimé sur la fiche recette (voir plus bas dans ce fichier), aucun nouveau champ créé.
+        notes: asText(data.notes).trim(),
         allergens: "",
         allergensAuto: true,
         createdAt: today(),
