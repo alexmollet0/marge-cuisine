@@ -228,6 +228,13 @@ export default function App() {
   // etc.") — texte libre, séparé virgule/retour à la ligne, combiné avec le stock du garde-manger
   // (jamais à la place) : les deux sources d'ingrédients sont envoyées ensemble à l'IA.
   const [expressWantedIngredients, setExpressWantedIngredients] = useState("");
+  // Ingrédients à exclure (2026-09-09, "si j'ai pas les ingrédients qu'il me dit c'est relou") —
+  // exclus par avance plutôt que de régénérer après coup (moins d'appels IA, donc moins de coût).
+  const [expressExcludedIngredients, setExpressExcludedIngredients] = useState("");
+  // Catégorie du plat (2026-09-09, "choisir si on veut une entrée plat ou dessert") — mêmes 3
+  // premières valeurs que les sections par défaut de la carte digitale (MENU_CATEGORIES), posées
+  // directement sur `recipe.menuCategory` à la création (pas un nouveau système de catégorie).
+  const [expressDishCategory, setExpressDishCategory] = useState("main");
   // Nom masqué par défaut pour "Plat du jour" (2026-09-09) : demander un nom va à l'encontre du but
   // ("je n'ai pas d'idée, propose-moi un plat") — reste un petit lien optionnel pour qui veut quand
   // même orienter la génération avec un nom/thème.
@@ -246,6 +253,8 @@ export default function App() {
     setExpressSellPrice(0);
     setExpressTargetMargin(settings.minMargin ?? 75);
     setExpressWantedIngredients("");
+    setExpressExcludedIngredients("");
+    setExpressDishCategory("main");
     setExpressNameFieldOpen(false);
   };
   const addRecipeToMenu = () => {
@@ -895,6 +904,7 @@ export default function App() {
     const nr = {
       id: uid(), name, portions: expressRecipePortions || 1, sellPrice: expressSellPrice || 0, targetMargin: expressTargetMargin || 75,
       notes: "", allergens: "", allergensAuto: true, createdAt: today(), lines: [], recipeType: "plat_du_jour",
+      menuCategory: expressDishCategory,
     };
     setRecipes((rs) => [...rs, nr]);
     setActiveId(nr.id);
@@ -945,6 +955,12 @@ export default function App() {
         .map((s) => s.trim())
         .filter(Boolean)
         .slice(0, 20);
+      // Ingrédients à exclure (2026-09-09, "si j'ai pas les ingrédients qu'il me dit c'est relou") —
+      // uniquement pertinent pour "Plat du jour" (isStock) : "Recette express" a déjà un nom de
+      // plat précis, moins de sens à en exclure des ingrédients par avance.
+      const excludedIngredients = isStock
+        ? expressExcludedIngredients.split(/[,\n]/).map((s) => s.trim()).filter(Boolean).slice(0, 20)
+        : [];
       const body = isStock
         ? {
             // Noms seulement (pas les prix) : suffisant pour que l'IA sache ce qui est déjà là,
@@ -952,6 +968,8 @@ export default function App() {
             // pour tout ingrédient déjà connu — jamais besoin de l'envoyer à l'IA.
             stockIngredients: ingredients.map((i) => ingredientDisplayName(i)).filter(Boolean).slice(0, 80),
             wantedIngredients,
+            excludedIngredients,
+            dishCategory: expressDishCategory,
             dishName: dishName || undefined,
             portions: expressRecipePortions,
             targetCostTotal,
@@ -1063,6 +1081,10 @@ export default function App() {
         createdAt: today(),
         lines: resolvedLines,
         recipeType: isStock ? "plat_du_jour" : "recette",
+        // Catégorie choisie dans le formulaire (2026-09-09) — pré-remplit l'étiquette/la section de
+        // carte digitale (même champ que l'ajout manuel, voir addRecipeToMenu), pas un ajout à la
+        // carte en soi (menuIncluded reste false tant que l'utilisateur ne le décide pas).
+        menuCategory: isStock ? expressDishCategory : null,
       };
       setRecipes((rs) => [...rs, newRecipe]);
       setActiveId(newRecipe.id);
@@ -3662,6 +3684,22 @@ export default function App() {
                     className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white text-sm outline-none mb-3 focus:border-white/30"
                   />
                 )}
+                {/* Catégorie du plat (2026-09-09, "choisir si on veut une entrée plat ou dessert") —
+                    3 boutons plats, même principe visuel que le toggle Recettes/Plats du jour. */}
+                <div className="flex items-center rounded-full border border-white/15 overflow-hidden mb-3 w-fit">
+                  {["starter", "main", "dessert"].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setExpressDishCategory(cat)}
+                      disabled={expressRecipeLoading}
+                      className="px-3 py-1.5 text-[11px] font-display uppercase tracking-wide transition disabled:opacity-50"
+                      style={expressDishCategory === cat ? { background: BRAND_GRADIENT, color: "#fff" } : { color: "rgba(255,255,255,0.5)" }}
+                    >
+                      {MENU_CATEGORY_LABELS[cat][lang] || MENU_CATEGORY_LABELS[cat].fr}
+                    </button>
+                  ))}
+                </div>
                 {/* Ingrédients imposés (2026-09-09, "je veux écrire poulet, steak haché") — combinés
                     au stock du garde-manger, jamais à sa place (voir createExpressRecipe). */}
                 <label className="text-[11px] text-white/50 block mb-1">{t("dailyDishWantedLabel")}</label>
@@ -3669,6 +3707,16 @@ export default function App() {
                   value={expressWantedIngredients}
                   onChange={(e) => setExpressWantedIngredients(e.target.value)}
                   placeholder={t("dailyDishWantedPlaceholder")}
+                  disabled={expressRecipeLoading}
+                  className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white text-sm outline-none mb-3 focus:border-white/30"
+                />
+                {/* Ingrédients à exclure (2026-09-09, "si j'ai pas les ingrédients qu'il me dit
+                    c'est relou") — exclus par avance plutôt que de régénérer après coup. */}
+                <label className="text-[11px] text-white/50 block mb-1">{t("dailyDishExcludedLabel")}</label>
+                <input
+                  value={expressExcludedIngredients}
+                  onChange={(e) => setExpressExcludedIngredients(e.target.value)}
+                  placeholder={t("dailyDishExcludedPlaceholder")}
                   disabled={expressRecipeLoading}
                   className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-white text-sm outline-none mb-3 focus:border-white/30"
                 />

@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { image, mediaType, text, ocrText, dishName, stockIngredients, wantedIngredients, targetCostTotal } = req.body || {};
+  const { image, mediaType, text, ocrText, dishName, stockIngredients, wantedIngredients, excludedIngredients, dishCategory, targetCostTotal } = req.body || {};
   // "Recette express" (2026-09-02) : troisième mode d'entrée, distinct de la lecture d'une fiche
   // existante (image/text) — ici RIEN n'est écrit nulle part, l'IA invente une base de recette
   // réaliste à partir du seul nom d'un plat. Prompt entièrement séparé ci-dessous (isExpressMode)
@@ -39,6 +39,13 @@ export default async function handler(req, res) {
     ? wantedIngredients.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim().slice(0, 60)).slice(0, 20)
     : [];
   const hasWanted = cleanWanted.length > 0;
+  // Ingrédients à éviter (2026-09-09, "si j'ai pas les ingrédients qu'il me dit c'est relou") — plus
+  // simple et moins coûteux qu'une régénération après coup ou plusieurs recettes générées d'un coup :
+  // l'utilisateur exclut par avance ce qu'il n'a pas, avant même le premier appel IA.
+  const cleanExcluded = Array.isArray(excludedIngredients)
+    ? excludedIngredients.filter((s) => typeof s === "string" && s.trim()).map((s) => s.trim().slice(0, 60)).slice(0, 20)
+    : [];
+  const hasExcluded = cleanExcluded.length > 0;
   const isExpressMode = (typeof dishName === "string" && dishName.trim().length > 0) || hasStock || hasWanted;
   if (!image && !text && !isExpressMode) {
     return res.status(400).json({ error: "Aucune image, texte ni nom de plat reçu." });
@@ -68,18 +75,44 @@ export default async function handler(req, res) {
     // éprouvées (unités, priceEstimateHT...) entre les variantes. `isDailyMode` regroupe stock ET
     // ingrédients imposés : les deux sources se combinent, jamais l'une à la place de l'autre.
     const isDailyMode = hasStock || hasWanted;
+    // Catégorie du plat (2026-09-09, "choisir si on veut une entrée plat ou dessert") — mêmes ids
+    // que les sections par défaut de la carte digitale (MENU_CATEGORIES, src/brand.js), réutilisés
+    // tels quels côté client pour poser `recipe.menuCategory` sans créer de nouveau système.
+    const categoryLabels = { starter: "une ENTRÉE", main: "un PLAT PRINCIPAL", dessert: "un DESSERT" };
+    const cleanDishCategory = typeof dishCategory === "string" && categoryLabels[dishCategory] ? dishCategory : null;
+    const categoryClause = cleanDishCategory ? ` Le plat proposé doit être ${categoryLabels[cleanDishCategory]}, pas autre chose.` : "";
+    // Ingrédients à éviter (2026-09-09) : combinés aux ingrédients imposés/stock ci-dessus, jamais
+    // en conflit (si un ingrédient apparaît dans les deux listes par erreur de saisie, l'exclusion
+    // gagne — plus sûr pour l'utilisateur qui a explicitement dit ne pas l'avoir).
+    const excludedClause = hasExcluded ? ` Ingrédients à NE JAMAIS utiliser, même en petite quantité, même comme simple assaisonnement : ${cleanExcluded.join(", ")}.` : "";
+    // Variété d'une génération à l'autre (2026-09-09, "quand je recommence ça me fait toujours la
+    // même recette") — Sonnet 5 n'accepte pas `temperature` sur ce point d'accès (voir plus bas), et
+    // même avec Haiku la même contrainte stricte (mêmes ingrédients imposés, même budget) tend à
+    // reproduire la même idée "évidente". Un style tiré au hasard à chaque appel force une vraie
+    // variation sans dépendre d'un paramètre de hasard du modèle.
+    const styleHints = [
+      "cuisine traditionnelle française de brasserie",
+      "inspiration méditerranéenne (Sud de la France, Italie, Espagne)",
+      "version bistronomique moderne et un peu créative",
+      "plat mijoté/réconfortant",
+      "préparation rapide et généreuse, service efficace",
+      "inspiration d'Asie du Sud-Est (sans dénaturer les ingrédients imposés)",
+      "grillades/plancha",
+    ];
+    const styleHint = styleHints[Math.floor(Math.random() * styleHints.length)];
     const introPrompt = isDailyMode
       ? `Tu es un chef cuisinier qui aide un restaurateur à trouver une idée de PLAT DU JOUR dans son application de gestion de marges — il n'a pas d'idée, c'est à TOI de lui en proposer une.
-${hasStock ? `Ingrédients déjà disponibles dans son garde-manger (à privilégier fortement, pas besoin de tous les utiliser) : ${cleanStock.join(", ")}.\n` : ""}${hasWanted ? `Ingrédients que le restaurateur veut ABSOLUMENT utiliser dans ce plat, même si non listés ci-dessus : ${cleanWanted.join(", ")}. Ils doivent obligatoirement apparaître dans "lines".\n` : ""}${cleanDishName ? `Envie/thème donné en plus : "${cleanDishName}".\n` : ""}Nombre de portions demandé : ${portions}.
-Propose un plat RÉALISTE et cohérent, comme le ferait un vrai chef professionnel. Tu peux ajouter quelques ingrédients complémentaires courants (herbes, condiments, une base comme riz/pâtes/pommes de terre) qui ne sont dans aucune des listes ci-dessus si c'est nécessaire pour un plat cohérent, mais privilégie fortement ce qui est déjà disponible — c'est tout l'intérêt de la demande (éviter le gaspillage, ne pas racheter ce qu'on a déjà). Si aucun ingrédient n'est fourni/imposé, propose quand même un plat du jour classique et polyvalent de brasserie française plutôt que de renvoyer une liste vide.`
+${hasStock ? `Ingrédients déjà disponibles dans son garde-manger (à privilégier fortement, pas besoin de tous les utiliser) : ${cleanStock.join(", ")}.\n` : ""}${hasWanted ? `Ingrédients que le restaurateur veut ABSOLUMENT utiliser dans ce plat, même si non listés ci-dessus : ${cleanWanted.join(", ")}. Ils doivent obligatoirement apparaître dans "lines".\n` : ""}${cleanDishName ? `Envie/thème donné en plus : "${cleanDishName}".\n` : ""}Nombre de portions demandé : ${portions}.${categoryClause}${excludedClause}
+Propose un plat RÉALISTE et cohérent, comme le ferait un vrai chef professionnel. Tu peux ajouter quelques ingrédients complémentaires courants (herbes, condiments, une base comme riz/pâtes/pommes de terre) qui ne sont dans aucune des listes ci-dessus si c'est nécessaire pour un plat cohérent, mais privilégie fortement ce qui est déjà disponible — c'est tout l'intérêt de la demande (éviter le gaspillage, ne pas racheter ce qu'on a déjà). Si aucun ingrédient n'est fourni/imposé, propose quand même un plat du jour classique et polyvalent de brasserie française plutôt que de renvoyer une liste vide.
+Pour cette proposition précise, oriente-toi plutôt vers : ${styleHint} — évite de retomber systématiquement sur l'idée la plus évidente/classique si un restaurateur redemandait une suggestion avec les mêmes contraintes, varie réellement d'une proposition à l'autre.`
       : `Tu es un chef cuisinier qui aide un restaurateur à démarrer rapidement une nouvelle recette dans son application de gestion de marges, en lui proposant une base de recette réaliste à partir du seul nom d'un plat — contrairement à une lecture de document, ici RIEN n'est déjà écrit nulle part : c'est à TOI d'inventer des quantités raisonnables à partir de ta connaissance de la cuisine professionnelle française.
-Nom du plat donné par l'utilisateur : "${cleanDishName}". Nombre de portions demandé : ${portions}.`;
+Nom du plat donné par l'utilisateur : "${cleanDishName}". Nombre de portions demandé : ${portions}.${excludedClause}`;
     // Contrainte de budget (2026-09-09) : corrige un vrai retour utilisateur — un prix de vente
     // renseigné sans marge cible ne fait qu'AFFICHER la marge obtenue au hasard (42% observé sur
     // un essai réel, jugé inutile). Consigne forte plutôt qu'une simple suggestion : c'est
     // précisément ce qui manquait pour que "prix de vente + marge cible" serve à quelque chose.
     const budgetClause = cleanBudget
-      ? `\n\nCONTRAINTE DE BUDGET IMPORTANTE : le coût total des ingrédients pour les ${portions} portion(s) (somme de qty × priceEstimateHT sur toutes les lignes) ne doit PAS dépasser environ ${cleanBudget}€ HT — c'est le budget qui permet au restaurateur d'atteindre la marge qu'il vise sur ce plat précis. Choisis des morceaux/produits plus économiques et des quantités raisonnables plutôt que des produits de luxe si nécessaire pour rester dans ce budget, tout en gardant un plat cohérent et savoureux. Un léger dépassement (jusqu'à 15%) est acceptable si le respecter strictement rendrait le plat absurde, mais vise activement à respecter ce budget — ce n'est pas une simple suggestion.`
+      ? `\n\nCONTRAINTE DE BUDGET IMPORTANTE : le coût total des ingrédients pour les ${portions} portion(s) (somme de qty × priceEstimateHT sur toutes les lignes) ne doit PAS dépasser environ ${cleanBudget}€ HT — c'est le budget qui permet au restaurateur d'atteindre la marge qu'il vise sur ce plat précis. Choisis des morceaux/produits plus économiques et des quantités raisonnables plutôt que des produits de luxe si nécessaire pour rester dans ce budget, tout en gardant un plat cohérent et savoureux. ⚠️ Si le budget est serré, ne pars pas par réflexe sur la première idée "classique" qui implique une viande chère (bœuf, agneau, magret...) — pense d'abord à une protéine ou une base économique cohérente avec les ingrédients imposés (poulet, œuf, légumineuse, poisson blanc bon marché, ou un plat végétarien bien construit) : c'est souvent ce qui permet de VRAIMENT tenir la marge visée, pas juste de s'en approcher. Un léger dépassement (jusqu'à 15%) est acceptable si le respecter strictement rendrait le plat absurde, mais vise activement à respecter ce budget — ce n'est pas une simple suggestion.`
       : "";
     const expressPrompt = `${introPrompt}${budgetClause}
 Réponds UNIQUEMENT avec un objet JSON valide (aucun texte avant/après, pas de balises markdown), au format exact :
@@ -107,10 +140,15 @@ Réponds toujours avec un JSON syntaxiquement valide.`;
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+        // Sonnet 5 (2026-09-09, était Haiku 4.5) — demandé par l'utilisateur ("IA plus intelligente")
+        // après un plat trop cher malgré une contrainte de budget claire. Même réglage que
+        // api/scan-invoice.js pour ce modèle sur ce type d'appel : `temperature` n'est plus accepté
+        // par ce point d'accès sur Sonnet 5, et le "thinking" par défaut doit être désactivé
+        // explicitement (sinon coupe le texte de réponse avant le JSON, déjà rencontré ailleurs).
         body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
+          model: "claude-sonnet-5",
           max_tokens: 2048,
-          temperature: 0.4,
+          thinking: { type: "disabled" },
           messages: [{ role: "user", content: [{ type: "text", text: expressPrompt }] }],
         }),
       });
