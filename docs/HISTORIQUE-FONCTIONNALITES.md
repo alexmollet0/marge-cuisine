@@ -1199,3 +1199,15 @@ Comptes de test à supprimer via le tableau de bord admin : `chefuptest.stockche
 
 Comptes de test à supprimer via le tableau de bord admin : `chefuptest.coherencecheck+<timestamp>@example.com`, `chefuptest.coherencecheck2+<timestamp>@example.com`, `chefuptest.synonymcheck+<timestamp>@example.com`.
 
+---
+
+## Nom de plat trop long invisible sur la fiche recette (2026-09-09, encore le même jour)
+
+**Le retour** : "quand le nom du plat est trop grand... ça dépasse et on voit pas la fin du nom du plat" — conséquence directe et attendue de tout le travail du jour sur "Plat du jour"/"Recette express" : les noms générés par l'IA ("Poêlée de saucisses fumées aux poivrons et riz créole gratinée au fromage") sont nettement plus longs qu'un nom tapé à la main, et n'avaient jamais posé ce problème auparavant.
+
+**Cause** : le titre de la fiche recette (`src/App.jsx`) était un `<input>` classique — en une seule ligne par nature, sans retour à la ligne possible ; un nom trop long pour la largeur de l'écran était silencieusement coupé (ni ellipse "…", ni indice visuel), sans aucun moyen de voir la fin sans faire défiler le champ au clavier.
+
+**Corrigé** : remplacé par un `<textarea>` à une ligne de base qui **s'agrandit lui-même et passe à la ligne** (hauteur recalculée à chaque frappe et à chaque changement de recette via une ref callback, `scrollHeight`) — le nom reste TOUJOURS entièrement visible, quelle que soit sa longueur, réparti sur autant de lignes que nécessaire. Complété par une réduction de police au-delà de 30 puis 45 caractères (`text-lg`/`text-xl` au lieu de `text-2xl`/`text-3xl`), pour qu'un nom très long ne rende pas l'en-tête démesurément haute. Ajouté en plus, à moindre coût : un attribut `title` (infobulle native au survol) sur les noms tronqués par ellipse des vues liste/grille de l'écran Recettes — les noms y restent volontairement coupés (`truncate`/`line-clamp-2`, cohérent avec l'espace disponible dans une carte), mais le survol permet désormais de lire le nom complet sans avoir à ouvrir la fiche.
+
+**Vérifié visuellement en local** (contournement d'authentification, renommage de la recette de démo) : un nom de 73 caractères s'affiche entièrement sur 2 lignes ; un nom de 125 caractères (encore plus long, avec la police réduite) s'affiche aussi entièrement sur 2 lignes — rien n'est coupé dans les deux cas.
+
