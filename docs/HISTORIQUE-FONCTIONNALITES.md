@@ -1199,6 +1199,23 @@ Comptes de test à supprimer via le tableau de bord admin : `chefuptest.stockche
 
 ---
 
+## Démo "wow" du tuto — v2, plein écran avec un vrai récit (2026-09-16, suite immédiate)
+
+**Le retour, juste après la v1** : "moi je voulais un vrai tuto plus gros sur l'écran avec le vrai résultat d'une facture... et ce que ça fait quand un prix augmente et ce que ça fait ensuite sur la recette. un vrai effet wouaw." La v1 (petite carte dans le tuto standard, 5 lignes + un anneau de marge) était jugée trop petite et incomplète — il manquait le récit complet : un résultat de scan qui RESSEMBLE au vrai, une hausse de prix détectée, et son impact visible sur une vraie recette.
+
+**Reconstruit** (`src/adminAndOnboarding.jsx`) : `TutorialScanArt` (petite carte) remplacé par `TutorialWowScan`, un composant plein écran dédié (`fixed inset-0`, pas la carte `max-w-md` standard du reste du tuto) — la page "Scanner" du tuto (`AppTutorial`) court-circuite désormais entièrement le rendu standard (titre/corps/Art/points/Suivant-Retour) pour cette page précise et rend ce composant à la place. Toujours déclenché par UN SEUL tap (pas un par étape, pour garder le rythme), puis auto-joué en 5 temps :
+1. Facture factice (mockup plus grand, style tableau de lignes + total), bouton "Toucher pour scanner" pulsé en overlay.
+2. Scan animé (ligne de balayage) + 5 ingrédients qui apparaissent un par un (repris de la v1).
+3. **Nouveau** : écran de résultat détaillé façon vrai scan — "Metro · 12 mars", liste des 5 lignes avec coche + prix dans une carte arrondie (même grammaire que le vrai écran de résultat), bandeau de confirmation vert "Prix mis à jour dans ton garde-manger".
+4. **Nouveau** : "Quelques semaines plus tard, tu rescannes la même facture..." — le Bœuf haché ressort à un prix plus élevé (11,90€ → 13,50€/kg, +13%), flèche rouge `TrendingUp`, même code couleur que les vraies alertes de variation de prix du garde-manger.
+5. **Nouveau** : impact direct sur la recette "Bœuf bourguignon" (le nom de la vraie recette de démo, jamais traduit dans aucune langue — cohérent avec `seedData.js`) — anneau de marge qui descend de 78% (vert, `TIER_COLORS.high`) à 71% (ambre, `TIER_COLORS.mid`) — **seuils réels de l'app respectés** (`CRITICAL_MARGIN` = 70%, cible par défaut 75% : 71% est bien "à surveiller" mais pas encore dans le rouge, exactement le comportement réel pour ce chiffre). Message de clôture + CTA "Scanner ma première facture" (inchangé depuis la v1 : ferme le tuto et bascule sur l'onglet Scanner réel).
+
+**Piège technique trouvé et corrigé avant de pousser** : le keyframe CSS de la ligne de scan (`chefupTutScan`, défini par le composant `TutorialStyles`) n'était injecté que dans le rendu standard du tuto (`AppTutorial`) — comme la nouvelle page "Scanner" le court-circuite entièrement, l'animation n'aurait jamais fonctionné sans réinjecter `<TutorialStyles />` aussi dans `TutorialWowScan` lui-même. Corrigé avant tout test visuel.
+
+**Vérifié visuellement en local** (contournement d'authentification) : tap sur la facture → écran de résultat détaillé (5 lignes + confirmation) → écran d'impact recette (anneau 71% en ambre, correct) → clic CTA → tuto fermé, atterrissage réel sur l'onglet Scanner. L'écran intermédiaire de hausse de prix (étape 4) n'a pas pu être capturé par une capture d'écran isolée (séquence trop rapide face à la latence des appels d'outils de test) mais partage exactement la même mécanique déjà vérifiée que les étapes 3 et 5 (même structure de liste, juste une ligne recolorée + un badge conditionnel) — revu par lecture de code, pas de raison de douter du rendu.
+
+---
+
 ## "Plat du jour"/"Recette express" : écran d'aperçu avant validation, plat plus simple sans stock connu (2026-09-09, encore le même jour)
 
 **Le retour qui a fait basculer l'approche** : "il ma sorti galette de riz j'en ai pas... faudrait que avant j'ai une liste d'ingrédients et que je puisse enlever des choses". Confirme que le champ "Ingrédients à éviter" ajouté un peu plus tôt dans la journée ne résout pas le vrai problème : impossible de deviner à l'avance ce que l'IA va proposer pour l'exclure par anticipation. Deux pistes proposées par l'utilisateur lui-même ("plusieurs recettes" OU "pouvoir retirer facilement avant génération") avec un aveu explicite de ne pas savoir laquelle choisir — décision tranchée côté produit après question à l'utilisateur (les deux, avec un correctif prompt en plus) : construire l'écran d'aperçu ET rendre l'IA plus sobre par défaut.
