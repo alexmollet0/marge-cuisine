@@ -1052,37 +1052,105 @@ function TutorialWowInvoice({ scanning }) {
   );
 }
 
+// v3 (2026-09-16, encore le même jour) — retour immédiat après test réel de la v2 : "ça me perd un
+// peu... la vidéo est pas assez bien faite... faudrait qu'on puisse toucher n'importe où... on a
+// envie de speed run le tuto et on comprend rien... et après on atterrit dans le scan mais on pense
+// que c'est la page d'accueil". Trois corrections distinctes, toutes gardées ici :
+// 1. Zone de tap = TOUT l'écran en phase "idle" (avant : juste une petite icône sur la facture).
+// 2. Rythme ralenti + repère d'étape permanent (4 points numérotés en haut) + un temps de pause AVANT
+//    chaque bascule visuelle (le texte du prochain temps du récit apparaît d'abord, PUIS l'image
+//    change) — pour guider l'œil au lieu de tout balancer d'un coup.
+// 3. Le CTA final ne force plus la navigation vers l'onglet Scanner (qui atterrissait sur un écran
+//    vide et confus pour qui n'a pas sa facture sous la main à cet instant précis) — il ferme
+//    simplement le tuto, l'utilisateur retombe sur l'écran d'accueil (Recettes), qui a déjà sa
+//    propre bannière "Scanner ma première facture" avec du contexte autour (pas un écran nu).
+const WOW_STEPS = ["scan", "result", "priceUp", "impact"];
+
+function TutorialWowStepper({ current }) {
+  return (
+    <div className="flex items-center justify-center gap-2 pb-1">
+      {WOW_STEPS.map((s, i) => (
+        <div key={s} className="flex items-center gap-2">
+          <div
+            className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300"
+            style={
+              i === current
+                ? { background: BRAND_SOLID, color: "#fff" }
+                : i < current
+                ? { background: "rgba(16,185,129,0.25)", color: "#10B981" }
+                : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.35)" }
+            }
+          >
+            {i < current ? <Check size={11} /> : i + 1}
+          </div>
+          {i < WOW_STEPS.length - 1 && (
+            <div className="w-5 h-px" style={{ background: i < current ? "#10B981" : "rgba(255,255,255,0.12)" }} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function TutorialWowScan({ t, onStartScan, onSkip }) {
-  const [phase, setPhase] = useState("idle"); // idle -> scanning -> result -> priceUp -> recipeImpact -> cta
+  // idle -> scanning -> intro:result -> result -> intro:priceUp -> priceUp -> intro:impact -> recipeImpact -> cta
+  const [phase, setPhase] = useState("idle");
   const [reveal, setReveal] = useState(0);
   const [marginValue, setMarginValue] = useState(78);
+  const [priceFlipped, setPriceFlipped] = useState(false);
+
+  const stepIndex =
+    phase === "idle" || phase === "scanning"
+      ? 0
+      : phase === "intro:result" || phase === "result"
+      ? 1
+      : phase === "intro:priceUp" || phase === "priceUp"
+      ? 2
+      : 3;
 
   useEffect(() => {
     if (phase === "scanning") {
       if (reveal >= WOW_ITEMS.length) {
-        const t1 = setTimeout(() => setPhase("result"), 450);
+        const t1 = setTimeout(() => setPhase("intro:result"), 500);
         return () => clearTimeout(t1);
       }
-      const id = setTimeout(() => setReveal((r) => r + 1), 420);
+      const id = setTimeout(() => setReveal((r) => r + 1), 600);
+      return () => clearTimeout(id);
+    }
+    // Chaque bascule majeure passe par un court palier "intro:" — le texte du prochain temps du
+    // récit s'affiche seul une seconde avant que l'image ne change, pour que l'œil sache quoi
+    // regarder avant que ça bouge (plutôt que texte + image qui changent en même temps).
+    if (phase === "intro:result") {
+      const id = setTimeout(() => setPhase("result"), 1000);
       return () => clearTimeout(id);
     }
     if (phase === "result") {
-      const id = setTimeout(() => setPhase("priceUp"), 2200);
+      const id = setTimeout(() => setPhase("intro:priceUp"), 3200);
+      return () => clearTimeout(id);
+    }
+    if (phase === "intro:priceUp") {
+      const id = setTimeout(() => { setPriceFlipped(false); setPhase("priceUp"); }, 1100);
       return () => clearTimeout(id);
     }
     if (phase === "priceUp") {
-      const id = setTimeout(() => setPhase("recipeImpact"), 2400);
+      // La ligne pulse d'abord SANS changer (attire l'œil), puis le prix bascule au rouge.
+      const t1 = setTimeout(() => setPriceFlipped(true), 900);
+      const t2 = setTimeout(() => setPhase("intro:impact"), 3600);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+    if (phase === "intro:impact") {
+      const id = setTimeout(() => setPhase("recipeImpact"), 1000);
       return () => clearTimeout(id);
     }
     if (phase === "recipeImpact") {
-      const t1 = setTimeout(() => setMarginValue(71), 250);
-      const t2 = setTimeout(() => setPhase("cta"), 2400);
+      const t1 = setTimeout(() => setMarginValue(71), 300);
+      const t2 = setTimeout(() => setPhase("cta"), 3000);
       return () => { clearTimeout(t1); clearTimeout(t2); };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, reveal]);
 
-  const start = () => { setPhase("scanning"); setReveal(0); setMarginValue(78); };
+  const start = () => { setPhase("scanning"); setReveal(0); setMarginValue(78); setPriceFlipped(false); };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "#16130F" }}>
@@ -1096,32 +1164,32 @@ export function TutorialWowScan({ t, onStartScan, onSkip }) {
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 overflow-y-auto text-center gap-4">
-        {(phase === "idle" || phase === "scanning") && (
-          <>
-            <h2 className="font-display uppercase text-white text-lg tracking-wide">{t("tutorial_scan_title")}</h2>
-            <p className="text-white/55 text-sm leading-relaxed max-w-xs">{t("tutorial_scan_body")}</p>
-            <div className="relative">
-              <TutorialWowInvoice scanning={phase === "scanning"} />
-              {phase === "idle" && (
-                <button
-                  type="button"
-                  onClick={start}
-                  className="absolute inset-0 flex items-center justify-center"
-                  style={{ background: "rgba(22,19,15,0.4)" }}
-                >
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center animate-pulse" style={{ background: BRAND_SOLID }}>
-                    <Receipt size={20} color="#fff" />
-                  </div>
-                </button>
-              )}
-            </div>
-            {phase === "idle" && (
-              <span className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: BRAND_SOLID }}>
-                {t("tutorialScanTapPrompt")}
-              </span>
-            )}
-            {phase === "scanning" && (
+      {phase !== "idle" && <TutorialWowStepper current={stepIndex} />}
+
+      {phase === "idle" ? (
+        // Zone de tap = tout l'écran (2026-09-16 v3) : avant, seule la petite icône sur la facture
+        // était touchable, jugé pas assez évident ("faudrait qu'il puisse toucher n'importe où").
+        <button
+          type="button"
+          onClick={start}
+          className="flex-1 flex flex-col items-center justify-center px-6 py-4 text-center gap-4 w-full"
+        >
+          <h2 className="font-display uppercase text-white text-lg tracking-wide">{t("tutorial_scan_title")}</h2>
+          <p className="text-white/55 text-sm leading-relaxed max-w-xs">{t("tutorial_scan_body")}</p>
+          <TutorialWowInvoice scanning={false} />
+          <span
+            className="text-[11px] uppercase tracking-wide font-semibold px-4 py-2 rounded-full animate-pulse"
+            style={{ color: "#fff", background: BRAND_GRADIENT }}
+          >
+            {t("tutorialScanTapPrompt")}
+          </span>
+        </button>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 overflow-y-auto text-center gap-4">
+          {phase === "scanning" && (
+            <>
+              <h2 className="font-display uppercase text-white text-lg tracking-wide">{t("tutorial_scan_title")}</h2>
+              <TutorialWowInvoice scanning />
               <div className="flex flex-col gap-1.5 w-full max-w-[220px]">
                 {WOW_ITEMS.map((it, i) => (
                   <div
@@ -1135,92 +1203,109 @@ export function TutorialWowScan({ t, onStartScan, onSkip }) {
                   </div>
                 ))}
               </div>
-            )}
-          </>
-        )}
+            </>
+          )}
 
-        {(phase === "result" || phase === "priceUp") && (
-          <>
-            <h2 className="font-display uppercase text-white text-base tracking-wide">
-              {phase === "priceUp" ? t("tutorialWowLater") : t("tutorialWowResultBanner")}
+          {phase === "intro:result" && (
+            <h2 className="font-display uppercase text-white text-lg tracking-wide max-w-xs animate-pulse">
+              {t("tutorialWowResultBanner")}
             </h2>
-            {phase === "result" && <p className="text-white/45 text-xs">{t("tutorialWowSupplier")}</p>}
-            <div className="w-full max-w-xs rounded-2xl border border-white/10 overflow-hidden" style={{ background: "#201B15" }}>
-              {WOW_ITEMS.map((it, i) => {
-                const isBoeuf = i === 0;
-                const flagged = phase === "priceUp" && isBoeuf;
-                return (
-                  <div
-                    key={it.name}
-                    className="flex items-center gap-2 px-3.5 py-2.5 text-sm"
-                    style={{ borderBottom: i < WOW_ITEMS.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
-                  >
-                    <Check size={13} style={{ color: "#10B981" }} className="shrink-0" />
-                    <span className="text-white/85 flex-1 text-left">{it.name}</span>
-                    <span
-                      className="font-mono font-semibold transition-colors duration-500"
-                      style={{ color: flagged ? "#EF4444" : "rgba(255,255,255,0.6)" }}
-                    >
-                      {flagged ? "13,50€/kg" : it.price}
-                    </span>
-                    {flagged && <TrendingUp size={14} style={{ color: "#EF4444" }} className="shrink-0" />}
-                  </div>
-                );
-              })}
-            </div>
-            {phase === "result" && (
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "#10B981" }}>
-                <Check size={13} /> {t("tutorialWowResultConfirm")}
-              </div>
-            )}
-            {phase === "priceUp" && (
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "#EF4444" }}>
-                <TrendingUp size={13} /> +13%
-              </div>
-            )}
-          </>
-        )}
+          )}
 
-        {(phase === "recipeImpact" || phase === "cta") && (
-          <>
-            <h2 className="font-display uppercase text-white text-base tracking-wide max-w-xs">{t("tutorialWowRecipeIntro")}</h2>
-            <div className="w-full max-w-xs rounded-2xl border border-white/10 p-4 flex items-center gap-4" style={{ background: "#201B15" }}>
-              <div className="relative w-16 h-16 shrink-0">
-                <svg width="64" height="64" viewBox="0 0 64 64">
-                  <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
-                  <circle
-                    cx="32" cy="32" r="26" fill="none"
-                    stroke={marginValue >= 75 ? TIER_COLORS.high : TIER_COLORS.mid}
-                    strokeWidth="6" strokeLinecap="round"
-                    strokeDasharray="163.4"
-                    strokeDashoffset={163.4 * (1 - marginValue / 100)}
-                    transform="rotate(-90 32 32)"
-                    style={{ transition: "stroke-dashoffset 0.9s ease, stroke 0.9s ease" }}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-white text-sm font-display font-black">{marginValue}%</span>
+          {(phase === "result" || phase === "intro:priceUp" || phase === "priceUp") && (
+            <>
+              <h2 className="font-display uppercase text-white text-base tracking-wide max-w-xs">
+                {phase === "result" ? t("tutorialWowResultBanner") : t("tutorialWowLater")}
+              </h2>
+              {phase === "result" && <p className="text-white/45 text-xs">{t("tutorialWowSupplier")}</p>}
+              <div className="w-full max-w-xs rounded-2xl border border-white/10 overflow-hidden" style={{ background: "#201B15" }}>
+                {WOW_ITEMS.map((it, i) => {
+                  const isBoeuf = i === 0;
+                  const highlighting = phase === "priceUp" && isBoeuf;
+                  const flagged = highlighting && priceFlipped;
+                  return (
+                    <div
+                      key={it.name}
+                      className="flex items-center gap-2 px-3.5 py-2.5 text-sm transition-all duration-300"
+                      style={{
+                        borderBottom: i < WOW_ITEMS.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                        background: highlighting ? "rgba(239,68,68,0.08)" : "transparent",
+                        boxShadow: highlighting && !flagged ? "inset 0 0 0 1.5px rgba(239,68,68,0.5)" : "none",
+                      }}
+                    >
+                      <Check size={13} style={{ color: "#10B981" }} className="shrink-0" />
+                      <span className="text-white/85 flex-1 text-left">{it.name}</span>
+                      <span
+                        className="font-mono font-semibold transition-colors duration-500"
+                        style={{ color: flagged ? "#EF4444" : "rgba(255,255,255,0.6)" }}
+                      >
+                        {flagged ? "13,50€/kg" : it.price}
+                      </span>
+                      {flagged && <TrendingUp size={14} style={{ color: "#EF4444" }} className="shrink-0" />}
+                    </div>
+                  );
+                })}
+              </div>
+              {phase === "result" && (
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "#10B981" }}>
+                  <Check size={13} /> {t("tutorialWowResultConfirm")}
+                </div>
+              )}
+              {phase === "priceUp" && priceFlipped && (
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "#EF4444" }}>
+                  <TrendingUp size={13} /> +13%
+                </div>
+              )}
+            </>
+          )}
+
+          {phase === "intro:impact" && (
+            <h2 className="font-display uppercase text-white text-lg tracking-wide max-w-xs animate-pulse">
+              {t("tutorialWowRecipeIntro")}
+            </h2>
+          )}
+
+          {(phase === "recipeImpact" || phase === "cta") && (
+            <>
+              <h2 className="font-display uppercase text-white text-base tracking-wide max-w-xs">{t("tutorialWowRecipeIntro")}</h2>
+              <div className="w-full max-w-xs rounded-2xl border border-white/10 p-4 flex items-center gap-4" style={{ background: "#201B15" }}>
+                <div className="relative w-16 h-16 shrink-0">
+                  <svg width="64" height="64" viewBox="0 0 64 64">
+                    <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
+                    <circle
+                      cx="32" cy="32" r="26" fill="none"
+                      stroke={marginValue >= 75 ? TIER_COLORS.high : TIER_COLORS.mid}
+                      strokeWidth="6" strokeLinecap="round"
+                      strokeDasharray="163.4"
+                      strokeDashoffset={163.4 * (1 - marginValue / 100)}
+                      transform="rotate(-90 32 32)"
+                      style={{ transition: "stroke-dashoffset 0.9s ease, stroke 0.9s ease" }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-white text-sm font-display font-black">{marginValue}%</span>
+                  </div>
+                </div>
+                <div className="text-left">
+                  <div className="text-white text-sm font-semibold">Bœuf bourguignon</div>
+                  <div className="text-white/40 text-[11px] mt-0.5">{t("marginLabel")}</div>
                 </div>
               </div>
-              <div className="text-left">
-                <div className="text-white text-sm font-semibold">Bœuf bourguignon</div>
-                <div className="text-white/40 text-[11px] mt-0.5">{t("marginLabel")}</div>
-              </div>
-            </div>
-            <p className="text-white/55 text-xs leading-relaxed max-w-xs">{t("tutorialWowRecipeOutro")}</p>
-            {phase === "cta" && (
-              <button
-                type="button"
-                onClick={onStartScan}
-                className="mt-1 w-full max-w-xs py-3.5 rounded-full font-display uppercase text-[12px] tracking-wide font-semibold"
-                style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
-              >
-                {t("tutorialScanCTA")}
-              </button>
-            )}
-          </>
-        )}
-      </div>
+              <p className="text-white/55 text-xs leading-relaxed max-w-xs">{t("tutorialWowRecipeOutro")}</p>
+              {phase === "cta" && (
+                <button
+                  type="button"
+                  onClick={onStartScan}
+                  className="mt-1 w-full max-w-xs py-3.5 rounded-full font-display uppercase text-[12px] tracking-wide font-semibold"
+                  style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+                >
+                  {t("tutorialWowCTA")}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1384,21 +1469,25 @@ const TUTORIAL_ART = {
   pantry: TutorialPantryArt,
 };
 
-export function AppTutorial({ t, onClose, onStartScan }) {
+export function AppTutorial({ t, onClose }) {
   const [pageIdx, setPageIdx] = useState(0);
   const page = TUTORIAL_PAGES[pageIdx];
   const isLast = pageIdx === TUTORIAL_PAGES.length - 1;
 
-  // Page "Scanner" (2026-09-16, v2) : plein écran dédié (TutorialWowScan) au lieu de la petite carte
-  // standard — demandé explicitement "plus gros", avec un vrai récit (résultat détaillé, hausse de
-  // prix détectée, impact direct sur une recette), pas juste 5 lignes + un anneau. Bypass volontaire
-  // du Retour/Suivant/points de cette page précise (reste joignable via "Passer", cohérent avec le
-  // reste du tuto où "Passer" ferme déjà tout, pas juste la page).
+  // Page "Scanner" (2026-09-16, v2 puis v3) : plein écran dédié (TutorialWowScan) au lieu de la
+  // petite carte standard — demandé explicitement "plus gros", avec un vrai récit (résultat détaillé,
+  // hausse de prix détectée, impact direct sur une recette). Bypass volontaire du Retour/Suivant/
+  // points de cette page précise (reste joignable via "Passer", cohérent avec le reste du tuto où
+  // "Passer" ferme déjà tout, pas juste la page).
+  // [v3] Le CTA final NE force plus la bascule vers l'onglet Scanner (retour réel : "on atterrit
+  // dans le scan mais la plupart du temps on a rien à scanner, on pense que c'est la page
+  // d'accueil") — il ferme simplement le tuto, l'utilisateur retombe sur l'écran d'accueil habituel
+  // (Recettes), qui a déjà sa propre bannière "Scanner ma première facture" avec du contexte autour.
   if (page === "scan") {
     return (
       <TutorialWowScan
         t={t}
-        onStartScan={() => { onStartScan(); onClose({ lastStep: page, finishedAll: false }); }}
+        onStartScan={() => onClose({ lastStep: page, finishedAll: false })}
         onSkip={() => onClose({ lastStep: page, finishedAll: false })}
       />
     );
