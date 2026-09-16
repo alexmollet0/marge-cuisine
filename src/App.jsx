@@ -6317,7 +6317,7 @@ export default function App() {
           firstRunDone), soit rouvert volontairement depuis "Mon compte" (tutorialOpen). Ne crée ni
           ne modifie jamais aucune recette — purement informatif. */}
       {(showTutorial || tutorialOpen) && (
-        <AppTutorial t={t} onClose={closeTutorial} />
+        <AppTutorial t={t} onClose={closeTutorial} onStartScan={() => setActiveTab("scanner")} />
       )}
 
       {/* ---------------- NAVIGATION PAR ONGLETS (bas d'écran) ---------------- */}

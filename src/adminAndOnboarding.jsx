@@ -1013,12 +1013,19 @@ function TutorialWelcomeArt() {
   );
 }
 
-// Fausse facture avec une ligne de scan en boucle + 5 ingrédients qui apparaissent l'un après
-// l'autre — illustre le scan sans jamais appeler le vrai pipeline (api/scan-invoice.js). 5 lignes
-// (remonté de 2 le 2026-08-31, demandé pour que la facture ait l'air plus réelle/dense) — interval
-// resserré (750ms) pour garder un cycle total raisonnable malgré le nombre de lignes en plus.
-function TutorialScanArt() {
+// Fausse facture DÉCLENCHÉE PAR UN TAP (2026-09, demandé explicitement — "effet wow interactif",
+// voir spec-activation-retention.md) : remplace l'ancienne version en boucle automatique (l'utilisateur
+// ne faisait que regarder). Ici il touche lui-même la facture, déclenche le "scan", voit les 5
+// ingrédients apparaître un par un PUIS la marge se dessiner en anneau (même grammaire visuelle que
+// TutorialRecipeArt/le vrai panneau "en un coup d'œil") — une seule fois, pas en boucle : un effet
+// "wow" ne doit pas se répéter tout seul sous les yeux, il doit être PROVOQUÉ.
+// ⚠️ Volontairement ≠ FirstRunWizard (tenté puis abandonné le 2026-08-31, jugé "chiant") : celui-ci
+// forçait la création d'une VRAIE recette avec saisie obligatoire dès l'arrivée. Ici, rien n'est
+// tapé, rien n'est créé — un simple tap sur une facture FACTICE, purement démonstratif.
+function TutorialScanArt({ onStartScan, t }) {
+  const [phase, setPhase] = useState("idle"); // idle -> scanning -> margin
   const [reveal, setReveal] = useState(0);
+  const [marginTarget, setMarginTarget] = useState(0);
   const items = [
     { name: "Bœuf haché", price: "11,90€/kg" },
     { name: "Oignons", price: "1,80€/kg" },
@@ -1026,11 +1033,84 @@ function TutorialScanArt() {
     { name: "Carottes", price: "1,50€/kg" },
     { name: "Tomates", price: "2,40€/kg" },
   ];
+
   useEffect(() => {
-    const id = setInterval(() => setReveal((r) => (r + 1) % (items.length + 1)), 750);
-    return () => clearInterval(id);
+    if (phase !== "scanning") return;
+    if (reveal >= items.length) {
+      const t = setTimeout(() => setPhase("margin"), 500);
+      return () => clearTimeout(t);
+    }
+    const id = setTimeout(() => setReveal((r) => r + 1), 550);
+    return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [phase, reveal]);
+
+  useEffect(() => {
+    if (phase !== "margin") return;
+    // Laisse d'abord l'anneau se peindre à 0%, sinon la transition CSS n'a rien à animer (déjà
+    // monté à sa valeur finale au premier rendu).
+    const t = setTimeout(() => setMarginTarget(78), 80);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  if (phase === "margin") {
+    return (
+      <div className="w-full flex flex-col items-center gap-3 py-1">
+        <div className="relative w-20 h-20 shrink-0">
+          <svg width="80" height="80" viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="33" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" />
+            <circle
+              cx="40" cy="40" r="33" fill="none" stroke={TIER_COLORS.high} strokeWidth="7" strokeLinecap="round"
+              strokeDasharray="207.3"
+              strokeDashoffset={207.3 * (1 - marginTarget / 100)}
+              transform="rotate(-90 40 40)"
+              style={{ transition: "stroke-dashoffset 0.9s ease" }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-white text-base font-display font-black">{marginTarget}%</span>
+          </div>
+        </div>
+        <p className="text-white/70 text-xs font-semibold">{t("tutorialScanWowMessage")}</p>
+        {onStartScan && (
+          <button
+            type="button"
+            onClick={onStartScan}
+            className="mt-1 px-5 py-2.5 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold"
+            style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+          >
+            {t("tutorialScanCTA")}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  if (phase === "idle") {
+    return (
+      <button
+        type="button"
+        onClick={() => { setPhase("scanning"); setReveal(0); setMarginTarget(0); }}
+        className="w-full flex flex-col items-center gap-2 py-1"
+      >
+        <div className="relative w-16 h-24 rounded-lg overflow-hidden shrink-0" style={{ background: "rgba(255,255,255,0.92)" }}>
+          <div className="absolute inset-x-2 top-2 h-1 rounded-full bg-black/15" />
+          <div className="absolute inset-x-2 top-4 h-1 rounded-full bg-black/10 w-2/3" />
+          <div className="absolute inset-x-2 top-6 h-1 rounded-full bg-black/10 w-1/2" />
+          <div className="absolute inset-x-2 top-8 h-1 rounded-full bg-black/10 w-3/5" />
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(22,19,15,0.45)" }}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center animate-pulse" style={{ background: BRAND_SOLID }}>
+              <Receipt size={15} color="#fff" />
+            </div>
+          </div>
+        </div>
+        <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: BRAND_SOLID }}>
+          {t("tutorialScanTapPrompt")}
+        </span>
+      </button>
+    );
+  }
+
   return (
     <div className="w-full flex items-center justify-center gap-4 py-1">
       <div className="relative w-16 h-24 rounded-lg overflow-hidden shrink-0" style={{ background: "rgba(255,255,255,0.92)" }}>
@@ -1221,11 +1301,17 @@ const TUTORIAL_ART = {
   pantry: TutorialPantryArt,
 };
 
-export function AppTutorial({ t, onClose }) {
+export function AppTutorial({ t, onClose, onStartScan }) {
   const [pageIdx, setPageIdx] = useState(0);
   const page = TUTORIAL_PAGES[pageIdx];
   const isLast = pageIdx === TUTORIAL_PAGES.length - 1;
   const Art = TUTORIAL_ART[page];
+  // `onStartScan` (2026-09) : uniquement pertinent pour la page "scan", devenue interactive — les
+  // autres Art l'ignorent simplement (aucune prop attendue chez eux).
+  const artProps =
+    page === "scan" && onStartScan
+      ? { t, onStartScan: () => { onStartScan(); onClose({ lastStep: page, finishedAll: false }); } }
+      : {};
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 py-4" style={{ background: "rgba(0,0,0,0.8)" }}>
@@ -1241,7 +1327,7 @@ export function AppTutorial({ t, onClose }) {
           </button>
         </div>
         <div className="px-6 pb-2 flex flex-col items-center text-center">
-          <Art />
+          <Art {...artProps} />
           <h2 className="font-display uppercase text-white text-base tracking-wide mt-5 mb-2">{t(`tutorial_${page}_title`)}</h2>
           <p className="text-white/55 text-sm leading-relaxed">{t(`tutorial_${page}_body`)}</p>
         </div>
