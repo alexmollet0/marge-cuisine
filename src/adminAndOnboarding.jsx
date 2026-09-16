@@ -1013,129 +1013,213 @@ function TutorialWelcomeArt() {
   );
 }
 
-// Fausse facture DÉCLENCHÉE PAR UN TAP (2026-09, demandé explicitement — "effet wow interactif",
-// voir spec-activation-retention.md) : remplace l'ancienne version en boucle automatique (l'utilisateur
-// ne faisait que regarder). Ici il touche lui-même la facture, déclenche le "scan", voit les 5
-// ingrédients apparaître un par un PUIS la marge se dessiner en anneau (même grammaire visuelle que
-// TutorialRecipeArt/le vrai panneau "en un coup d'œil") — une seule fois, pas en boucle : un effet
-// "wow" ne doit pas se répéter tout seul sous les yeux, il doit être PROVOQUÉ.
+// Démo "wow" plein écran (2026-09-16, v2 — demandé plus grand/plus complet après un premier retour :
+// "je voulais un vrai tuto plus gros... le vrai résultat d'une facture... ce que ça fait quand un
+// prix augmente et ce que ça fait ensuite sur la recette"). Remplace la première version (v1, petite
+// carte avec juste 5 lignes + anneau de marge) par un récit complet en plein écran, DÉCLENCHÉ PAR UN
+// TAP puis auto-joué (une seule action de l'utilisateur, pas un tap par étape — garde le rythme
+// "cinématique" voulu) : facture factice → scan → résultat détaillé façon vrai écran de scan →
+// quelques semaines plus tard, le même produit a augmenté → l'impact se voit immédiatement sur une
+// recette réelle (marge qui baisse, verte → ambre) → CTA. Aucune vraie donnée créée, aucun appel API.
 // ⚠️ Volontairement ≠ FirstRunWizard (tenté puis abandonné le 2026-08-31, jugé "chiant") : celui-ci
-// forçait la création d'une VRAIE recette avec saisie obligatoire dès l'arrivée. Ici, rien n'est
-// tapé, rien n'est créé — un simple tap sur une facture FACTICE, purement démonstratif.
-function TutorialScanArt({ onStartScan, t }) {
-  const [phase, setPhase] = useState("idle"); // idle -> scanning -> margin
+// forçait la création d'une VRAIE recette avec saisie obligatoire dès l'arrivée — ici rien n'est
+// tapé, rien n'est créé, juste une démo.
+const WOW_ITEMS = [
+  { name: "Bœuf haché", price: "11,90€/kg" },
+  { name: "Oignons", price: "1,80€/kg" },
+  { name: "Crème fraîche", price: "3,20€/L" },
+  { name: "Carottes", price: "1,50€/kg" },
+  { name: "Tomates", price: "2,40€/kg" },
+];
+const WOW_LINE_TOPS = [36, 56, 76, 96, 116, 136, 156];
+
+function TutorialWowInvoice({ scanning }) {
+  return (
+    <div className="relative w-40 h-56 rounded-xl overflow-hidden shrink-0 mx-auto shadow-xl" style={{ background: "rgba(255,255,255,0.96)" }}>
+      <div className="absolute inset-x-5 top-5 h-2.5 rounded-full bg-black/25 w-2/3" />
+      <div className="absolute inset-x-5 top-9 h-1.5 rounded-full bg-black/10 w-1/2" />
+      {WOW_LINE_TOPS.map((top, i) => (
+        <div key={top} className="absolute inset-x-5 h-1 rounded-full bg-black/10" style={{ top, width: i % 2 === 0 ? "72%" : "50%" }} />
+      ))}
+      <div className="absolute inset-x-5 bottom-6 h-2 rounded-full bg-black/20 w-1/2" />
+      {scanning && (
+        <div
+          className="absolute inset-x-0 h-1"
+          style={{ background: BRAND_SOLID, boxShadow: `0 0 10px ${BRAND_SOLID}`, animation: "chefupTutScan 1.5s ease-in-out infinite" }}
+        />
+      )}
+    </div>
+  );
+}
+
+export function TutorialWowScan({ t, onStartScan, onSkip }) {
+  const [phase, setPhase] = useState("idle"); // idle -> scanning -> result -> priceUp -> recipeImpact -> cta
   const [reveal, setReveal] = useState(0);
-  const [marginTarget, setMarginTarget] = useState(0);
-  const items = [
-    { name: "Bœuf haché", price: "11,90€/kg" },
-    { name: "Oignons", price: "1,80€/kg" },
-    { name: "Crème fraîche", price: "3,20€/L" },
-    { name: "Carottes", price: "1,50€/kg" },
-    { name: "Tomates", price: "2,40€/kg" },
-  ];
+  const [marginValue, setMarginValue] = useState(78);
 
   useEffect(() => {
-    if (phase !== "scanning") return;
-    if (reveal >= items.length) {
-      const t = setTimeout(() => setPhase("margin"), 500);
-      return () => clearTimeout(t);
+    if (phase === "scanning") {
+      if (reveal >= WOW_ITEMS.length) {
+        const t1 = setTimeout(() => setPhase("result"), 450);
+        return () => clearTimeout(t1);
+      }
+      const id = setTimeout(() => setReveal((r) => r + 1), 420);
+      return () => clearTimeout(id);
     }
-    const id = setTimeout(() => setReveal((r) => r + 1), 550);
-    return () => clearTimeout(id);
+    if (phase === "result") {
+      const id = setTimeout(() => setPhase("priceUp"), 2200);
+      return () => clearTimeout(id);
+    }
+    if (phase === "priceUp") {
+      const id = setTimeout(() => setPhase("recipeImpact"), 2400);
+      return () => clearTimeout(id);
+    }
+    if (phase === "recipeImpact") {
+      const t1 = setTimeout(() => setMarginValue(71), 250);
+      const t2 = setTimeout(() => setPhase("cta"), 2400);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, reveal]);
 
-  useEffect(() => {
-    if (phase !== "margin") return;
-    // Laisse d'abord l'anneau se peindre à 0%, sinon la transition CSS n'a rien à animer (déjà
-    // monté à sa valeur finale au premier rendu).
-    const t = setTimeout(() => setMarginTarget(78), 80);
-    return () => clearTimeout(t);
-  }, [phase]);
-
-  if (phase === "margin") {
-    return (
-      <div className="w-full flex flex-col items-center gap-3 py-1">
-        <div className="relative w-20 h-20 shrink-0">
-          <svg width="80" height="80" viewBox="0 0 80 80">
-            <circle cx="40" cy="40" r="33" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" />
-            <circle
-              cx="40" cy="40" r="33" fill="none" stroke={TIER_COLORS.high} strokeWidth="7" strokeLinecap="round"
-              strokeDasharray="207.3"
-              strokeDashoffset={207.3 * (1 - marginTarget / 100)}
-              transform="rotate(-90 40 40)"
-              style={{ transition: "stroke-dashoffset 0.9s ease" }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-white text-base font-display font-black">{marginTarget}%</span>
-          </div>
-        </div>
-        <p className="text-white/70 text-xs font-semibold">{t("tutorialScanWowMessage")}</p>
-        {onStartScan && (
-          <button
-            type="button"
-            onClick={onStartScan}
-            className="mt-1 px-5 py-2.5 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold"
-            style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
-          >
-            {t("tutorialScanCTA")}
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  if (phase === "idle") {
-    return (
-      <button
-        type="button"
-        onClick={() => { setPhase("scanning"); setReveal(0); setMarginTarget(0); }}
-        className="w-full flex flex-col items-center gap-2 py-1"
-      >
-        <div className="relative w-16 h-24 rounded-lg overflow-hidden shrink-0" style={{ background: "rgba(255,255,255,0.92)" }}>
-          <div className="absolute inset-x-2 top-2 h-1 rounded-full bg-black/15" />
-          <div className="absolute inset-x-2 top-4 h-1 rounded-full bg-black/10 w-2/3" />
-          <div className="absolute inset-x-2 top-6 h-1 rounded-full bg-black/10 w-1/2" />
-          <div className="absolute inset-x-2 top-8 h-1 rounded-full bg-black/10 w-3/5" />
-          <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(22,19,15,0.45)" }}>
-            <div className="w-8 h-8 rounded-full flex items-center justify-center animate-pulse" style={{ background: BRAND_SOLID }}>
-              <Receipt size={15} color="#fff" />
-            </div>
-          </div>
-        </div>
-        <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: BRAND_SOLID }}>
-          {t("tutorialScanTapPrompt")}
-        </span>
-      </button>
-    );
-  }
+  const start = () => { setPhase("scanning"); setReveal(0); setMarginValue(78); };
 
   return (
-    <div className="w-full flex items-center justify-center gap-4 py-1">
-      <div className="relative w-16 h-24 rounded-lg overflow-hidden shrink-0" style={{ background: "rgba(255,255,255,0.92)" }}>
-        <div className="absolute inset-x-2 top-2 h-1 rounded-full bg-black/15" />
-        <div className="absolute inset-x-2 top-4 h-1 rounded-full bg-black/10 w-2/3" />
-        <div className="absolute inset-x-2 top-6 h-1 rounded-full bg-black/10 w-1/2" />
-        <div className="absolute inset-x-2 top-8 h-1 rounded-full bg-black/10 w-3/5" />
-        <div
-          className="absolute inset-x-0 h-0.5"
-          style={{ background: BRAND_SOLID, boxShadow: `0 0 6px ${BRAND_SOLID}`, animation: "chefupTutScan 1.8s ease-in-out infinite" }}
-        />
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "#16130F" }}>
+      {/* Rendu ici aussi (pas seulement dans AppTutorial) : cette page court-circuite la carte
+          standard qui contenait <TutorialStyles/>, donc le keyframe chefupTutScan (ligne de scan
+          animée) ne serait sinon jamais injecté pour cette page précise. */}
+      <TutorialStyles />
+      <div className="flex justify-end px-5 pt-4 shrink-0">
+        <button type="button" onClick={onSkip} className="text-white/35 hover:text-white/70 text-[11px]">
+          {t("tutorialSkip")}
+        </button>
       </div>
-      <ArrowRight size={16} className="text-white/25 shrink-0" />
-      <div className="flex flex-col gap-1 min-w-0">
-        {items.map((it, i) => (
-          <div
-            key={it.name}
-            className="flex items-center gap-1.5 text-[10px] transition-all duration-500"
-            style={{ opacity: reveal > i ? 1 : 0, transform: reveal > i ? "translateX(0)" : "translateX(-6px)" }}
-          >
-            <Check size={10} style={{ color: "#10B981" }} className="shrink-0" />
-            <span className="text-white/80">{it.name}</span>
-            <span className="text-white/40 font-mono">{it.price}</span>
-          </div>
-        ))}
+
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 overflow-y-auto text-center gap-4">
+        {(phase === "idle" || phase === "scanning") && (
+          <>
+            <h2 className="font-display uppercase text-white text-lg tracking-wide">{t("tutorial_scan_title")}</h2>
+            <p className="text-white/55 text-sm leading-relaxed max-w-xs">{t("tutorial_scan_body")}</p>
+            <div className="relative">
+              <TutorialWowInvoice scanning={phase === "scanning"} />
+              {phase === "idle" && (
+                <button
+                  type="button"
+                  onClick={start}
+                  className="absolute inset-0 flex items-center justify-center"
+                  style={{ background: "rgba(22,19,15,0.4)" }}
+                >
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center animate-pulse" style={{ background: BRAND_SOLID }}>
+                    <Receipt size={20} color="#fff" />
+                  </div>
+                </button>
+              )}
+            </div>
+            {phase === "idle" && (
+              <span className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: BRAND_SOLID }}>
+                {t("tutorialScanTapPrompt")}
+              </span>
+            )}
+            {phase === "scanning" && (
+              <div className="flex flex-col gap-1.5 w-full max-w-[220px]">
+                {WOW_ITEMS.map((it, i) => (
+                  <div
+                    key={it.name}
+                    className="flex items-center gap-2 text-xs transition-all duration-500"
+                    style={{ opacity: reveal > i ? 1 : 0, transform: reveal > i ? "translateY(0)" : "translateY(4px)" }}
+                  >
+                    <Check size={12} style={{ color: "#10B981" }} className="shrink-0" />
+                    <span className="text-white/80 flex-1 text-left">{it.name}</span>
+                    <span className="text-white/40 font-mono">{it.price}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {(phase === "result" || phase === "priceUp") && (
+          <>
+            <h2 className="font-display uppercase text-white text-base tracking-wide">
+              {phase === "priceUp" ? t("tutorialWowLater") : t("tutorialWowResultBanner")}
+            </h2>
+            {phase === "result" && <p className="text-white/45 text-xs">{t("tutorialWowSupplier")}</p>}
+            <div className="w-full max-w-xs rounded-2xl border border-white/10 overflow-hidden" style={{ background: "#201B15" }}>
+              {WOW_ITEMS.map((it, i) => {
+                const isBoeuf = i === 0;
+                const flagged = phase === "priceUp" && isBoeuf;
+                return (
+                  <div
+                    key={it.name}
+                    className="flex items-center gap-2 px-3.5 py-2.5 text-sm"
+                    style={{ borderBottom: i < WOW_ITEMS.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}
+                  >
+                    <Check size={13} style={{ color: "#10B981" }} className="shrink-0" />
+                    <span className="text-white/85 flex-1 text-left">{it.name}</span>
+                    <span
+                      className="font-mono font-semibold transition-colors duration-500"
+                      style={{ color: flagged ? "#EF4444" : "rgba(255,255,255,0.6)" }}
+                    >
+                      {flagged ? "13,50€/kg" : it.price}
+                    </span>
+                    {flagged && <TrendingUp size={14} style={{ color: "#EF4444" }} className="shrink-0" />}
+                  </div>
+                );
+              })}
+            </div>
+            {phase === "result" && (
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "#10B981" }}>
+                <Check size={13} /> {t("tutorialWowResultConfirm")}
+              </div>
+            )}
+            {phase === "priceUp" && (
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "#EF4444" }}>
+                <TrendingUp size={13} /> +13%
+              </div>
+            )}
+          </>
+        )}
+
+        {(phase === "recipeImpact" || phase === "cta") && (
+          <>
+            <h2 className="font-display uppercase text-white text-base tracking-wide max-w-xs">{t("tutorialWowRecipeIntro")}</h2>
+            <div className="w-full max-w-xs rounded-2xl border border-white/10 p-4 flex items-center gap-4" style={{ background: "#201B15" }}>
+              <div className="relative w-16 h-16 shrink-0">
+                <svg width="64" height="64" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
+                  <circle
+                    cx="32" cy="32" r="26" fill="none"
+                    stroke={marginValue >= 75 ? TIER_COLORS.high : TIER_COLORS.mid}
+                    strokeWidth="6" strokeLinecap="round"
+                    strokeDasharray="163.4"
+                    strokeDashoffset={163.4 * (1 - marginValue / 100)}
+                    transform="rotate(-90 32 32)"
+                    style={{ transition: "stroke-dashoffset 0.9s ease, stroke 0.9s ease" }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-white text-sm font-display font-black">{marginValue}%</span>
+                </div>
+              </div>
+              <div className="text-left">
+                <div className="text-white text-sm font-semibold">Bœuf bourguignon</div>
+                <div className="text-white/40 text-[11px] mt-0.5">{t("marginLabel")}</div>
+              </div>
+            </div>
+            <p className="text-white/55 text-xs leading-relaxed max-w-xs">{t("tutorialWowRecipeOutro")}</p>
+            {phase === "cta" && (
+              <button
+                type="button"
+                onClick={onStartScan}
+                className="mt-1 w-full max-w-xs py-3.5 rounded-full font-display uppercase text-[12px] tracking-wide font-semibold"
+                style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+              >
+                {t("tutorialScanCTA")}
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -1293,7 +1377,6 @@ function TutorialPantryArt() {
 
 const TUTORIAL_ART = {
   welcome: TutorialWelcomeArt,
-  scan: TutorialScanArt,
   recipe: TutorialRecipeArt,
   allergens: TutorialAllergensArt,
   technicalSheet: TutorialTechnicalSheetArt,
@@ -1305,13 +1388,23 @@ export function AppTutorial({ t, onClose, onStartScan }) {
   const [pageIdx, setPageIdx] = useState(0);
   const page = TUTORIAL_PAGES[pageIdx];
   const isLast = pageIdx === TUTORIAL_PAGES.length - 1;
+
+  // Page "Scanner" (2026-09-16, v2) : plein écran dédié (TutorialWowScan) au lieu de la petite carte
+  // standard — demandé explicitement "plus gros", avec un vrai récit (résultat détaillé, hausse de
+  // prix détectée, impact direct sur une recette), pas juste 5 lignes + un anneau. Bypass volontaire
+  // du Retour/Suivant/points de cette page précise (reste joignable via "Passer", cohérent avec le
+  // reste du tuto où "Passer" ferme déjà tout, pas juste la page).
+  if (page === "scan") {
+    return (
+      <TutorialWowScan
+        t={t}
+        onStartScan={() => { onStartScan(); onClose({ lastStep: page, finishedAll: false }); }}
+        onSkip={() => onClose({ lastStep: page, finishedAll: false })}
+      />
+    );
+  }
+
   const Art = TUTORIAL_ART[page];
-  // `onStartScan` (2026-09) : uniquement pertinent pour la page "scan", devenue interactive — les
-  // autres Art l'ignorent simplement (aucune prop attendue chez eux).
-  const artProps =
-    page === "scan" && onStartScan
-      ? { t, onStartScan: () => { onStartScan(); onClose({ lastStep: page, finishedAll: false }); } }
-      : {};
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-3 py-4" style={{ background: "rgba(0,0,0,0.8)" }}>
@@ -1327,7 +1420,7 @@ export function AppTutorial({ t, onClose, onStartScan }) {
           </button>
         </div>
         <div className="px-6 pb-2 flex flex-col items-center text-center">
-          <Art {...artProps} />
+          <Art />
           <h2 className="font-display uppercase text-white text-base tracking-wide mt-5 mb-2">{t(`tutorial_${page}_title`)}</h2>
           <p className="text-white/55 text-sm leading-relaxed">{t(`tutorial_${page}_body`)}</p>
         </div>
