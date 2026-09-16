@@ -1,16 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Receipt, Percent, Printer, Package, QrCode, Camera, Check } from "lucide-react";
-import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING, TIER_COLORS, marginTier } from "./App.jsx";
+import { Receipt, Percent, Printer, Package, QrCode, Camera, Check, TrendingUp } from "lucide-react";
+import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING, TIER_COLORS } from "./App.jsx";
 import { PROMO_CODE, PROMO_PERCENT, PROMO_END } from "./brand.js";
 import { usePromoCountdown } from "./pricing.js";
 import { shouldAskConsent, grantConsent, denyConsent, initPixelIfConsented, trackAdEvent } from "./adPixel.js";
-
-// TVA restauration sur place, valeur par défaut de l'app (settings.vatRate) : le calculateur de
-// démonstration doit donner exactement le même résultat que l'app pour les mêmes chiffres, sinon
-// le visiteur découvre un autre pourcentage une fois inscrit et perd confiance.
-const DEMO_VAT_RATE = 10;
-// Objectif de marge par défaut de l'app — décide du seuil vert/orange (voir marginTier).
-const DEMO_TARGET_MARGIN = 75;
 
 // Fire-and-forget, jamais bloquant pour le visiteur — voir api/landing.js (POST).
 // `?notrack=1` dans l'URL désactive le comptage (2026-08-19) : demandé par l'utilisateur qui
@@ -121,112 +114,196 @@ const STEPS = [
   { icon: QrCode, titleKey: "landingStep3Title", descKey: "landingStep3Desc" },
 ];
 
-// Accepte la virgule comme séparateur décimal : un restaurateur français tape "4,80", pas "4.80".
-const parseAmount = (raw) => {
-  const n = parseFloat(String(raw).replace(",", "."));
-  return Number.isFinite(n) && n >= 0 ? n : null;
-};
+// [CHANGEMENT MAJEUR, 2026-09-16] Remplace MarginCalculator (calculateur manuel jouable sans
+// compte, livré le 2026-08-27) — mesuré sur une semaine de vraie campagne payante : 203 visiteurs
+// engagés (3s+), 0 (ZÉRO) utilisation du calculateur alors qu'il était la toute première chose vue
+// après le titre. Retour direct de l'utilisateur, qui n'a jamais aimé ce bloc : "il faudrait une
+// vidéo super intuitive" à la place — quelque chose qui montre la valeur SANS demander au visiteur
+// de taper quoi que ce soit. Reprend la même trame que la démo "wow" du tuto d'inscription
+// (src/adminAndOnboarding.jsx, TutorialWowScan) — scan → résultat détaillé → un prix qui augmente →
+// impact direct sur une recette — mais en boucle AUTOMATIQUE (aucun tap requis, un visiteur froid
+// ne clique presque jamais) et avec un CTA "Commencer gratuitement" TOUJOURS visible en dessous
+// (jamais caché derrière la fin d'un cycle) pour ne perdre aucune conversion possible pendant que
+// l'animation tourne. Dupliqué ici plutôt qu'importé depuis adminAndOnboarding.jsx : ce fichier est
+// chargé AVANT toute authentification, il ne doit dépendre d'aucun module réservé à l'app connectée.
+const LANDING_WOW_ITEMS = [
+  { name: "Bœuf haché", price: "11,90€/kg" },
+  { name: "Oignons", price: "1,80€/kg" },
+  { name: "Crème fraîche", price: "3,20€/L" },
+  { name: "Carottes", price: "1,50€/kg" },
+  { name: "Tomates", price: "2,40€/kg" },
+];
+const LANDING_WOW_LINE_TOPS = [36, 56, 76, 96, 116, 136, 156];
 
-// Champ montant du calculateur. `text` plutôt que `number` : sur mobile, un input number refuse la
-// virgule sur certains claviers et affiche des flèches inutiles. `inputMode="decimal"` fait quand
-// même apparaître le pavé numérique. Taille de police à 16px minimum, sinon iOS zoome au focus et
-// le visiteur se retrouve avec une page à moitié hors écran — abandon quasi garanti.
-function AmountField({ value, onChange, suffix, ariaLabel }) {
+function LandingWowInvoice({ scanning }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-lg px-3 py-2.5" style={{ background: "rgba(0,0,0,0.25)" }}>
-      <input
-        type="text"
-        inputMode="decimal"
-        aria-label={ariaLabel}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full min-w-0 bg-transparent text-white text-base font-semibold outline-none text-right"
-      />
-      <span className="text-white/40 text-sm shrink-0">{suffix}</span>
+    <div className="relative w-32 h-44 rounded-xl overflow-hidden shrink-0 mx-auto shadow-xl" style={{ background: "rgba(255,255,255,0.96)" }}>
+      <style>{`@keyframes chefupLandingScan { 0% { top: 10%; opacity: .95; } 90% { top: 85%; opacity: .95; } 100% { top: 85%; opacity: 0; } }`}</style>
+      <div className="absolute inset-x-4 top-4 h-2 rounded-full bg-black/25 w-2/3" />
+      <div className="absolute inset-x-4 top-7 h-1.5 rounded-full bg-black/10 w-1/2" />
+      {LANDING_WOW_LINE_TOPS.map((top, i) => (
+        <div key={top} className="absolute inset-x-4 h-1 rounded-full bg-black/10" style={{ top: top * 0.8, width: i % 2 === 0 ? "72%" : "50%" }} />
+      ))}
+      <div className="absolute inset-x-4 bottom-5 h-1.5 rounded-full bg-black/20 w-1/2" />
+      {scanning && (
+        <div
+          className="absolute inset-x-0 h-1"
+          style={{ background: BRAND_SOLID, boxShadow: `0 0 10px ${BRAND_SOLID}`, animation: "chefupLandingScan 1.5s ease-in-out infinite" }}
+        />
+      )}
     </div>
   );
 }
 
-// [CHANGEMENT MAJEUR, 2026-08-27] Calculateur de marge jouable SANS COMPTE, à la place de
-// l'ancienne reconstitution statique d'une fiche recette.
-// Motif : la première campagne payante a montré que personne ne franchissait l'étape "créer un
-// compte" — or jusqu'ici, on ne pouvait strictement rien voir du produit avant de s'inscrire. La
-// page décrivait une promesse ("connais ta marge") sans jamais la démontrer. Ici le visiteur entre
-// ses propres chiffres et voit SA marge, avec la même couleur et le même calcul que dans l'app :
-// la promesse devient vérifiable en quinze secondes, sans email, sans mot de passe.
-function MarginCalculator({ t, lang, onEngage, onStart }) {
-  const [cost, setCost] = useState("4,80");
-  const [price, setPrice] = useState("21");
-
-  const c = parseAmount(cost);
-  const p = parseAmount(price);
-  const priceHT = p !== null ? p / (1 + DEMO_VAT_RATE / 100) : null;
-  const margin = priceHT !== null && priceHT > 0 && c !== null ? ((priceHT - c) / priceHT) * 100 : null;
-  const tier = marginTier(margin, DEMO_TARGET_MARGIN);
-  const color = tier ? TIER_COLORS[tier] : "rgba(255,255,255,0.3)";
-
-  // Signale une seule fois qu'un visiteur a réellement manipulé le calculateur — c'est le signal
-  // d'intérêt le plus fiable de toute la page, bien plus qu'une visite.
+function LandingWowDemo({ t, onEngage, onStart }) {
+  // idle -> scanning -> result -> priceUp -> recipeImpact -> (pause) -> idle (boucle infinie,
+  // aucune interaction requise — un visiteur froid ne clique presque jamais, voir commentaire ci-
+  // dessus). Signale UNE fois qu'un visiteur a vu la démo tourner au moins un cycle complet (même
+  // logique de signal d'intérêt que l'ancien calculateur, `onEngage`).
+  const [phase, setPhase] = useState("idle");
+  const [reveal, setReveal] = useState(0);
+  const [marginValue, setMarginValue] = useState(78);
+  const [priceFlipped, setPriceFlipped] = useState(false);
   const engaged = React.useRef(false);
-  const touch = () => {
-    if (!engaged.current) {
-      engaged.current = true;
-      onEngage();
+
+  useEffect(() => {
+    let timers = [];
+    if (phase === "idle") timers.push(setTimeout(() => { setReveal(0); setPhase("scanning"); }, 1200));
+    else if (phase === "scanning") {
+      if (reveal >= LANDING_WOW_ITEMS.length) timers.push(setTimeout(() => setPhase("result"), 500));
+      else timers.push(setTimeout(() => setReveal((r) => r + 1), 550));
+    } else if (phase === "result") timers.push(setTimeout(() => setPhase("priceUp"), 2800));
+    else if (phase === "priceUp") {
+      timers.push(setTimeout(() => setPriceFlipped(true), 900));
+      timers.push(setTimeout(() => setPhase("recipeImpact"), 3600));
+    } else if (phase === "recipeImpact") {
+      timers.push(setTimeout(() => setMarginValue(71), 300));
+      timers.push(
+        setTimeout(() => {
+          if (!engaged.current) { engaged.current = true; onEngage(); }
+          setMarginValue(78);
+          setPriceFlipped(false);
+          setPhase("idle");
+        }, 3400)
+      );
     }
-  };
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, reveal]);
 
   return (
-    <div className="max-w-sm mx-auto rounded-2xl p-5 border border-white/10 mb-12" style={{ background: "#201B15" }}>
-      <div className="text-center mb-4">
-        <div className="font-display uppercase text-xs tracking-widest text-white/90">{t("calcTitle")}</div>
-        <div className="text-white/40 text-[11px] mt-1">{t("calcSubtitle")}</div>
-      </div>
+    <div className="max-w-sm mx-auto rounded-2xl p-5 border border-white/10 mb-8" style={{ background: "#201B15" }}>
+      <div className="flex flex-col items-center justify-center text-center gap-3 min-h-[280px]">
+        {(phase === "idle" || phase === "scanning") && (
+          <>
+            <LandingWowInvoice scanning={phase === "scanning"} />
+            {phase === "idle" ? (
+              <span className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: BRAND_SOLID }}>
+                {t("landingWowScanning")}
+              </span>
+            ) : (
+              <div className="flex flex-col gap-1.5 w-full max-w-[220px]">
+                {LANDING_WOW_ITEMS.map((it, i) => (
+                  <div
+                    key={it.name}
+                    className="flex items-center gap-2 text-xs transition-all duration-500"
+                    style={{ opacity: reveal > i ? 1 : 0, transform: reveal > i ? "translateY(0)" : "translateY(4px)" }}
+                  >
+                    <Check size={12} style={{ color: "#10B981" }} className="shrink-0" />
+                    <span className="text-white/80 flex-1 text-left">{it.name}</span>
+                    <span className="text-white/40 font-mono">{it.price}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
 
-      <label className="block text-white/50 text-[11px] mb-1">{t("calcCostLabel")}</label>
-      <AmountField value={cost} onChange={(v) => { setCost(v); touch(); }} suffix="€" ariaLabel={t("calcCostLabel")} />
+        {(phase === "result" || phase === "priceUp") && (
+          <>
+            <h3 className="font-display uppercase text-white text-sm tracking-wide max-w-xs">
+              {phase === "result" ? t("landingWowResultBanner") : t("landingWowLater")}
+            </h3>
+            {phase === "result" && <p className="text-white/45 text-[11px]">{t("landingWowSupplier")}</p>}
+            <div className="w-full rounded-xl border border-white/10 overflow-hidden" style={{ background: "#16130F" }}>
+              {LANDING_WOW_ITEMS.map((it, i) => {
+                const isBoeuf = i === 0;
+                const highlighting = phase === "priceUp" && isBoeuf;
+                const flagged = highlighting && priceFlipped;
+                return (
+                  <div
+                    key={it.name}
+                    className="flex items-center gap-2 px-3 py-2 text-xs transition-all duration-300"
+                    style={{
+                      borderBottom: i < LANDING_WOW_ITEMS.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                      background: highlighting ? "rgba(239,68,68,0.08)" : "transparent",
+                      boxShadow: highlighting && !flagged ? "inset 0 0 0 1.5px rgba(239,68,68,0.5)" : "none",
+                    }}
+                  >
+                    <Check size={11} style={{ color: "#10B981" }} className="shrink-0" />
+                    <span className="text-white/85 flex-1 text-left">{it.name}</span>
+                    <span className="font-mono font-semibold transition-colors duration-500" style={{ color: flagged ? "#EF4444" : "rgba(255,255,255,0.6)" }}>
+                      {flagged ? "13,50€/kg" : it.price}
+                    </span>
+                    {flagged && <TrendingUp size={13} style={{ color: "#EF4444" }} className="shrink-0" />}
+                  </div>
+                );
+              })}
+            </div>
+            {phase === "result" && (
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "#10B981" }}>
+                <Check size={12} /> {t("landingWowResultConfirm")}
+              </div>
+            )}
+            {phase === "priceUp" && priceFlipped && (
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "#EF4444" }}>
+                <TrendingUp size={12} /> +13%
+              </div>
+            )}
+          </>
+        )}
 
-      <label className="block text-white/50 text-[11px] mb-1 mt-3">{t("calcPriceLabel")}</label>
-      <AmountField value={price} onChange={(v) => { setPrice(v); touch(); }} suffix="€" ariaLabel={t("calcPriceLabel")} />
-
-      <div className="mt-5 rounded-xl px-4 py-4 text-center" style={{ background: `${color}18`, border: `1px solid ${color}55` }}>
-        <div className="text-white/45 text-[10px] uppercase tracking-widest">{t("calcResultLabel")}</div>
-        <div className="font-display text-5xl leading-none mt-1" style={{ color }}>
-          {margin === null ? "—" : `${Math.round(margin)}%`}
-        </div>
-        {margin !== null && (
-          <div className="text-[11px] mt-2 font-semibold" style={{ color }}>
-            {t(tier === "high" ? "calcVerdictHigh" : tier === "mid" ? "calcVerdictMid" : "calcVerdictLow")}
-          </div>
+        {phase === "recipeImpact" && (
+          <>
+            <h3 className="font-display uppercase text-white text-sm tracking-wide max-w-xs">{t("landingWowRecipeIntro")}</h3>
+            <div className="w-full rounded-xl border border-white/10 p-3.5 flex items-center gap-3" style={{ background: "#16130F" }}>
+              <div className="relative w-14 h-14 shrink-0">
+                <svg width="56" height="56" viewBox="0 0 56 56">
+                  <circle cx="28" cy="28" r="23" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" />
+                  <circle
+                    cx="28" cy="28" r="23" fill="none"
+                    stroke={marginValue >= 75 ? TIER_COLORS.high : TIER_COLORS.mid}
+                    strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray="144.5"
+                    strokeDashoffset={144.5 * (1 - marginValue / 100)}
+                    transform="rotate(-90 28 28)"
+                    style={{ transition: "stroke-dashoffset 0.9s ease, stroke 0.9s ease" }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-white text-xs font-display font-black">{marginValue}%</span>
+                </div>
+              </div>
+              <div className="text-left">
+                <div className="text-white text-sm font-semibold">Bœuf bourguignon</div>
+                <div className="text-white/40 text-[11px] mt-0.5">{t("marginLabel")}</div>
+              </div>
+            </div>
+            <p className="text-white/55 text-[11px] leading-relaxed max-w-xs">{t("landingWowRecipeOutro")}</p>
+          </>
         )}
       </div>
 
-      <p className="text-white/30 text-[10px] mt-3 text-center leading-relaxed">{t("calcVatNote")(DEMO_VAT_RATE)}</p>
-
-      {/* [AJOUT 2026-08-27] Sans ce bloc, le calculateur donne l'impression que l'app se résume à
-          trois champs et une division — c'est-à-dire à quelque chose qu'on ferait aussi bien sur
-          une calculatrice. Il faut donc dire, à l'endroit exact où le visiteur vient d'obtenir son
-          résultat, ce que l'app fait EN PLUS : remplir ce coût toute seule, le tenir à jour, et
-          tout ce qui en découle. C'est la contrepartie indispensable d'une démo volontairement
-          simplifiée, surtout pour un visiteur qui ne défilera peut-être jamais plus bas. */}
-      <div className="mt-4 pt-4 border-t border-white/10">
-        <div className="text-white/70 text-[11px] font-semibold mb-2">{t("calcMoreTitle")}</div>
-        <ul className="space-y-1.5">
-          {["calcMore1", "calcMore2", "calcMore3"].map((key) => (
-            <li key={key} className="flex items-start gap-2 text-white/50 text-[11px] leading-relaxed">
-              <Check size={12} className="shrink-0 mt-0.5" style={{ color: BRAND_SOLID }} />
-              <span>{t(key)}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
+      {/* CTA TOUJOURS visible, jamais gagné en attendant la fin d'un cycle — l'ancien calculateur
+          n'avait qu'un seul chemin de conversion (après avoir tapé des chiffres) ; ici le visiteur
+          peut s'inscrire à tout moment pendant que la démo tourne, sans attendre. */}
       <button
         type="button"
         onClick={onStart}
         className="w-full mt-4 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold"
         style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
       >
-        {t("calcCta")}
+        {t("landingCtaStart")}
       </button>
     </div>
   );
@@ -365,21 +442,21 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           <p className="text-white/60 text-sm sm:text-base leading-relaxed">{t("landingHeroSubtitle")}</p>
         </div>
 
-        {/* Remplace la reconstitution statique d'une fiche recette (2026-08-19 → 2026-08-27) :
-            elle décrivait le produit sans jamais le faire essayer. Voir MarginCalculator. */}
-        <MarginCalculator
+        {/* Remplace MarginCalculator (2026-08-27 → 2026-09-16) : 0 utilisation mesurée en une
+            semaine de vraie campagne malgré la 1re place sur la page — voir LandingWowDemo. */}
+        <LandingWowDemo
           t={t}
-          lang={lang}
           onEngage={() => {
             logLandingEvent("calc_used");
             // Signal d'intérêt intermédiaire, envoyé au pixel : avec zéro inscription, une régie
             // n'a rien à apprendre d'un événement "compte créé". Un événement atteignable en
-            // volume comme celui-ci lui donne au moins de quoi optimiser.
+            // volume comme celui-ci lui donne au moins de quoi optimiser (ici : la démo a tourné
+            // au moins un cycle complet sous les yeux du visiteur).
             trackAdEvent("ViewContent", { content_name: "margin_calculator" });
           }}
           onStart={handleStart}
         />
-        <p className="text-emerald-400/90 text-xs font-semibold text-center -mt-8 mb-12">{t("landingPricingTrial")}</p>
+        <p className="text-emerald-400/90 text-xs font-semibold text-center mb-12">{t("landingPricingTrial")}</p>
 
         {/* [RESTRUCTURATION 2026-08-27] Bandeau d'offre déplacé APRÈS le calculateur (avant : juste
             sous le titre, donc lu avant toute preuve de valeur). Un engagement mensuel affiché en
