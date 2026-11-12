@@ -2352,10 +2352,13 @@ export default function App() {
     if (!isPdf) {
       setScanning(true);
       setScanStep("prepare");
+      // [2026-11-12] Plus d'écran intermédiaire "Analyser" : l'analyse part toute seule dès que la
+      // photo est prête (une étape de moins, c'est là que des comptes décrochaient). Le bouton
+      // pivoter reste disponible, mais seulement sur l'écran d'échec / de résultat vide.
+      let prepared = null;
       try {
-        const { base64, mediaType } = await compressImageFile(file);
-        setScanImagePreview(`data:${mediaType};base64,${base64}`);
-        setScanPendingImage({ base64, mediaType });
+        prepared = await compressImageFile(file);
+        setScanImagePreview(`data:${prepared.mediaType};base64,${prepared.base64}`);
       } catch (err) {
         // Fichier que le navigateur n'arrive pas à ouvrir comme une image : format exotique
         // (HEIC brut sorti de l'app Fichiers d'un iPhone), fichier tronqué, image corrompue.
@@ -2364,10 +2367,11 @@ export default function App() {
         // "PDF illisible" ou "image illisible" sans aucun moyen de savoir pourquoi concrètement.
         setScanErr({ code: "file_unreadable" });
         logScanFailure("file_unreadable", { fileType: file.type || "?", errorMessage: String(err?.message || err).slice(0, 200) });
-      } finally {
         setScanning(false);
         setScanStep(null);
+        return;
       }
+      await confirmScanImage(prepared, true);
       return;
     }
     setScanning(true);
@@ -2417,14 +2421,16 @@ export default function App() {
   // répondait "Document non reçu". Bug réel introduit puis corrigé le 2026-08-24 (déjà arrivé une
   // fois dans ce fichier avec openAddWizard). D'où l'appel obligatoire en `() => confirmScanImage()`
   // ET la vérification ci-dessous, qui ignore tout objet ne contenant pas une vraie image.
-  const confirmScanImage = async (imageOverride = null) => {
+  const confirmScanImage = async (imageOverride = null, auto = false) => {
     const valid = (src) => src && typeof src.base64 === "string" && src.base64.length > 100;
     const source = valid(imageOverride) ? imageOverride : scanPendingImage;
     if (!valid(source)) return;
     const { base64, mediaType } = source;
     // Dernier repère de l'entonnoir scanner (2026-09-05, voir openScanPicker) : confirme que
     // l'utilisateur a bien dépassé l'écran d'aperçu, pas juste regardé sa photo sans continuer.
-    logActivity("scan_analyze_clicked", {});
+    // Pas journalisé quand l'analyse part toute seule (auto, depuis le 2026-11-12) : ce ne serait
+    // plus un clic, et ça fausserait l'entonnoir.
+    if (auto !== true) logActivity("scan_analyze_clicked", {});
     setScanning(true);
     setScanErr(null);
     setScanPendingImage(null);
@@ -2446,8 +2452,23 @@ export default function App() {
 
   // Renvoie la dernière image analysée telle quelle (après un échec réseau/serveur) — un seul tap,
   // aucun fichier à re-sélectionner.
+  // Pivote la dernière photo envoyée (écran d'échec / de résultat vide) puis la renvoie aussitôt :
+  // un seul tap pour "ma photo était de travers, réessaie". Un échec de rotation garde la photo
+  // telle quelle et l'explique, jamais un tap dans le vide.
+  const rotateAndRetryLastScan = async (degrees) => {
+    if (!lastScanImage || scanning) return;
+    try {
+      const rotated = await rotateImageBase64(lastScanImage.base64, lastScanImage.mediaType, degrees);
+      setScanImagePreview(`data:${rotated.mediaType};base64,${rotated.base64}`);
+      setScanResult(null);
+      await confirmScanImage(rotated);
+    } catch (err) {
+      setScanErr({ code: "file_unreadable" });
+    }
+  };
+
   const retryLastScan = () => {
-    if (lastScanImage) return confirmScanImage(lastScanImage);
+    if (lastScanImage) { setScanResult(null); return confirmScanImage(lastScanImage); }
     // Pas d'image en mémoire (échec côté PDF ou fichier illisible) : on rouvre le bon sélecteur,
     // celui par lequel le restaurateur était passé, jamais l'appareil photo par défaut.
     if (lastScanSource === "camera") fileInputRef.current?.click();
@@ -2486,7 +2507,12 @@ export default function App() {
   // le chemin photo (après confirmation/rotation éventuelle via confirmScanImage).
   // `attempt` : 0 au premier envoi, 1 lors de la seule et unique nouvelle tentative automatique
   // après un refus pour session expirée (voir plus bas). Jamais plus de deux envois.
-  const runScanPipeline = async (payload, attempt = 0) => {
+  // `retried` (2026-11-12) : une seule nouvelle tentative automatique et silencieuse quand l'IA
+  // répond quelque chose d'inexploitable ou ne trouve aucune ligne — la lecture n'est pas
+  // parfaitement identique d'un appel à l'autre, un second essai réussit souvent là où le premier
+  // a échoué, et le restaurateur n'a pas à s'en apercevoir. Jamais sur un délai dépassé (ça
+  // doublerait une attente déjà longue).
+  const runScanPipeline = async (payload, attempt = 0, retried = false) => {
     // Délai maximum côté navigateur. Sans ça, une connexion qui se coupe en pleine requête (cas
     // très courant en cuisine : wifi capricieux, passage en 4G) laissait la roue tourner
     // indéfiniment, sans erreur, sans issue — l'utilisateur ne pouvait que fermer et recommencer.
@@ -2538,7 +2564,11 @@ export default function App() {
         if ((code === "auth_expired" || code === "auth_required") && attempt === 0) {
           try { await supabase.auth.refreshSession(); } catch (e) {}
           clearTimeout(timeoutId);
-          return await runScanPipeline(payload, 1);
+          return await runScanPipeline(payload, 1, retried);
+        }
+        if (code === "ai_unreadable" && !retried) {
+          clearTimeout(timeoutId);
+          return await runScanPipeline(payload, attempt, true);
         }
         const err = new Error(code);
         err.scanCode = code;
@@ -2548,6 +2578,10 @@ export default function App() {
         // derrière le code générique ai_unavailable/502.
         err.upstreamStatus = data.upstreamStatus || null;
         throw err;
+      }
+      if (!retried && !(Array.isArray(data.items) && data.items.length > 0)) {
+        clearTimeout(timeoutId);
+        return await runScanPipeline(payload, attempt, true);
       }
       // Date du dernier scan réussi, utilisée uniquement par le rappel d'inactivité par email
       // (api/send-reminders.js) — fire-and-forget, un échec ici ne doit jamais bloquer le scan.
@@ -4275,6 +4309,17 @@ export default function App() {
                   </ul>
                 </div>
 
+                {lastScanImage && (
+                  <div className="flex items-center gap-2 mb-3 text-[11px] text-white/50">
+                    <span className="flex-1">{t("scanRotateRetry")}</span>
+                    <button onClick={() => rotateAndRetryLastScan(-90)} className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30">
+                      <RotateCcw size={16} />
+                    </button>
+                    <button onClick={() => rotateAndRetryLastScan(90)} className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30">
+                      <RotateCw size={16} />
+                    </button>
+                  </div>
+                )}
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={retryLastScan}
@@ -4363,7 +4408,18 @@ export default function App() {
                         ))}
                       </ul>
                     </div>
-                    <div className="flex flex-col gap-2">
+                    {lastScanImage && (
+                      <div className="flex items-center gap-2 mb-3 text-[11px] text-white/50">
+                        <span className="flex-1">{t("scanRotateRetry")}</span>
+                        <button onClick={() => rotateAndRetryLastScan(-90)} className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30">
+                          <RotateCcw size={16} />
+                        </button>
+                        <button onClick={() => rotateAndRetryLastScan(90)} className="p-2 rounded-lg border border-white/15 text-white/70 hover:text-white hover:border-white/30">
+                          <RotateCw size={16} />
+                        </button>
+                      </div>
+                    )}
+                      <div className="flex flex-col gap-2">
                       <button
                         onClick={retryLastScan}
                         className="w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
@@ -5984,24 +6040,22 @@ export default function App() {
                   pleinement fonctionnelle (l'utilisateur confirme de bons résultats même sur un
                   ticket de caisse pris rapidement) — seule la mise en avant visuelle change,
                   jamais une fonctionnalité retirée. */}
-              <span
-                className="mt-3 text-[9px] uppercase tracking-widest font-bold px-2.5 py-1 rounded-full"
-                style={{ background: "#3B82F622", color: "#3B82F6" }}
-              >
-                {t("scanRecommendedBadge")}
-              </span>
+              {/* [2026-11-12] Un seul bouton : le téléphone propose lui-même appareil photo / galerie /
+                  fichiers, l'ordinateur ouvre son sélecteur. Le petit lien "Prendre une photo"
+                  reste en secours pour les téléphones dont le sélecteur ne propose pas l'appareil
+                  photo (certains Android). */}
               <button
                 onClick={() => openScanPicker("library")}
-                className="mt-1.5 w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                style={{ background: "#3B82F6", color: "#fff", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px rgba(59,130,246,0.4)" }}
+                className="mt-3 w-full text-sm font-display uppercase tracking-wide py-4 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
               >
-                <Upload size={15} /> {t("scanUploadFile")}
+                <Camera size={17} /> {t("scanInvoice")}
               </button>
               <button
                 onClick={() => openScanPicker("camera")}
-                className="w-full text-xs font-display uppercase tracking-wide py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-transform border border-white/20 text-white/60"
+                className="text-[11px] text-white/45 underline underline-offset-2 hover:text-white/70 py-1"
               >
-                <Camera size={15} /> {t("scanTakePhoto")}
+                {t("scanTakePhotoAlt")}
               </button>
             </div>
 

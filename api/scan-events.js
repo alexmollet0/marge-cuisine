@@ -54,6 +54,11 @@ function sanitizeScanItems(items) {
 const SIMPLE_ACTIVITY_TYPES = new Set([
   "login", "recipe_created", "scan_failed",
   "tutorial_closed", "tab_opened", "digital_menu_published", "subscribe_clicked",
+  // [BUG confirmé et corrigé, 2026-11-12] Les 3 repères de l'entonnoir scanner (ajoutés côté
+  // client le 2026-09-05) n'avaient jamais été ajoutés ici : ils tombaient donc dans le chemin
+  // "résultat de scan" plus bas et créaient chacun un FAUX scan "0 ligne · fournisseur non lu"
+  // (2 à 3 par vrai scan). C'est ce qui gonflait le taux de scans vides à ~39%.
+  "scan_button_clicked", "scan_file_selected", "scan_analyze_clicked",
 ]);
 
 export default async function handler(req, res) {
@@ -89,6 +94,12 @@ export default async function handler(req, res) {
       } catch (e) {
         return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
       }
+    }
+
+    // Garde-fou : un événement avec un `type` inconnu ne doit JAMAIS être enregistré comme un
+    // résultat de scan (voir le bug ci-dessus) — on le refuse plutôt que de fausser les stats.
+    if (typeof b.type === "string" && b.type) {
+      return res.status(400).json({ error: "Type d'événement inconnu." });
     }
 
     const toInt = (v) => (Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);

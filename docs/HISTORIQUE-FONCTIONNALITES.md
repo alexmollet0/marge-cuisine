@@ -1281,3 +1281,28 @@ Comptes de test à supprimer via le tableau de bord admin : `chefuptest.coherenc
 
 **Vérifié visuellement en local** (contournement d'authentification, renommage de la recette de démo) : un nom de 73 caractères s'affiche entièrement sur 2 lignes ; un nom de 125 caractères (encore plus long, avec la police réduite) s'affiche aussi entièrement sur 2 lignes — rien n'est coupé dans les deux cas.
 
+
+---
+
+## Faux scans "0 ligne" démasqués + simplification du parcours de scan (2026-11-12)
+
+**Contexte** : l'utilisateur demande de corriger les bugs de scan et de simplifier le scan au maximum ("même si on doit tout reprendre à 0"), pour que ça marche sur tous les téléphones/ordis.
+
+**Découverte principale — le "39% de scans vides" de l'audit du 2026-09-16 était un artefact de comptage.** Les 3 repères de l'entonnoir scanner ajoutés côté client le 2026-09-05 (`scan_button_clicked`, `scan_file_selected`, `scan_analyze_clicked`, envoyés par `logActivity`) n'avaient jamais été ajoutés à `SIMPLE_ACTIVITY_TYPES` dans `api/scan-events.js`. Le serveur les traitait donc comme un RÉSULTAT de scan : une ligne `scan_events` à `total_items: 0` / `zero_items: false` + un événement `scan_invoice` "0 ligne · fournisseur non lu" dans la chronologie admin — 2 à 3 faux scans par vrai scan. Conséquences à relire :
+- Le drapeau `zero_items` n'était PAS faux : le 6,9% du résumé était le vrai taux de scans réellement vides ; c'est le recomptage manuel (`total_items === 0`) qui incluait les faux.
+- Les libellés "Bouton scan cliqué"/"Fichier reçu"/"Analyser cliqué" du tableau de bord n'ont donc jamais pu s'afficher pour personne. Le diagnostic Timothy ("2 échecs puis plus jamais recliqué, aucun `scan_button_clicked`") est à relire : ses 2 "échecs à 0 ligne" sont probablement 2 clics sur le bouton scanner qui n'ont pas abouti à une analyse.
+- Le cas "même facture, tantôt complète, tantôt 0 ligne" du 2026-09-08 et les "3 échecs pour un scan ressenti comme réussi" du 09/09 collent exactement à cet artefact (3 repères = 3 faux scans).
+- Déduit du code (déterministe), pas vérifié contre la base (pas d'accès `ADMIN_SECRET`/service role depuis la session). Les faux scans déjà enregistrés restent dans l'historique (reconnaissables : `totalItems: 0` avec `zeroItems: false`).
+
+**Correctif** (`api/scan-events.js`) : les 3 types ajoutés à la liste + garde-fou — tout `type` inconnu est désormais refusé (400) au lieu de tomber dans le chemin "résultat de scan".
+
+**Simplification du parcours** (`src/App.jsx`, `src/translations.js`) :
+1. Onglet Scanner : un seul gros bouton "Scanner une facture" (sélecteur image+PDF — le téléphone propose lui-même appareil photo/galerie/fichiers) + petit lien de secours "ou prendre une photo directement" (certains Android ne proposent pas l'appareil photo dans le sélecteur mixte). Badge "Recommandé" et second bouton retirés.
+2. Photo : plus d'écran intermédiaire aperçu → "Analyser". L'analyse part dès que la photo est prête (`confirmScanImage(prepared, true)` ; `scan_analyze_clicked` n'est plus journalisé dans ce cas automatique). Le bloc `scanPendingImage` reste dans le code mais n'est plus atteint.
+3. Pivoter : déplacé sur l'écran d'échec et l'écran "aucune ligne" (`rotateAndRetryLastScan` — pivote la dernière photo et relance aussitôt).
+4. Seconde tentative automatique et silencieuse, une seule fois, si l'IA répond `ai_unreadable` ou ne renvoie aucune ligne (`retried` dans `runScanPipeline`). Jamais sur un délai dépassé. Coût : un appel IA de plus dans ces cas-là.
+
+**Pas fait / à vérifier** :
+- **OCR tesseract conservé.** Prévu : le retirer (jusqu'à 20 s d'attente + téléchargement d'un moteur externe sur le téléphone) après un test comparatif avec/sans — test impossible depuis la session (pas de clé Anthropic en local, pas de compte). À trancher avec l'utilisateur.
+- Vérifié par `npm run build` uniquement. Aucun vrai scan testé (derrière l'authentification) — à tester par l'utilisateur sur téléphone ET ordinateur après déploiement, en particulier : le sélecteur propose-t-il bien l'appareil photo sur son téléphone.
+- Prompt de lecture et vérification "un par un" volontairement non touchés.
