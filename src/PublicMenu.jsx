@@ -21,7 +21,7 @@ const FONT_IMPORT = "@import url('https://fonts.googleapis.com/css2?family=Oswal
 // là où cette page sera presque toujours consultée (scan d'un QR code à table).
 const ALLERGEN_ICONS = {
   gluten: "🌾", lait: "🥛", oeufs: "🥚", sulfites: "🍷", poisson: "🐟",
-  crustaces: "🦐", mollusques: "🐚", moutarde: "🧂", soja: "🌱", celeri: "🥬", fruits_a_coque: "🥜",
+  crustaces: "🦐", mollusques: "🐚", moutarde: "🧂", soja: "🌱", celeri: "🥬", fruits_a_coque: "🌰", arachides: "🥜", sesame: "⚪", lupin: "🌼",
 };
 
 // 4 designs volontairement très différents dans leur STRUCTURE et leur typographie, pas

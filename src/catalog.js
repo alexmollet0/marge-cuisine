@@ -287,40 +287,115 @@ export const ALLERGEN_LABELS = {
   soja: { fr: "Soja", es: "Soja", en: "Soy" },
   celeri: { fr: "Céleri", es: "Apio", en: "Celery" },
   fruits_a_coque: { fr: "Fruits à coque", es: "Frutos secos", en: "Tree nuts" },
+  // [2026-11] Les 3 allergènes réglementaires qui manquaient (la liste légale en compte 14).
+  arachides: { fr: "Arachides", es: "Cacahuetes", en: "Peanuts" },
+  sesame: { fr: "Sésame", es: "Sésamo", en: "Sesame" },
+  lupin: { fr: "Lupin", es: "Altramuces", en: "Lupin" },
 };
 
+// [Refonte 2026-11] Table EXPLICITE des allergènes de chaque produit du catalogue. Bug réel à
+// l'origine : "Tagliatelles" et "Spaghetti" (ajoutés au catalogue après coup) n'étaient ni dans
+// cette table ni dans les mots-clés → aucune mention de gluten. Désormais vérifié par un script
+// (scripts/check-allergens.mjs), à relancer après tout ajout au catalogue ou aux mots-clés.
 export const ALLERGEN_MAP = {
-  farine: ["gluten"], pates: ["gluten"], couscous: ["gluten"],
-  beurre: ["lait"], creme: ["lait"], creme_fraiche: ["lait"], lait: ["lait"],
+  // gluten
+  farine: ["gluten"], pates: ["gluten"], couscous: ["gluten"], spaghetti: ["gluten"], tagliatelles: ["gluten"],
+  pain_mie: ["gluten"], chapelure: ["gluten"], biere: ["gluten"],
+  // lait
+  beurre: ["lait"], beurre_demi_sel: ["lait"], creme: ["lait"], creme_fraiche: ["lait"], lait: ["lait"],
   fromage_rape: ["lait"], mozzarella: ["lait"], yaourt: ["lait"], mascarpone: ["lait"], chevre: ["lait"], parmesan: ["lait"],
+  comte: ["lait"], emmental: ["lait"], gruyere: ["lait"], brie: ["lait"], camembert: ["lait"], roquefort: ["lait"],
+  feta: ["lait"], ricotta: ["lait"], fromage_blanc: ["lait"], skyr: ["lait"],
   oeufs: ["oeufs"],
-  vin_rouge: ["sulfites"], vin_blanc: ["sulfites"], porto: ["sulfites"], jerez: ["sulfites"],
-  crevettes: ["crustaces"],
-  saumon: ["poisson"], cabillaud: ["poisson"], thon: ["poisson"], bar: ["poisson"], dorade: ["poisson"], anchois: ["poisson"],
-  moules: ["mollusques"], poulpe: ["mollusques"],
-  moutarde: ["moutarde"],
-  sauce_soja: ["soja"],
-  celeri: ["celeri"],
-  amandes: ["fruits_a_coque"], noisettes: ["fruits_a_coque"],
+  // sulfites
+  vin_rouge: ["sulfites"], vin_blanc: ["sulfites"], vin_rose: ["sulfites"], champagne: ["sulfites"],
+  porto: ["sulfites"], jerez: ["sulfites"], vinaigre_vin: ["sulfites"], vinaigre_balsamique: ["sulfites"],
+  // produits de la mer
+  crevettes: ["crustaces"], langoustine: ["crustaces"],
+  saumon: ["poisson"], saumon_fume: ["poisson"], cabillaud: ["poisson"], thon: ["poisson"], bar: ["poisson"],
+  dorade: ["poisson"], anchois: ["poisson"], maquereau: ["poisson"], sardine: ["poisson"], truite: ["poisson"],
+  lieu_noir: ["poisson"], sole: ["poisson"], tarama: ["poisson"],
+  surimi: ["poisson", "oeufs", "gluten"],
+  moules: ["mollusques"], poulpe: ["mollusques"], seiche: ["mollusques"], calamar: ["mollusques"],
+  huitres: ["mollusques"], saint_jacques: ["mollusques"],
+  // divers
+  moutarde: ["moutarde"], mayonnaise: ["oeufs", "moutarde"],
+  sauce_soja: ["soja", "gluten"], tofu: ["soja"],
+  celeri: ["celeri"], bouillon_volaille: ["celeri"],
+  amandes: ["fruits_a_coque"], noisettes: ["fruits_a_coque"], noix_cajou: ["fruits_a_coque"], pistaches: ["fruits_a_coque"],
+  pate_a_tartiner: ["lait", "fruits_a_coque", "soja"],
+  huile_sesame: ["sesame"],
 };
 
-// Détection complémentaire par mots-clés dans le nom (comparaison mot entier, jamais sous-chaîne,
-// pour éviter des faux positifs comme "laitue" -> "lait"). Sert de filet pour les ingrédients créés
-// depuis le scan de facture, qui n'ont pas de catalogId reconnu dans ALLERGEN_MAP ci-dessus.
-// Toujours comparé au nom source français, indépendamment de la langue d'interface choisie.
+// Détection par mots-clés dans le NOM (mot entier, jamais sous-chaîne : "laitue" ne déclenche pas
+// "lait"). Filet pour tout ingrédient hors catalogue (scan de facture, saisie libre, IA).
+// Mots au SINGULIER, sans accent : le pluriel (s/x final) est toléré automatiquement. Une entrée
+// peut être une expression de plusieurs mots ("saint jacques"). En cas de doute réel sur un
+// produit, on préfère signaler l'allergène (le restaurateur peut toujours corriger à la main).
 export const ALLERGEN_NAME_KEYWORDS = {
-  gluten: ["farine", "ble", "froment", "pain", "pate", "pates", "semoule", "couscous", "chapelure", "biscuit", "biscuits", "vermicelle", "orge", "seigle", "avoine", "boulgour"],
-  lait: ["lait", "creme", "beurre", "fromage", "yaourt", "yogourt", "mozzarella", "parmesan", "mascarpone", "chevre", "comte", "emmental", "gruyere", "cheddar", "ricotta", "brie", "camembert", "roquefort", "burrata", "feta"],
-  oeufs: ["oeuf", "oeufs"],
-  sulfites: ["sulfite", "sulfites"],
-  poisson: ["saumon", "cabillaud", "thon", "bar", "dorade", "anchois", "morue", "sole", "truite", "colin", "merlan", "hareng", "maquereau", "lieu", "poisson"],
-  crustaces: ["crevette", "crevettes", "gambas", "langoustine", "langoustines", "crabe", "homard", "ecrevisse"],
-  mollusques: ["moule", "moules", "huitre", "huitres", "poulpe", "calamar", "calamars", "seiche", "praire", "praires", "palourde", "palourdes", "coquille", "escargot", "escargots"],
-  moutarde: ["moutarde"],
-  soja: ["soja", "tofu", "edamame"],
-  celeri: ["celeri"],
-  fruits_a_coque: ["amande", "amandes", "noisette", "noisettes", "noix", "pistache", "pistaches", "cajou", "macadamia"],
+  gluten: [
+    "farine", "ble", "froment", "epeautre", "kamut", "seigle", "orge", "avoine", "malt", "seitan",
+    "pain", "baguette", "brioche", "croissant", "viennoiserie", "biscotte", "crouton", "chapelure", "panko", "panure", "pane",
+    "pate", "spaghetti", "tagliatelle", "penne", "macaroni", "fusilli", "farfalle", "linguine", "linguini", "fettuccine",
+    "fettuccini", "rigatoni", "lasagne", "ravioli", "raviole", "tortellini", "cannelloni", "gnocchi", "coquillette",
+    "nouille", "vermicelle", "ramen", "udon", "soba", "semoule", "couscous", "boulgour",
+    "biscuit", "cookie", "brownie", "madeleine", "speculoos", "gateau", "cake", "muffin", "gaufre", "crepe", "blini",
+    "pizza", "tortilla", "wrap", "pita", "naan", "bagel", "bun", "beignet", "tempura", "nugget", "quenelle",
+    "biere", "bechamel", "surimi", "sauce soja", "teriyaki", "hoisin",
+  ],
+  lait: [
+    "lait", "creme", "beurre", "fromage", "yaourt", "yogourt", "skyr", "faisselle", "kefir", "babeurre", "ghee", "chantilly",
+    "lactose", "lactoserum", "caseine", "petit suisse",
+    "mozzarella", "parmesan", "mascarpone", "chevre", "comte", "emmental", "gruyere", "cheddar", "ricotta", "brie",
+    "camembert", "roquefort", "burrata", "feta", "gorgonzola", "reblochon", "raclette", "morbier", "cantal", "munster",
+    "maroilles", "beaufort", "abondance", "tomme", "fourme", "pecorino", "provolone", "halloumi", "manchego", "gouda",
+    "edam", "mimolette", "nectaire", "marcellin", "boursin",
+    "bechamel", "brioche", "pesto", "tartiner",
+  ],
+  oeufs: ["oeuf", "mayonnaise", "aioli", "meringue", "brioche", "surimi"],
+  sulfites: ["sulfite", "vin", "champagne", "cremant", "prosecco", "cidre", "porto", "xeres", "jerez", "madere", "marsala", "vermouth", "vinaigre"],
+  poisson: [
+    "poisson", "saumon", "cabillaud", "thon", "bar", "dorade", "daurade", "anchois", "morue", "sole", "truite", "colin",
+    "merlan", "merlu", "hareng", "maquereau", "sardine", "lieu", "lotte", "raie", "turbot", "saint pierre", "rouget",
+    "fletan", "eglefin", "haddock", "espadon", "sandre", "brochet", "perche", "carpe", "anguille", "tilapia", "panga",
+    "limande", "plie", "bonite", "tarama", "surimi", "caviar", "boutargue", "poutargue", "rollmops", "nuoc mam", "worcestershire",
+  ],
+  crustaces: ["crevette", "gambas", "langoustine", "langouste", "crabe", "tourteau", "homard", "ecrevisse", "scampi", "krill", "bisque", "araignee de mer"],
+  mollusques: [
+    "moule", "huitre", "poulpe", "pieuvre", "calamar", "calmar", "encornet", "chipiron", "supion", "seiche", "praire",
+    "palourde", "coque", "bulot", "bigorneau", "escargot", "saint jacques", "petoncle", "ormeau", "coquille",
+  ],
+  moutarde: ["moutarde", "mayonnaise", "vinaigrette", "remoulade"],
+  soja: ["soja", "tofu", "edamame", "miso", "tempeh", "tamari", "shoyu", "teriyaki", "hoisin", "tartiner"],
+  celeri: ["celeri", "bouillon", "remoulade"],
+  fruits_a_coque: ["amande", "noisette", "noix", "pistache", "cajou", "macadamia", "pecan", "praline", "pralin", "frangipane", "massepain", "nougat", "gianduja", "pesto", "tartiner"],
+  arachides: ["arachide", "cacahuete", "cacahouete", "satay", "sate"],
+  sesame: ["sesame", "tahini", "tahin", "houmous", "hummus", "gomasio", "halva"],
+  lupin: ["lupin"],
 };
+
+// Expressions où un mot-clé NE désigne PAS l'allergène habituel ("lait de coco" n'est pas du lait,
+// "noix de muscade" n'est pas un fruit à coque, "farine de sarrasin" est sans gluten...). Chaque
+// expression est remplacée par ce qui reste réellement pertinent avant la recherche de mots-clés.
+// Sans ça, soit on déclare de faux allergènes, soit on doit retirer des mots-clés utiles.
+export const ALLERGEN_PHRASE_REWRITES = [
+  ["lait de coco", "coco"], ["lait d amande", "amande"], ["lait de soja", "soja"], ["lait d avoine", "avoine"],
+  ["lait de riz", "riz"], ["lait de noisette", "noisette"], ["creme de coco", "coco"], ["creme de soja", "soja"],
+  ["creme de marron", "marron"], ["creme de cassis", "cassis"], ["creme de balsamique", "vinaigre"], ["creme de tartre", ""],
+  ["beurre de cacahuete", "cacahuete"], ["beurre de cacahouete", "cacahuete"], ["beurre d arachide", "arachide"],
+  ["beurre de cacao", "cacao"], ["beurre de coco", "coco"], ["beurre d amande", "amande"], ["fromage de tete", ""],
+  ["noix de coco", "coco"], ["noix de muscade", "muscade"], ["noix de saint jacques", "saint jacques"],
+  ["noix de petoncle", "petoncle"], ["noix de veau", "veau"], ["noix de jambon", "jambon"], ["noix de boeuf", "boeuf"],
+  ["noix de porc", "porc"], ["noix de beurre", "beurre"],
+  ["farine de sarrasin", "sarrasin"], ["farine de riz", "riz"], ["farine de mais", "mais"], ["farine de pois chiche", ""],
+  ["farine de chataigne", ""], ["farine de coco", "coco"], ["farine de manioc", ""], ["farine de soja", "soja"], ["farine de lupin", "lupin"],
+  ["pate a tartiner", "tartiner"], ["pate d amande", "amande"], ["pate de curry", "curry"], ["pate de tomate", "tomate"],
+  ["pate de piment", "piment"], ["pate de fruit", "fruit"], ["pate de sesame", "sesame"], ["pate de cacahuete", "cacahuete"],
+  ["pate de noisette", "noisette"], ["pate de pistache", "pistache"], ["pate miso", "miso"], ["pate de riz", "riz"],
+  ["nouille de riz", "riz"], ["vermicelle de riz", "riz"], ["galette de riz", "riz"], ["feuille de riz", "riz"],
+  ["oeuf de saumon", "saumon"], ["oeuf de truite", "truite"], ["oeuf de lump", "poisson"], ["oeuf de poisson", "poisson"],
+  ["huile de sesame", "sesame"], ["huile d arachide", "arachide"], ["huile de noix", "noix"], ["huile de noisette", "noisette"],
+];
 
 // Casse/accents ignorés partout où on compare des noms de produits (recherche garde-manger,
 // rapprochement scan, détection allergènes...). Traite aussi œ/æ explicitement : ce sont des
@@ -350,19 +425,50 @@ export function ingredientSourceName(ing) {
   return ing?.catalogId && CATALOG_MAP[ing.catalogId] ? CATALOG_MAP[ing.catalogId].fr : ing?.name || "";
 }
 
+// Ramène un mot au singulier (s/x final toléré) — appliqué aux noms ET aux mots-clés, donc
+// toujours cohérent des deux côtés ("noix"/"anchois" sont raccourcis pareil partout).
+const singularToken = (t) => (t.length > 3 && /[sx]$/.test(t) ? t.slice(0, -1) : t);
+const allergenNormalize = (s) => normalizeAllergenText(s).split(" ").filter(Boolean).map(singularToken).join(" ");
+const ALLERGEN_REWRITES_NORM = ALLERGEN_PHRASE_REWRITES
+  .map(([from, to]) => [allergenNormalize(from), allergenNormalize(to)])
+  .sort((a, b) => b[0].length - a[0].length);
+const ALLERGEN_KEYWORDS_NORM = Object.entries(ALLERGEN_NAME_KEYWORDS).map(([code, kws]) => [code, kws.map(allergenNormalize)]);
+
+// Allergènes déduits d'un NOM d'ingrédient seul (mots-clés + expressions d'exception).
+export function allergenCodesFromName(name) {
+  let text = ` ${allergenNormalize(name)} `;
+  if (text.trim() === "") return [];
+  ALLERGEN_REWRITES_NORM.forEach(([from, to]) => {
+    text = text.split(` ${from} `).join(to ? ` ${to} ` : " ");
+  });
+  const found = [];
+  ALLERGEN_KEYWORDS_NORM.forEach(([code, kws]) => {
+    if (kws.some((k) => text.includes(` ${k} `))) found.push(code);
+  });
+  return found;
+}
+
+// Allergènes d'UN ingrédient : table du catalogue + mots-clés sur le nom du catalogue (français)
+// + mots-clés sur le nom réellement affiché (couvre un produit du catalogue renommé par le
+// restaurateur, ex: "Pâtes fraîches aux œufs"). Les trois sources s'additionnent toujours.
+export function ingredientAllergenCodes(ing) {
+  const set = new Set();
+  if (!ing) return set;
+  if (ing.catalogId && ALLERGEN_MAP[ing.catalogId]) ALLERGEN_MAP[ing.catalogId].forEach((a) => set.add(a));
+  allergenCodesFromName(ingredientSourceName(ing)).forEach((a) => set.add(a));
+  if (ing.name) allergenCodesFromName(ing.name).forEach((a) => set.add(a));
+  return set;
+}
+
 export function detectAllergenCodesSet(lines, ingredientsList) {
   const set = new Set();
   lines.forEach((l) => {
     const ing = ingredientsList.find((i) => i.id === l.ingredientId);
     if (!ing) return;
-    if (ing.catalogId && ALLERGEN_MAP[ing.catalogId]) ALLERGEN_MAP[ing.catalogId].forEach((a) => set.add(a));
-
-    const tokens = new Set(normalizeAllergenText(ingredientSourceName(ing)).split(" ").filter(Boolean));
-    Object.entries(ALLERGEN_NAME_KEYWORDS).forEach(([allergen, keywords]) => {
-      if (keywords.some((k) => tokens.has(k))) set.add(allergen);
-    });
+    ingredientAllergenCodes(ing).forEach((a) => set.add(a));
   });
-  return set;
+  // Ordre stable (celui de la liste officielle), quel que soit l'ordre des lignes de la recette.
+  return new Set(Object.keys(ALLERGEN_LABELS).filter((code) => set.has(code)));
 }
 
 export function detectAllergens(lines, ingredientsList, lang) {

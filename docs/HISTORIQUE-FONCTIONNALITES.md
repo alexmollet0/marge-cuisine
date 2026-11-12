@@ -1306,3 +1306,24 @@ Comptes de test à supprimer via le tableau de bord admin : `chefuptest.coherenc
 - **OCR tesseract conservé.** Prévu : le retirer (jusqu'à 20 s d'attente + téléchargement d'un moteur externe sur le téléphone) après un test comparatif avec/sans — test impossible depuis la session (pas de clé Anthropic en local, pas de compte). À trancher avec l'utilisateur.
 - Vérifié par `npm run build` uniquement. Aucun vrai scan testé (derrière l'authentification) — à tester par l'utilisateur sur téléphone ET ordinateur après déploiement, en particulier : le sélecteur propose-t-il bien l'appareil photo sur son téléphone.
 - Prompt de lecture et vérification "un par un" volontairement non touchés.
+
+---
+
+## Allergènes : "Tagliatelles" sans gluten → refonte de la détection (2026-11)
+
+**Signalé** : la recette de démo (Bœuf bourguignon, avec tagliatelles) n'affichait pas "Gluten". Repéré pendant la production des vidéos TikTok, l'utilisateur a demandé un correctif "strict, pour que ça n'arrive plus sur n'importe quel ingrédient".
+
+**Cause** (`src/catalog.js`) : deux listes tenues à la main, toutes deux incomplètes. `ALLERGEN_MAP` (par produit du catalogue) ne connaissait que `farine`/`pates`/`couscous` pour le gluten — `tagliatelles` et `spaghetti`, ajoutés au catalogue plus tard, n'y avaient jamais été reportés. `ALLERGEN_NAME_KEYWORDS` (par mot du nom) ne contenait aucune forme de pâtes, et exigeait le mot exact (pas de tolérance au pluriel). Même trou pour ~25 autres produits du catalogue (comté, emmental, brie, feta, huîtres, calamar, sardine, vin rosé, champagne, mayonnaise, tofu, pistaches...). Et l'inverse existait aussi : "Noix de muscade" et "Noix de Saint-Jacques" déclaraient à tort "Fruits à coque", "Farine de sarrasin" déclarait "Gluten".
+
+**Correctif** :
+- `ALLERGEN_MAP` complété pour tout le catalogue (relu produit par produit).
+- Mots-clés très élargis (toutes les formes de pâtes, pains/viennoiseries, ~50 fromages, poissons, coquillages, alcools à sulfites, produits composés : mayonnaise, pesto, béchamel, brioche, surimi, bouillon...), au singulier avec pluriel toléré automatiquement, expressions de plusieurs mots acceptées ("saint jacques", "sauce soja").
+- `ALLERGEN_PHRASE_REWRITES` : expressions où le mot-clé ne désigne pas l'allergène ("lait de coco", "noix de muscade", "farine de sarrasin", "beurre de cacahuète", "nouilles de riz", "œufs de saumon"...).
+- **3 allergènes réglementaires ajoutés** (la liste légale en compte 14, l'app n'en avait que 11) : arachides, sésame, lupin — libellés FR/ES/EN + icônes sur la carte publique (`src/PublicMenu.jsx`). "Huile de sésame" du catalogue ne déclarait rien avant.
+- Un produit du catalogue renommé par le restaurateur est maintenant aussi analysé sur son nom affiché (les 3 sources s'additionnent : table, nom catalogue, nom affiché).
+- Ordre d'affichage stable (ordre de la liste officielle).
+- **Garde-fou** : `scripts/check-allergens.mjs` (`node scripts/check-allergens.mjs`) — ~65 cas attendus + liste de tout le catalogue à relire. À relancer après tout ajout au catalogue ou aux mots-clés.
+
+**Effet sur les recettes existantes** : l'effet de recalcul au chargement (`App.jsx`, `allergensAuto !== false`) met à jour toutes les recettes en mode automatique dès l'ouverture de l'app, carte digitale comprise. Les recettes dont les allergènes ont été tapés à la main ne sont pas touchées.
+
+**Limite assumée, dite à l'utilisateur** : aucune liste ne peut garantir 100% sur un nom libre (marque, produit transformé dont la composition dépend du fabricant : chocolat, charcuterie, margarine, sauces). La détection reste une aide, la responsabilité légale de la fiche allergènes reste au restaurateur — en cas de doute la liste préfère signaler. Vérifié par le script + build ; pas de test visuel dans l'app.
