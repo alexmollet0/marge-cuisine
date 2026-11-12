@@ -4862,9 +4862,13 @@ export default function App() {
               </div>
             </div>
 
+            <div className="mt-4 text-[11px] leading-snug text-white/50 flex items-start gap-1.5 print:hidden">
+              <AlertTriangle size={12} className="shrink-0 mt-0.5" style={{ color: TIER_COLORS.mid }} />
+              <span>{t("allergenSheetVerifyHint")}</span>
+            </div>
             <button
               onClick={() => window.print()}
-              className="w-full mt-5 text-xs font-display uppercase tracking-wide py-2.5 rounded-full font-semibold flex items-center justify-center gap-1.5"
+              className="w-full mt-3 text-xs font-display uppercase tracking-wide py-2.5 rounded-full font-semibold flex items-center justify-center gap-1.5"
               style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
             >
               <Printer size={13} /> {t("print")}
@@ -5988,6 +5992,15 @@ export default function App() {
                   />
                   {active.allergens && (
                     <div className="hidden print:block text-xs p-2 whitespace-pre-wrap">{active.allergens}</div>
+                  )}
+                  {/* [2026-11] La détection automatique est une aide, jamais une garantie (un produit
+                      transformé dépend de son fabricant) : rappel visible à l'écran seulement, tant
+                      que la liste n'a pas été reprise à la main. */}
+                  {active.allergensAuto !== false && (
+                    <div className="mt-1 text-[10px] leading-snug text-black/45 flex items-start gap-1 print:hidden">
+                      <AlertTriangle size={10} className="shrink-0 mt-0.5" />
+                      <span>{t("allergensVerifyHint")}</span>
+                    </div>
                   )}
                 </div>
               </div>
