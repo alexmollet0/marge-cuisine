@@ -18,10 +18,10 @@ function daysLeft(createdAt) {
 }
 
 // Portail d'accès (comme AuthGate) : affiché uniquement une fois connecté (voir main.jsx,
-// imbriqué DANS AuthGate). Pas de carte demandée pour l'essai de 7 jours (décision produit
-// 2026-08-03, cohérente avec l'acquisition TikTok/créateurs à faible friction) : le calcul de
-// l'essai se base uniquement sur la date d'inscription Supabase, déjà connue, aucune donnée
-// supplémentaire à stocker pour ça. Stripe n'intervient qu'une fois l'essai terminé.
+// imbriqué DANS AuthGate). Comptes créés avant CARD_TRIAL_FROM : essai de 7 jours SANS carte
+// (décision produit 2026-08-03), calculé depuis la date d'inscription Supabase, rien à stocker ;
+// Stripe n'intervient qu'à la fin. Comptes créés à partir de CARD_TRIAL_FROM : l'essai de 7 jours
+// se prend directement dans Stripe Checkout, carte demandée, débit à la fin de l'essai.
 export default function SubscriptionGate({ children }) {
   const [status, setStatus] = useState(undefined); // undefined = chargement initial
   const [lang, setLang] = useState("fr");
