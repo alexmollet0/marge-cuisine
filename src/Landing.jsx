@@ -4,6 +4,7 @@ import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING, TIER_COLO
 import { PROMO_CODE, PROMO_PERCENT, PROMO_END } from "./brand.js";
 import { usePromoCountdown } from "./pricing.js";
 import { shouldAskConsent, grantConsent, denyConsent, initPixelIfConsented, trackAdEvent } from "./adPixel.js";
+import Diagnostic from "./Diagnostic.jsx";
 
 // Fire-and-forget, jamais bloquant pour le visiteur — voir api/landing.js (POST).
 // `?notrack=1` dans l'URL désactive le comptage (2026-08-19) : demandé par l'utilisateur qui
@@ -347,6 +348,11 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
     const engagedTimer = setTimeout(() => {
       if (document.visibilityState === "visible") logLandingEvent("engaged");
     }, 3000);
+    // Adresse courte TikTok (`getchefup.com/test`, rewrite dans vercel.json) : même page, mais
+    // on amène directement le visiteur sur le diagnostic au lieu de le laisser scroller.
+    if (window.location.pathname === "/test") {
+      setTimeout(() => document.getElementById("diagnostic")?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+    }
     fetch("/api/landing?spots=1")
       .then((r) => r.json())
       .then((d) => {
@@ -440,6 +446,18 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
             {t("landingHeroTitle")}
           </h2>
           <p className="text-white/60 text-sm sm:text-base leading-relaxed">{t("landingHeroSubtitle")}</p>
+        </div>
+
+        {/* Diagnostic « Ta carte en 3 minutes » (2026-11-17, docs/PLAN-DIAGNOSTIC-LANDING.md) : juste
+            sous le titre, avant la démo, pour qu'un visiteur venu de TikTok (getchefup.com/test) voie
+            tout de suite quelque chose à faire. 100 % local, aucun compte demandé avant l'étape finale. */}
+        <div id="diagnostic">
+          <Diagnostic
+            t={t}
+            lang={lang}
+            onEvent={(name) => logLandingEvent(name)}
+            onStart={handleStart}
+          />
         </div>
 
         {/* Remplace MarginCalculator (2026-08-27 → 2026-09-16) : 0 utilisation mesurée en une

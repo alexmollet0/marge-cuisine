@@ -1,5 +1,8 @@
 import { getStripe, getSupabaseAdmin, requireUser, getFoundingState, isInternalEmail, TRIAL_DAYS } from "./_lib.js";
 
+// Doit rester identique à CARD_TRIAL_FROM dans src/Billing.jsx (2026-11-18).
+const CARD_TRIAL_FROM = new Date("2026-11-18T00:00:00Z");
+
 // Deux rôles dans un seul fichier — le plan Hobby Vercel plafonne à 12 fonctions serverless et ce
 // projet y est exactement (voir CLAUDE.md) : aucun nouvel endpoint possible sans en fusionner un.
 //
@@ -15,7 +18,8 @@ import { getStripe, getSupabaseAdmin, requireUser, getFoundingState, isInternalE
 // Si `STRIPE_FOUNDING_PRICE_ID` n'est pas configuré, on retombe silencieusement sur le tarif normal
 // — jamais d'échec de paiement à cause de l'offre.
 //
-// L'essai de 7 jours reste géré côté app (pas de période d'essai Stripe, pas de carte demandée).
+// Essai de 7 jours : avec carte demandée, pour les comptes créés à partir de CARD_TRIAL_FROM (2026-11-18),
+// via `subscription_data.trial_period_days`. Les comptes plus anciens gardent l'essai côté app, sans carte.
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ error: "Méthode non autorisée" });
@@ -79,7 +83,7 @@ export default async function handler(req, res) {
     // le chemin du clic "S'abonner".
     const existingPromise = supabaseAdmin
       .from("subscriptions")
-      .select("stripe_customer_id")
+      .select("stripe_customer_id, stripe_subscription_id")
       .eq("user_id", user.id)
       .maybeSingle();
     const [founding, { data: existing }] = await Promise.all([foundingPromise, existingPromise]);
@@ -121,6 +125,11 @@ export default async function handler(req, res) {
       );
     }
 
+    // Essai de 7 jours AVEC carte (2026-11-18) : réservé aux comptes créés à partir de CARD_TRIAL_FROM
+    // qui n'ont encore jamais eu d'abonnement Stripe. Stripe ne débite rien pendant l'essai, puis
+    // prélève le tarif. Les anciens comptes, déjà en essai côté app, paient comme avant.
+    const trialDays = new Date(user.created_at) >= CARD_TRIAL_FROM && !existing?.stripe_subscription_id ? TRIAL_DAYS : null;
+
     const origin = req.headers.origin || `https://${req.headers.host}`;
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -128,6 +137,8 @@ export default async function handler(req, res) {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/?checkout=success`,
       cancel_url: `${origin}/?checkout=cancel`,
+      payment_method_collection: "always",
+      ...(trialDays ? { subscription_data: { trial_period_days: trialDays } } : {}),
       // Champ "code promo" sur la page Stripe (2026-09-04, demandé pour pousser une offre
       // ponctuelle liée à une vidéo TikTok qui convertit bien) — le coupon lui-même se crée et
       // s'active/désactive côté Stripe Dashboard, rien à déployer pour changer l'offre en cours.

@@ -6,6 +6,10 @@ import { PROMO_CODE, PROMO_PERCENT, PROMO_END } from "./brand.js";
 import { logActivity, usePromoCountdown } from "./pricing.js";
 
 const TRIAL_DAYS = 7;
+// Essai avec carte (2026-11-18) : les comptes créés à partir de cette date n'ont plus d'essai gratuit
+// côté app sans carte. Ils voient directement l'offre d'essai de 7 jours avec carte (Stripe, voir
+// api/create-checkout-session.js, même date). Les comptes plus anciens gardent leur essai en cours.
+const CARD_TRIAL_FROM = new Date("2026-11-18T00:00:00Z");
 const AUTH_LANG_KEY = "chefup:authLang";
 
 function daysLeft(createdAt) {
@@ -40,6 +44,7 @@ export default function SubscriptionGate({ children }) {
       if (override?.value && new Date(override.value) > new Date(effectiveStart)) effectiveStart = override.value;
     } catch (e) {}
     const left = daysLeft(effectiveStart);
+    const cardTrial = new Date(session.user.created_at) >= CARD_TRIAL_FROM;
     const { data: sub } = await supabase.from("subscriptions").select("status").maybeSingle();
     // "past_due" reste autorisé (grâce le temps que Stripe relance le paiement automatiquement)
     // — seuls canceled/unpaid/aucun abonnement bloquent une fois l'essai terminé.
@@ -74,7 +79,7 @@ export default function SubscriptionGate({ children }) {
     // "je suis interne" stocké localement serait modifiable par n'importe qui pour contourner
     // l'abonnement. En contrepartie, si cet appel échoue, le paywall réapparaît — c'est le repli
     // sûr, jamais l'inverse.
-    setStatus({ active: active || internal, inTrial: left > 0, trialDaysLeft: left, founder, internal, spotsRemaining });
+    setStatus({ active: active || internal, cardTrial, inTrial: !cardTrial && left > 0, trialDaysLeft: left, founder, internal, spotsRemaining });
   }, []);
 
   useEffect(() => {
@@ -139,10 +144,14 @@ export default function SubscriptionGate({ children }) {
               Une fois la place perdue (essai expiré, places épuisées), on retombe sur le tarif
               normal sans jamais promettre un prix qui ne s'appliquerait plus. */}
           <h2 className="text-white font-display uppercase text-sm tracking-wide mb-3">
-            {status.founder ? t("launchPaywallTitle")(PRICING.founding) : t("billingPaywallTitle")}
+            {status.cardTrial
+              ? t("billingCardTrialTitle")
+              : status.founder ? t("launchPaywallTitle")(PRICING.founding) : t("billingPaywallTitle")}
           </h2>
           <p className="text-white/60 text-sm mb-2">
-            {t("billingPaywallBody")(status.founder ? PRICING.founding : PRICING.standard)}
+            {status.cardTrial
+              ? t("billingCardTrialBody")(status.founder ? PRICING.founding : PRICING.standard)
+              : t("billingPaywallBody")(status.founder ? PRICING.founding : PRICING.standard)}
           </p>
           {status.founder && (
             <p className="text-xs font-semibold mb-4" style={{ color: BRAND_SOLID }}>
@@ -175,7 +184,7 @@ export default function SubscriptionGate({ children }) {
             style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
           >
             {busy && <Loader2 size={14} className="animate-spin" />}
-            {t("billingSubscribeButton")}
+            {status.cardTrial ? t("billingCardTrialCta") : t("billingSubscribeButton")}
           </button>
           <p className="text-[10px] text-white/30 mt-3">{t("billingSecureNote")}</p>
           <button onClick={() => supabase.auth.signOut()} className="text-white/40 hover:text-white text-xs mt-5 underline">

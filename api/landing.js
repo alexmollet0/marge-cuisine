@@ -16,7 +16,9 @@ import { getSupabaseAdmin, getFoundingState, landingEventsSummary } from "./_lib
 // distingue un vrai visiteur d'un simple chargement de page — voir src/Landing.jsx.
 // `calc_used` (2026-08-27) : le visiteur a réellement manipulé le calculateur de marge de la page
 // d'accueil. C'est le signal d'intérêt le plus fiable du funnel, bien avant le clic d'inscription.
-const VALID_EVENTS = new Set(["view", "start_click", "login_click", "engaged", "calc_used"]);
+// Diagnostic « Ta carte en 3 minutes » (2026-11-17) : diag_start (1re saisie), diag_result (résultat
+// vu), diag_enjeu (écran des enjeux vu), diag_signup_click (clic « Crée ton compte »).
+const VALID_EVENTS = new Set(["view", "start_click", "login_click", "engaged", "calc_used", "diag_start", "diag_result", "diag_enjeu", "diag_signup_click"]);
 
 // Provenance de la visite (2026-08-26), pour distinguer le trafic d'une campagne payante du
 // trafic organique — indispensable dès qu'on paie de la publicité, sinon impossible de savoir si
