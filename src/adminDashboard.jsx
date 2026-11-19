@@ -107,6 +107,97 @@ function Kpi({ label, value, sub, delta, abs, inverse, accent, onClick }) {
 }
 const Empty = ({ children }) => <p className="text-xs text-white/40 py-3">{children}</p>;
 
+// Visites et inscriptions (« essais ») JOUR PAR JOUR : demandé par Alex (2026-11-19, « je veux les visites par jour et les essais par jour »). Le jour le plus récent
+// est en haut ; sous chaque jour, qui s'est inscrit (clic = fiche du compte). Les jours sont comptés en heure universelle (UTC), comme la base des visites.
+function MiniStat({ label, value, sub, color }) {
+  return (
+    <div className="rounded-xl border p-3" style={{ background: "#16130F", borderColor: "rgba(255,255,255,0.08)" }}>
+      <div className="text-[10px] uppercase tracking-wide text-white/40 leading-tight">{label}</div>
+      <div className="font-display text-2xl leading-none mt-1" style={{ color }}>{value}</div>
+      {sub && <div className="text-[11px] text-white/45 mt-1">{sub}</div>}
+    </div>
+  );
+}
+function DayByDay({ d, openAccount, rows = 14 }) {
+  const [showAll, setShowAll] = useState(false);
+  const series = d.series || [];
+  const list = useMemo(() => series.slice().reverse().slice(0, showAll ? series.length : rows), [series, showAll, rows]);
+  const whoByDay = useMemo(() => {
+    const m = {};
+    for (const a of d.accounts) {
+      if (a.internal) continue;
+      const k = a.createdAt.slice(0, 10);
+      (m[k] = m[k] || []).push(a);
+    }
+    return m;
+  }, [d]);
+  if (!series.length) return null;
+  const maxV = Math.max(1, ...list.map((s) => s.visits));
+  const maxS = Math.max(1, ...list.map((s) => s.signups));
+  const today = series[series.length - 1];
+  const yesterday = series.length > 1 ? series[series.length - 2] : null;
+  const tot = list.reduce((t, s) => ({ visits: t.visits + s.visits, clicks: t.clicks + s.startClicks, signups: t.signups + s.signups }), { visits: 0, clicks: 0, signups: 0 });
+  const dayLabel = (date, i) => {
+    const l = new Date(date + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+    return i === 0 ? `Aujourd'hui · ${l}` : i === 1 ? `Hier · ${l}` : l;
+  };
+  return (
+    <Card title="Visites et essais, jour par jour" hint="Un « essai » = une inscription : le compte démarre ses 7 jours gratuits. Le jour le plus récent est en haut ; sous chaque jour, qui s'est inscrit.">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+        <MiniStat label="Visites aujourd'hui" value={fmtInt(today.visits)} sub={yesterday ? `hier : ${fmtInt(yesterday.visits)}` : null} color="#38BDF8" />
+        <MiniStat label="Essais aujourd'hui" value={fmtInt(today.signups)} sub={yesterday ? `hier : ${fmtInt(yesterday.signups)}` : null} color="#10B981" />
+        <MiniStat label={`Visites sur ${list.length} jours`} value={fmtInt(tot.visits)} sub={`${fmtInt(tot.clicks)} clics sur « Essayer »`} color="#38BDF8" />
+        <MiniStat label={`Essais sur ${list.length} jours`} value={fmtInt(tot.signups)} sub={tot.visits ? `${fmtPct(Math.round((1000 * tot.signups) / tot.visits) / 10)} des visites` : null} color="#10B981" />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-[11px] uppercase tracking-wide text-white/40">
+              <th className="text-left font-normal pb-2">Jour</th>
+              <th className="text-right font-normal pb-2 w-24">Visites</th>
+              <th className="text-right font-normal pb-2 w-16">Clics</th>
+              <th className="text-right font-normal pb-2 w-24">Essais</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((s, i) => {
+              const who = whoByDay[s.date] || [];
+              return (
+                <tr key={s.date} className="border-t border-white/5 align-top">
+                  <td className="py-2 pr-2">
+                    <div className={i === 0 ? "text-white font-semibold" : "text-white/80"}>{dayLabel(s.date, i)}</div>
+                    {who.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {who.slice(0, 3).map((a) => (
+                          <button key={a.id} type="button" onClick={() => openAccount(a.email)} className="rounded-full px-2 py-0.5 text-[10px] text-white/70 hover:text-white" style={{ background: "rgba(16,185,129,0.14)" }}>{a.email}</button>
+                        ))}
+                        {who.length > 3 && <span className="text-[10px] text-white/40 self-center">+{who.length - 3}</span>}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-2 text-right">
+                    <span className="font-semibold text-white">{fmtInt(s.visits)}</span>
+                    <div className="h-1 rounded-full mt-1 ml-auto" style={{ width: `${(s.visits / maxV) * 100}%`, minWidth: s.visits ? 3 : 0, background: "#38BDF8" }} />
+                  </td>
+                  <td className="py-2 text-right text-white/60">{fmtInt(s.startClicks)}</td>
+                  <td className="py-2 text-right">
+                    <span className="font-semibold" style={{ color: s.signups ? "#34D399" : "rgba(255,255,255,0.35)" }}>{fmtInt(s.signups)}</span>
+                    <div className="h-1 rounded-full mt-1 ml-auto" style={{ width: `${(s.signups / maxS) * 100}%`, minWidth: s.signups ? 3 : 0, background: "#10B981" }} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {series.length > rows && (
+        <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-3 text-xs text-white/60 hover:text-white underline underline-offset-2">{showAll ? "Réduire" : `Voir les ${series.length} jours`}</button>
+      )}
+      <p className="text-[11px] text-white/35 mt-3 leading-snug">Les jours changent à 1 h du matin en France (2 h l'été). Tes propres visites comptent tant que tu n'as pas ouvert une fois getchefup.com/?notrack=1 sur chaque appareil.</p>
+    </Card>
+  );
+}
+
 // Courbes simples (SVG, aucune dépendance) : `lines` = [{ key, label, color }]
 function SeriesChart({ series, lines, height = 120 }) {
   if (!series || !series.length) return <Empty>Pas encore de données.</Empty>;
@@ -198,6 +289,7 @@ function TodayTab({ d, openAccount, openCompose, setTab }) {
   const urgent = d.actions.filter((a) => a.severity === "high").length;
   return (
     <div className="space-y-4">
+      <DayByDay d={d} openAccount={openAccount} rows={14} />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label="Visites de la page d'accueil" value={fmtInt(k.visits.value)} delta={k.visits.deltaPct} abs={k.visits.delta} sub={`${d.periodDays} derniers jours`} />
         <Kpi label="Inscriptions" value={fmtInt(k.signups.value)} delta={k.signups.deltaPct} abs={k.signups.delta} sub={`${fmtInt(k.startClicks.value)} clics sur « Essayer »`} />
@@ -447,12 +539,13 @@ function FeaturesTab({ d }) {
 // ---------------------------------------------------------------------------------------------------------------------------------------------
 // Écran 5 : Acquisition
 // ---------------------------------------------------------------------------------------------------------------------------------------------
-function AcquisitionTab({ d }) {
+function AcquisitionTab({ d, openAccount }) {
   return (
     <div className="space-y-4">
       <Card title="Visites, clics et inscriptions" hint="Page d'accueil : visiteurs, clics sur « Essayer 7 jours », comptes créés.">
         <SeriesChart series={d.series} height={140} lines={[{ key: "visits", label: "visites", color: "#38BDF8" }, { key: "startClicks", label: "clics « Essayer »", color: "#F59E0B" }, { key: "signups", label: "inscriptions", color: "#10B981" }]} />
       </Card>
+      <DayByDay d={d} openAccount={openAccount} rows={30} />
       <Card title="D'où viennent les gens" hint="Chaque ligne : une provenance (le paramètre du lien, ex. tiktok). Les visites sans provenance comptent dans « direct », y compris les tiennes si tu n'as pas désactivé le suivi.">
         {!d.sources.length ? <Empty>Pas encore de visite.</Empty> : (
           <div className="overflow-x-auto">
@@ -838,7 +931,7 @@ export function AdminDashboard({ loader, poster } = {}) {
           {tab === "journey" && <JourneyTab d={v2} openAccount={openAccount} />}
           {tab === "accounts" && <AccountsTab d={v2} openAccount={openAccount} />}
           {tab === "features" && <FeaturesTab d={v2} />}
-          {tab === "acquisition" && <AcquisitionTab d={v2} />}
+          {tab === "acquisition" && <AcquisitionTab d={v2} openAccount={openAccount} />}
           {tab === "retention" && <RetentionTab d={v2} />}
           {tab === "health" && <HealthTab d={v2} openAccount={openAccount} openCompose={(email, template) => setCompose({ email, template })} viewImage={viewImage} />}
         </>
