@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Receipt, Percent, Printer, Package, QrCode, Camera, Check, TrendingUp } from "lucide-react";
+import { Percent, Eye, Camera, Check, TrendingUp } from "lucide-react";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING, TIER_COLORS } from "./App.jsx";
 import { PROMO_CODE, PROMO_PERCENT, PROMO_END } from "./brand.js";
 import { usePromoCountdown } from "./pricing.js";
@@ -93,14 +93,6 @@ function logViewWhenVisible() {
   return () => document.removeEventListener("visibilitychange", onVisible);
 }
 
-const FEATURES = [
-  { icon: Receipt, titleKey: "landingFeatureScanTitle", descKey: "landingFeatureScanDesc" },
-  { icon: Percent, titleKey: "landingFeatureMarginTitle", descKey: "landingFeatureMarginDesc" },
-  { icon: QrCode, titleKey: "landingFeatureMenuTitle", descKey: "landingFeatureMenuDesc" },
-  { icon: Printer, titleKey: "landingFeaturePrintTitle", descKey: "landingFeaturePrintDesc" },
-  { icon: Package, titleKey: "landingFeaturePantryTitle", descKey: "landingFeaturePantryDesc" },
-];
-
 const PRICING_FEATURE_KEYS = [
   "landingPricingFeature1",
   "landingPricingFeature2",
@@ -112,7 +104,7 @@ const PRICING_FEATURE_KEYS = [
 const STEPS = [
   { icon: Camera, titleKey: "landingStep1Title", descKey: "landingStep1Desc" },
   { icon: Percent, titleKey: "landingStep2Title", descKey: "landingStep2Desc" },
-  { icon: QrCode, titleKey: "landingStep3Title", descKey: "landingStep3Desc" },
+  { icon: Eye, titleKey: "landingStep3Title", descKey: "landingStep3Desc" },
 ];
 
 // [CHANGEMENT MAJEUR, 2026-09-16] Remplace MarginCalculator (calculateur manuel jouable sans
@@ -156,7 +148,7 @@ function LandingWowInvoice({ scanning }) {
   );
 }
 
-function LandingWowDemo({ t, onEngage, onStart }) {
+function LandingWowDemo({ t, onEngage, onStart, showCta = true }) {
   // idle -> scanning -> result -> priceUp -> recipeImpact -> (pause) -> idle (boucle infinie,
   // aucune interaction requise — un visiteur froid ne clique presque jamais, voir commentaire ci-
   // dessus). Signale UNE fois qu'un visiteur a vu la démo tourner au moins un cycle complet (même
@@ -298,14 +290,16 @@ function LandingWowDemo({ t, onEngage, onStart }) {
       {/* CTA TOUJOURS visible, jamais gagné en attendant la fin d'un cycle — l'ancien calculateur
           n'avait qu'un seul chemin de conversion (après avoir tapé des chiffres) ; ici le visiteur
           peut s'inscrire à tout moment pendant que la démo tourne, sans attendre. */}
-      <button
-        type="button"
-        onClick={onStart}
-        className="w-full mt-4 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold"
-        style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
-      >
-        {t("landingCtaStart")}
-      </button>
+      {showCta && (
+        <button
+          type="button"
+          onClick={onStart}
+          className="w-full mt-4 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold"
+          style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+        >
+          {t("landingCtaStart")}
+        </button>
+      )}
     </div>
   );
 }
@@ -379,10 +373,14 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
     onLogin();
   }
 
+  // Le test « Ce qui t'échappe chaque mois » (Diagnostic) n'est plus sur la page d'accueil : il garde son adresse
+  // getchefup.com/test (rewrite dans vercel.json) — voir la simplification du 2026-11-19.
+  const isTestPage = typeof window !== "undefined" && window.location.pathname === "/test";
+
   return (
     <div className="min-h-screen font-body" style={{ background: "#16130F" }}>
       {/* Bandeau de consentement publicitaire — volontairement en BAS et non bloquant : il ne
-          masque ni le titre, ni le bouton principal, ni le calculateur. Un visiteur qui l'ignore
+          masque ni le titre, ni le bouton principal, ni la démo. Un visiteur qui l'ignore
           peut faire tout le parcours normalement, simplement sans être mesuré côté régie. */}
       {askConsent && (
         <div
@@ -421,128 +419,69 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-2">
             <Logo size={34} />
-            <h1 className="font-display text-white text-xl tracking-wide uppercase">Chefup</h1>
+            <div className="font-display text-white text-xl tracking-wide uppercase">Chefup</div>
           </div>
-          {/* [RESTRUCTURATION 2026-08-27, refonte conversion] "J'ai déjà un compte" était un
-              deuxième bouton de même poids visuel que le CTA principal, juste sous le titre — pour
-              un visiteur froid venu de pub (99% des cas), c'est une hésitation gratuite : il n'a
-              jamais eu de compte. Redescendu en simple lien discret, toujours là pour qui revient
-              sur le lien une 2e fois, mais qui ne dispute plus l'attention du CTA principal. */}
+          {/* "J'ai déjà un compte" : simple lien discret, pour qui revient sur le lien une 2e fois ;
+              il ne dispute pas l'attention du bouton principal (voir la refonte du 2026-08-27). */}
           <button type="button" onClick={handleLogin} className="text-[11px] text-white/40 hover:text-white/70 shrink-0">
             {t("landingCtaLogin")}
           </button>
         </div>
         {LangSwitcher}
 
-        {/* [RESTRUCTURATION 2026-08-27, refonte conversion] Mesuré sur la 1re semaine de campagne :
-            203 visiteurs restés 3s+ ("engaged") sur la page, mais seulement 3 clics sur "Commencer"
-            et 0 (zéro) utilisation du calculateur — alors que le calculateur, lui, était placé APRÈS
-            un long titre+sous-titre+2 boutons+bandeau d'offre+citation. Pour du trafic pub froid,
-            chaque bloc avant la démonstration de valeur est une occasion de repartir. Le calculateur
-            devient donc la toute première chose vue après le titre : aucune promesse à croire sur
-            parole avant de voir un résultat, aucun choix à faire, un seul geste possible (essayer). */}
-        <div className="text-center max-w-xl mx-auto mt-6 mb-8">
-          <h2 className="font-display text-white text-2xl sm:text-3xl tracking-wide leading-snug mb-3">
+        {/* [SIMPLIFICATION 2026-11-19 — « gros travaux » demandés par Alex après le message d'un
+            spectateur : « proposition de valeur difficile à comprendre, trop d'informations d'un coup,
+            on a du mal à accrocher »] La page passe de 10 blocs et 6 boutons à 5 blocs et 2 boutons :
+            1) une promesse en une phrase + comment (le titre dit CE QUE FAIT Chefup, pas seulement un
+            problème), 2) UN bouton d'essai et la condition d'essai juste dessous, 3) la démo animée
+            (une seule), 4) les 3 étapes, 5) le prix. Retirés de l'accueil : le test « Ce qui t'échappe »
+            (reste sur /test), l'offre de lancement et l'offre flash en bandeaux (elles restent dans la
+            carte de prix), le bloc « carte digitale », la grille de 5 fonctionnalités (les points forts
+            sont dans la carte de prix) et la citation du fondateur. Le bloc « carte digitale » et la
+            grille affirmaient aussi « le prix se met à jour tout seul » : faux pour les recettes depuis
+            le 2026-08-30 (voir CLAUDE.md), il n'y a donc plus rien à corriger côté marketing. */}
+        <div className="text-center max-w-xl mx-auto mt-6 mb-6">
+          <h1 className="font-display text-white text-2xl sm:text-3xl tracking-wide leading-snug mb-3">
             {t("landingHeroTitle")}
-          </h2>
+          </h1>
           <p className="text-white/60 text-sm sm:text-base leading-relaxed">{t("landingHeroSubtitle")}</p>
         </div>
 
-        {/* Diagnostic « Ta carte en 3 minutes » (2026-11-17, docs/PLAN-DIAGNOSTIC-LANDING.md) : juste
-            sous le titre, avant la démo, pour qu'un visiteur venu de TikTok (getchefup.com/test) voie
-            tout de suite quelque chose à faire. 100 % local, aucun compte demandé avant l'étape finale. */}
-        <div id="diagnostic">
-          <Diagnostic
-            t={t}
-            lang={lang}
-            onEvent={(name) => logLandingEvent(name)}
-            onStart={handleStart}
-          />
+        <div className="max-w-sm mx-auto text-center mb-8">
+          <button
+            type="button"
+            onClick={handleStart}
+            className="w-full sm:w-auto px-10 py-3 rounded-full font-display uppercase text-xs tracking-wide font-semibold"
+            style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+          >
+            {t("landingCtaStart")}
+          </button>
+          <p className="text-emerald-400/90 text-xs font-semibold mt-3">{t("landingPricingTrial")}</p>
         </div>
 
-        {/* Remplace MarginCalculator (2026-08-27 → 2026-09-16) : 0 utilisation mesurée en une
-            semaine de vraie campagne malgré la 1re place sur la page — voir LandingWowDemo. */}
+        {/* Diagnostic « Ce qui t'échappe chaque mois » : seulement sur getchefup.com/test (2026-11-19). */}
+        {isTestPage && (
+          <div id="diagnostic">
+            <Diagnostic
+              t={t}
+              lang={lang}
+              onEvent={(name) => logLandingEvent(name)}
+              onStart={handleStart}
+            />
+          </div>
+        )}
+
         <LandingWowDemo
           t={t}
+          showCta={false}
           onEngage={() => {
             logLandingEvent("calc_used");
-            // Signal d'intérêt intermédiaire, envoyé au pixel : avec zéro inscription, une régie
-            // n'a rien à apprendre d'un événement "compte créé". Un événement atteignable en
-            // volume comme celui-ci lui donne au moins de quoi optimiser (ici : la démo a tourné
-            // au moins un cycle complet sous les yeux du visiteur).
+            // Signal d'intérêt intermédiaire, envoyé au pixel : la démo a tourné au moins un cycle
+            // complet sous les yeux du visiteur (voir l'historique dans docs/HISTORIQUE-FONCTIONNALITES.md).
             trackAdEvent("ViewContent", { content_name: "margin_calculator" });
           }}
           onStart={handleStart}
         />
-        <p className="text-emerald-400/90 text-xs font-semibold text-center mb-12">{t("landingPricingTrial")}</p>
-
-        {/* [RESTRUCTURATION 2026-08-27] Bandeau d'offre déplacé APRÈS le calculateur (avant : juste
-            sous le titre, donc lu avant toute preuve de valeur). Un engagement mensuel affiché en
-            premier, à un visiteur froid qui n'a encore rien vu, augmente le réflexe de fuite — voir
-            CLAUDE.md pour le raisonnement complet. Ici, il arrive comme la récompense/la bonne
-            surprise juste après que le visiteur a déjà vu SA marge, pas comme la première chose
-            qu'on lui demande de croire. Contenu et logique inchangés, seul l'emplacement change. */}
-        {launchOfferOpen && (
-          <div
-            className="max-w-md mx-auto mb-12 rounded-2xl border-2 px-5 py-4 text-center"
-            style={{ borderColor: BRAND_SOLID, background: `${BRAND_SOLID}14` }}
-          >
-            <div className="font-display uppercase text-[11px] tracking-widest mb-2" style={{ color: BRAND_SOLID }}>
-              {t("launchBadge")}
-            </div>
-            <div className="flex items-end justify-center gap-2 flex-wrap">
-              <span className="text-white/35 text-xl line-through">{money(PRICING.standard)}</span>
-              <span className="text-white font-display text-5xl leading-none">{money(PRICING.founding)}</span>
-              <span className="text-white/60 text-sm mb-1">{t("landingPricingPerMonth")}</span>
-            </div>
-            <div className="font-display uppercase text-sm tracking-wide mt-2" style={{ color: BRAND_SOLID }}>
-              {t("launchForLife")}
-            </div>
-            {typeof spots === "number" && (
-              <div className="text-white text-sm font-bold mt-3">{t("launchSpotsLeft")(spots)}</div>
-            )}
-            <p className="text-white/50 text-[11px] mt-2 leading-relaxed">{t("launchCondition")}</p>
-            <button
-              type="button"
-              onClick={handleStart}
-              className="w-full sm:w-auto px-8 py-2.5 mt-4 rounded-full font-display uppercase text-xs tracking-wide font-semibold"
-              style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
-            >
-              {t("landingCtaStart")}
-            </button>
-          </div>
-        )}
-
-        {/* Offre flash (2026-09-04) — même emplacement/style que l'offre de lancement ci-dessus,
-            mutuellement exclusifs (`promoActive` implique `!launchOfferOpen`). Le code s'applique
-            au moment de payer (pas à l'inscription) : le bouton reste "Commencer l'essai gratuit"
-            (même parcours que le reste de la page), le prix normal 49€ n'est pas modifié ici —
-            seule la landing annonce la remise, la vraie remise vit dans Stripe. */}
-        {promoActive && (
-          <div
-            className="max-w-md mx-auto mb-12 rounded-2xl border-2 px-5 py-4 text-center"
-            style={{ borderColor: BRAND_SOLID, background: `${BRAND_SOLID}14` }}
-          >
-            <div className="font-display uppercase text-[11px] tracking-widest mb-2" style={{ color: BRAND_SOLID }}>
-              {t("promoBadge")}
-            </div>
-            <div className="font-display text-white text-2xl sm:text-3xl leading-snug">
-              {t("promoLine")(PROMO_PERCENT, PROMO_CODE)}
-            </div>
-            <div className="text-white text-sm font-bold mt-3">
-              {t("promoCountdownLabel")(promo.days, promo.hours, promo.minutes)}
-            </div>
-            <p className="text-white/50 text-[11px] mt-2 leading-relaxed">{t("promoCondition")}</p>
-            <button
-              type="button"
-              onClick={handleStart}
-              className="w-full sm:w-auto px-8 py-2.5 mt-4 rounded-full font-display uppercase text-xs tracking-wide font-semibold"
-              style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
-            >
-              {t("landingCtaStart")}
-            </button>
-          </div>
-        )}
 
         <div className="mb-12">
           <h2 className="text-center font-display text-white/90 uppercase text-xs tracking-widest mb-6">
@@ -570,61 +509,11 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           </div>
         </div>
 
-        {/* [AJOUT 2026-08-28] Carte digitale mise en avant comme un second point d'entrée, pas
-            juste une ligne parmi 5 dans la grille de fonctionnalités plus bas — demandé par
-            l'utilisateur. Placée après "Comment ça marche" plutôt qu'en haut de page : le
-            calculateur reste LE premier geste demandé au visiteur (voir la refonte du 2026-08-27,
-            un seul CTA avant toute preuve de valeur) ; ceci n'est qu'une porte de sortie alternative
-            pour qui n'a pas encore de facture/coût sous la main mais veut un résultat concret tout
-            de suite. Même bouton `handleStart` que le reste de la page — ce n'est pas un second
-            produit, juste un autre point d'entrée dans le même parcours d'inscription. */}
-        <div
-          className="max-w-2xl mx-auto mb-12 rounded-2xl border border-white/10 px-5 py-5 sm:py-6 flex flex-col sm:flex-row items-center gap-4"
-          style={{ background: "#201B15" }}
-        >
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${BRAND_SOLID}22`, color: BRAND_SOLID }}>
-            <QrCode size={22} />
-          </div>
-          <div className="flex-1 text-center sm:text-left">
-            <h3 className="text-white font-display uppercase text-xs tracking-wide mb-1">{t("landingMenuCalloutTitle")}</h3>
-            <p className="text-white/50 text-xs leading-relaxed">{t("landingMenuCalloutDesc")}</p>
-          </div>
-          <button
-            type="button"
-            onClick={handleStart}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold shrink-0"
-            style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
-          >
-            {t("landingMenuCalloutCta")}
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-12">
-          {FEATURES.map(({ icon: Icon, titleKey, descKey }) => (
-            <div key={titleKey} className="rounded-2xl p-5 border border-white/10" style={{ background: "#201B15" }}>
-              <div
-                className="w-9 h-9 rounded-lg flex items-center justify-center mb-3"
-                style={{ background: `${BRAND_SOLID}22`, color: BRAND_SOLID }}
-              >
-                <Icon size={18} />
-              </div>
-              <h3 className="text-white font-display uppercase text-xs tracking-wide mb-1.5">{t(titleKey)}</h3>
-              <p className="text-white/50 text-xs leading-relaxed">{t(descKey)}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Citation du fondateur (2026-08-27) : redescendue ici depuis le haut de la page — un
-            trust-signal a plus de poids juste avant le moment où on demande vraiment un
-            engagement (la carte de prix) que tout en haut, avant que le visiteur sache même de
-            quoi il s'agit. */}
-        <p className="text-white/40 text-xs italic text-center mb-6 max-w-md mx-auto">{t("billingFounderStory")}</p>
-
         <div
           className="max-w-sm mx-auto rounded-2xl p-6 border-2 text-center"
           style={{ background: "#201B15", borderColor: BRAND_SOLID }}
         >
-          <h3 className="font-display uppercase text-white text-sm tracking-wide mb-3">{t("landingPricingTitle")}</h3>
+          <h2 className="font-display uppercase text-white text-sm tracking-wide mb-3">{t("landingPricingTitle")}</h2>
           {launchOfferOpen && (
             <div
               className="inline-block rounded-full px-3 py-1 mb-2 font-display uppercase text-[10px] tracking-wide"
@@ -644,7 +533,7 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
           )}
           <div className="flex items-end justify-center gap-1.5 mb-1">
             {/* Le tarif normal reste affiché à côté du tarif fondateur : c'est le prix réellement
-                facturé à tout compte hors des 50 places, pas un prix barré fictif. */}
+                facturé à tout compte hors des places fondateur, pas un prix barré fictif. */}
             {launchOfferOpen && (
               <span className="text-white/35 text-lg line-through mb-1">{money(PRICING.standard)}</span>
             )}
