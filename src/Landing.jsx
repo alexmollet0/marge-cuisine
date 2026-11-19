@@ -442,7 +442,8 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
             le 2026-08-30 (voir CLAUDE.md), il n'y a donc plus rien à corriger côté marketing. */}
         <div className="text-center max-w-xl mx-auto mt-6 mb-6">
           <h1 className="font-display text-white text-2xl sm:text-3xl tracking-wide leading-snug mb-3">
-            {t("landingHeroTitle")}
+            {t("landingHeroTitle")}{" "}
+            <span style={{ color: BRAND_SOLID }}>{t("landingHeroPlus")}</span>
           </h1>
           <p className="text-white/60 text-sm sm:text-base leading-relaxed">{t("landingHeroSubtitle")}</p>
         </div>
