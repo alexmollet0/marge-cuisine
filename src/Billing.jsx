@@ -6,10 +6,13 @@ import { PROMO_CODE, PROMO_PERCENT, PROMO_END } from "./brand.js";
 import { logActivity, usePromoCountdown } from "./pricing.js";
 
 const TRIAL_DAYS = 7;
-// Essai avec carte (2026-11-18) : les comptes créés à partir de cette date n'ont plus d'essai gratuit
-// côté app sans carte. Ils voient directement l'offre d'essai de 7 jours avec carte (Stripe, voir
-// api/create-checkout-session.js, même date). Les comptes plus anciens gardent leur essai en cours.
-const CARD_TRIAL_FROM = new Date("2026-11-18T00:00:00Z");
+// Essai SANS carte RÉTABLI le 2026-11-19 (décision d'Alex : sans carte pendant la phase d'apprentissage, les ~30
+// premiers testeurs ; l'essai AVEC carte n'a duré que du 18 au 19/11 et un spectateur a écrit qu'il « bloque direct le
+// taux de transformation »). `CARD_TRIAL_FROM` = date à partir de laquelle un compte voit directement l'offre d'essai avec
+// carte (Stripe Checkout, voir api/create-checkout-session.js, MÊME valeur) ; `null` = essai de 7 jours côté app, sans carte,
+// pour tout le monde. Pour remettre l'essai avec carte : une date ici ET dans api/create-checkout-session.js, puis la CGV §2
+// (public/cgv.html) et les lignes d'essai de src/translations.js (authSignupFreeNote, landingPricingTrial, diagCtaNote).
+const CARD_TRIAL_FROM = null;
 const AUTH_LANG_KEY = "chefup:authLang";
 
 function daysLeft(createdAt) {
@@ -18,10 +21,10 @@ function daysLeft(createdAt) {
 }
 
 // Portail d'accès (comme AuthGate) : affiché uniquement une fois connecté (voir main.jsx,
-// imbriqué DANS AuthGate). Comptes créés avant CARD_TRIAL_FROM : essai de 7 jours SANS carte
-// (décision produit 2026-08-03), calculé depuis la date d'inscription Supabase, rien à stocker ;
-// Stripe n'intervient qu'à la fin. Comptes créés à partir de CARD_TRIAL_FROM : l'essai de 7 jours
-// se prend directement dans Stripe Checkout, carte demandée, débit à la fin de l'essai.
+// imbriqué DANS AuthGate). Essai de 7 jours SANS carte (décision produit 2026-08-03, rétablie le 2026-11-19 après
+// l'essai avec carte du 18 au 19/11) : calculé depuis la date d'inscription Supabase, rien à stocker ; Stripe
+// n'intervient qu'à la fin. Si CARD_TRIAL_FROM est une date : les comptes créés à partir de cette date prennent
+// l'essai de 7 jours directement dans Stripe Checkout, carte demandée, débit à la fin de l'essai.
 export default function SubscriptionGate({ children }) {
   const [status, setStatus] = useState(undefined); // undefined = chargement initial
   const [lang, setLang] = useState("fr");
@@ -44,7 +47,7 @@ export default function SubscriptionGate({ children }) {
       if (override?.value && new Date(override.value) > new Date(effectiveStart)) effectiveStart = override.value;
     } catch (e) {}
     const left = daysLeft(effectiveStart);
-    const cardTrial = new Date(session.user.created_at) >= CARD_TRIAL_FROM;
+    const cardTrial = CARD_TRIAL_FROM !== null && new Date(session.user.created_at) >= CARD_TRIAL_FROM;
     const { data: sub } = await supabase.from("subscriptions").select("status").maybeSingle();
     // "past_due" reste autorisé (grâce le temps que Stripe relance le paiement automatiquement)
     // — seuls canceled/unpaid/aucun abonnement bloquent une fois l'essai terminé.

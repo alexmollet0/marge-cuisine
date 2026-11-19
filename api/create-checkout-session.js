@@ -1,7 +1,8 @@
 import { getStripe, getSupabaseAdmin, requireUser, getFoundingState, isInternalEmail, TRIAL_DAYS } from "./_lib.js";
 
-// Doit rester identique à CARD_TRIAL_FROM dans src/Billing.jsx (2026-11-18).
-const CARD_TRIAL_FROM = new Date("2026-11-18T00:00:00Z");
+// Doit rester identique à CARD_TRIAL_FROM dans src/Billing.jsx. `null` = pas d'essai avec carte : essai sans carte
+// rétabli le 2026-11-19 (décision d'Alex ; l'essai avec carte n'a duré que du 18 au 19/11).
+const CARD_TRIAL_FROM = null;
 
 // Deux rôles dans un seul fichier — le plan Hobby Vercel plafonne à 12 fonctions serverless et ce
 // projet y est exactement (voir CLAUDE.md) : aucun nouvel endpoint possible sans en fusionner un.
@@ -18,8 +19,8 @@ const CARD_TRIAL_FROM = new Date("2026-11-18T00:00:00Z");
 // Si `STRIPE_FOUNDING_PRICE_ID` n'est pas configuré, on retombe silencieusement sur le tarif normal
 // — jamais d'échec de paiement à cause de l'offre.
 //
-// Essai de 7 jours : avec carte demandée, pour les comptes créés à partir de CARD_TRIAL_FROM (2026-11-18),
-// via `subscription_data.trial_period_days`. Les comptes plus anciens gardent l'essai côté app, sans carte.
+// Essai de 7 jours : sans carte, côté app (src/Billing.jsx). Seulement si CARD_TRIAL_FROM est une date : avec carte demandée,
+// pour les comptes créés à partir de cette date, via `subscription_data.trial_period_days`.
 export default async function handler(req, res) {
   if (req.method !== "POST" && req.method !== "GET") {
     return res.status(405).json({ error: "Méthode non autorisée" });
@@ -125,10 +126,10 @@ export default async function handler(req, res) {
       );
     }
 
-    // Essai de 7 jours AVEC carte (2026-11-18) : réservé aux comptes créés à partir de CARD_TRIAL_FROM
-    // qui n'ont encore jamais eu d'abonnement Stripe. Stripe ne débite rien pendant l'essai, puis
-    // prélève le tarif. Les anciens comptes, déjà en essai côté app, paient comme avant.
-    const trialDays = new Date(user.created_at) >= CARD_TRIAL_FROM && !existing?.stripe_subscription_id ? TRIAL_DAYS : null;
+    // Essai de 7 jours AVEC carte : désactivé depuis le 2026-11-19 (CARD_TRIAL_FROM = null, essai sans carte rétabli).
+    // Si une date est remise : réservé aux comptes créés à partir de CARD_TRIAL_FROM qui n'ont encore jamais eu
+    // d'abonnement Stripe ; Stripe ne débite rien pendant l'essai, puis prélève le tarif.
+    const trialDays = CARD_TRIAL_FROM && new Date(user.created_at) >= CARD_TRIAL_FROM && !existing?.stripe_subscription_id ? TRIAL_DAYS : null;
 
     const origin = req.headers.origin || `https://${req.headers.host}`;
     const session = await stripe.checkout.sessions.create({
