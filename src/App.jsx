@@ -33,7 +33,9 @@ import {
   ScanNameChoice, PricingCalculator, MenuRecipeRow, SimpleItemRow, SimpleItemsSection,
   DigitalMenuModal, ScanItemCard, translateMenuText,
 } from "./scannerComponents.jsx";
-import { marginMessage, InstallDiagram, AdminDashboard, AppTutorial, SCAN_ERR_CODES } from "./adminAndOnboarding.jsx";
+import { marginMessage, InstallDiagram, AppTutorial, SCAN_ERR_CODES } from "./adminAndOnboarding.jsx";
+// Tableau de bord refait de A à Z le 2026-11-19 (l'ancien AdminDashboard reste dans adminAndOnboarding.jsx, non branché).
+import { AdminDashboard } from "./adminDashboard.jsx";
 import { MenuWizard } from "./MenuWizard.jsx";
 import {
   Plus,

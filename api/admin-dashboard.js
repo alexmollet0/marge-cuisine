@@ -7,7 +7,8 @@
 // ⚠️ Ce projet est au plafond du plan Hobby Vercel (12 fonctions serverless par déploiement,
 // _lib.js exclu) avec ce fichier. Avant d'ajouter un nouvel endpoint : fusionner avec un fichier
 // existant proche, voir la note dans CLAUDE.md ("Fichiers clés").
-import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml, isInternalEmail, landingEventsSummary, SCAN_UPLOADS_BUCKET } from "./_lib.js";
+import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml, isInternalEmail, landingEventsSummary, SCAN_UPLOADS_BUCKET, getStripe } from "./_lib.js";
+import { buildDashboard, buildAccountDetail } from "./_dashboard.js";
 
 // Suppression de compte (2026-08-29), demandée par l'utilisateur pour nettoyer les comptes de test
 // (chefuptest01/02/03..., comptes créés par Claude pour tester le flux OTP/Google) sans jamais
@@ -62,6 +63,115 @@ const UNLOCK_EMAIL_COPY = {
     cta: "Log in",
   },
 };
+
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+// Tableau de bord refait de A à Z (2026-11-19) : chargement des données (les calculs sont dans api/_dashboard.js, fonctions pures testées par
+// scripts/test-dashboard.mjs). Le GET renvoie toujours les anciens champs (periodDays, kpis, dailySeries, bySource, users, activityFeed) pour que l'ancien
+// écran reste utilisable, plus `v2` pour le nouvel écran (src/adminDashboard.jsx).
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+const MS_DAY = 24 * 60 * 60 * 1000;
+const KV_KEYS = ["recipes", "ingredients", "menuSettings", "lang", "trialStartOverride"];
+
+// Supabase plafonne chaque requête à 1000 lignes : on pagine (les plus récentes d'abord), avec un plafond de sécurité.
+export async function fetchAll(makeQuery, maxRows = 20000, pageSize = 1000) {
+  const rows = [];
+  for (let from = 0; from < maxRows; from += pageSize) {
+    const { data, error } = await makeQuery().range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+  return rows;
+}
+
+// Revenus réels depuis Stripe (prix catalogue, remise en pourcentage prise en compte). Best-effort : en cas d'échec le tableau de bord retombe sur une estimation.
+async function loadStripeSummary() {
+  const stripe = getStripe();
+  const list = await stripe.subscriptions.list({ status: "all", limit: 100 });
+  let mrr = 0, active = 0, trialing = 0, canceling = 0, pastDue = 0;
+  for (const s of list.data) {
+    if (s.status === "trialing") { trialing++; continue; }
+    if (s.status !== "active" && s.status !== "past_due") continue;
+    if (s.status === "past_due") pastDue++; else active++;
+    if (s.cancel_at_period_end) canceling++;
+    let monthly = 0;
+    for (const it of s.items?.data || []) {
+      const unit = (it.price?.unit_amount || 0) / 100;
+      const interval = it.price?.recurring?.interval;
+      const factor = interval === "year" ? 1 / 12 : interval === "week" ? 52 / 12 : interval === "day" ? 30 : 1;
+      monthly += unit * (it.quantity || 1) * factor;
+    }
+    const disc = s.discount && typeof s.discount === "object" ? s.discount : null;
+    const off = disc?.coupon?.percent_off || 0;
+    mrr += monthly * (1 - off / 100);
+  }
+  return { mrr: Math.round(mrr * 100) / 100, active, trialing, canceling, pastDue };
+}
+
+export async function loadV2({ supabaseAdmin, days, authUsers, subs }) {
+  const now = Date.now();
+  const sinceIso = new Date(now - Math.max(days * 2, 60) * MS_DAY).toISOString();
+  const [eventRows, kvRows, landing, stripe] = await Promise.all([
+    fetchAll(() => supabaseAdmin.from("activity_events").select("user_id, type, created_at, meta").gte("created_at", sinceIso).order("created_at", { ascending: false })),
+    fetchAll(() => supabaseAdmin.from("kv_store").select("user_id, key, value").in("key", KV_KEYS)),
+    landingEventsSummary(supabaseAdmin, new Date(now - days * 2 * MS_DAY).toISOString()).catch(() => []),
+    loadStripeSummary().catch(() => null),
+  ]);
+  // Le résultat détaillé d'un scan (60 lignes) ne sert pas aux calculs : on l'écarte pour garder la mémoire légère
+  const events = eventRows.map((e) => {
+    const { items, ...meta } = e.meta || {};
+    return { user_id: e.user_id, type: e.type, created_at: e.created_at, meta };
+  });
+  // Contenu enregistré de chaque compte, réduit à des repères : jamais de nom de recette, d'ingrédient ni de prix
+  const kv = {};
+  for (const r of kvRows) {
+    const u = (kv[r.user_id] = kv[r.user_id] || {});
+    let v = r.value;
+    if (typeof v === "string") { try { v = JSON.parse(v); } catch (e) { /* valeur brute : ISO de trialStartOverride */ } }
+    if (r.key === "recipes" && Array.isArray(v)) u.recipes = v.map((x) => ({ id: x?.id }));
+    else if (r.key === "ingredients" && Array.isArray(v)) u.ingredients = v.map((i) => ({ id: i?.id, suppliers: (i?.suppliers || []).map((s) => ({ priceSource: s?.priceSource })) }));
+    else if (r.key === "menuSettings" && v && typeof v === "object") u.menuSettings = { published: !!v.published };
+    else if (r.key === "lang" && typeof v === "string") u.lang = v;
+    else if (r.key === "trialStartOverride" && typeof v === "string") u.trialStartOverride = v.replace(/^"|"$/g, "");
+  }
+  const v2 = buildDashboard({ now, days, users: authUsers, subs, events, landing, kv, stripe, isInternal: isInternalEmail, trialDays: TRIAL_DAYS });
+  v2.eventRows = eventRows.length;
+  v2.eventsTruncated = eventRows.length >= 20000;
+  return v2;
+}
+
+// Ne garde, pour l'historique d'un compte, que les repères utiles à l'affichage (pas de contenu inutile, jamais de jeton)
+export function slimMeta(type, meta) {
+  const m = meta || {};
+  const pick = (keys) => Object.fromEntries(keys.filter((k) => m[k] !== undefined && m[k] !== null).map((k) => [k, m[k]]));
+  if (type === "scan_invoice" || type === "scan_recipe") {
+    const items = Array.isArray(m.items) ? m.items : [];
+    return { ...pick(["supplierKnown", "totalItems", "foodItems", "excludedItems", "zeroItems", "lowConfidenceItems", "priceInconsistentItems", "pricingUnknownItems", "imagePath", "imageUploadFailed"]), itemsTotal: items.length, items: items.slice(0, 15) };
+  }
+  if (type === "scan_failed") return pick(["code", "fileType", "imagePath", "imageUploadFailed", "source"]);
+  if (type === "client_error" || type === "client_crash") return { ...pick(["message", "fichier", "ligne", "version", "os", "navigateur", "installee", "ecran", "promesse"]), pile: String(m.pile || "").slice(0, 400) };
+  if (type === "login") return pick(["os", "navigateur", "installee", "ecran", "langue", "absence_min", "version"]);
+  if (type === "tab_opened") return pick(["tab"]);
+  if (type === "recipe_created") return pick(["name", "source"]);
+  if (type === "print_used") return pick(["kind"]);
+  if (type === "admin_email_sent" || type === "admin_trial_granted") return pick(["subject", "template", "days"]);
+  if (type === "tutorial_closed") return pick(["lastStep", "finishedAll"]);
+  return {};
+}
+
+// Email personnel envoyé depuis le tableau de bord : du texte simple, sans gabarit publicitaire (un message d'une personne, pas une newsletter)
+export function personalEmailHtml(text) {
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const paras = text.trim().split(/\n{2,}/).map((p) => `<p style="margin:0 0 14px">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1f1b16;max-width:540px">${paras}<p style="margin:22px 0 0;color:#8a8175;font-size:12px">Chefup · <a href="https://getchefup.com" style="color:#8a8175">getchefup.com</a> · tu peux répondre directement à ce message.</p></div>`;
+}
+
+async function findUserByEmail(supabaseAdmin, email) {
+  const { data, error } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+  if (error) throw error;
+  return (data?.users || []).find((u) => u.email?.toLowerCase() === String(email || "").toLowerCase()) || null;
+}
 
 export default async function handler(req, res) {
   const user = await requireUser(req);
@@ -182,6 +292,63 @@ export default async function handler(req, res) {
         const { error: authDelErr } = await supabaseAdmin.auth.admin.deleteUser(target.id);
         if (authDelErr) throw authDelErr;
         return res.status(200).json({ ok: true });
+      } catch (e) {
+        return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+      }
+    }
+
+    // ---- Nouveaux outils du tableau de bord (2026-11-19) ----
+
+    // Historique lisible d'un compte, regroupé en sessions (plus de « connexion » en rafale)
+    if (action === "account_detail") {
+      if (!email) return res.status(400).json({ error: "Requête invalide." });
+      try {
+        const target = await findUserByEmail(supabaseAdmin, email);
+        if (!target) return res.status(404).json({ error: "Compte introuvable." });
+        const { data, error } = await supabaseAdmin.from("activity_events").select("type, created_at, meta").eq("user_id", target.id).order("created_at", { ascending: false }).limit(800);
+        if (error) throw error;
+        const events = (data || []).map((e) => ({ type: e.type, created_at: e.created_at, meta: slimMeta(e.type, e.meta) }));
+        return res.status(200).json({ email: target.email, detail: buildAccountDetail(events, Date.now()) });
+      } catch (e) {
+        return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+      }
+    }
+
+    // Envoi d'un email à UN compte depuis le tableau de bord (texte simple, réponse possible par retour de mail). Jamais d'envoi groupé ici.
+    if (action === "send_email") {
+      const { subject, body, template } = req.body || {};
+      if (!email || typeof subject !== "string" || typeof body !== "string") return res.status(400).json({ error: "Requête invalide." });
+      const sujet = subject.trim();
+      const texte = body.trim();
+      if (sujet.length < 3 || sujet.length > 140) return res.status(400).json({ error: "L'objet doit faire entre 3 et 140 caractères." });
+      if (texte.length < 10 || texte.length > 5000) return res.status(400).json({ error: "Le message doit faire entre 10 et 5000 caractères." });
+      try {
+        const target = await findUserByEmail(supabaseAdmin, email);
+        if (!target) return res.status(404).json({ error: "Compte introuvable." });
+        // Garde-fou anti double clic : pas deux envois au même compte à moins de 30 secondes
+        const recent = await supabaseAdmin.from("activity_events").select("id").eq("user_id", target.id).eq("type", "admin_email_sent").gte("created_at", new Date(Date.now() - 30 * 1000).toISOString()).limit(1);
+        if (!recent.error && (recent.data || []).length) return res.status(429).json({ error: "Un email vient déjà de partir vers ce compte, attends quelques secondes." });
+        await sendEmail(target.email, sujet, personalEmailHtml(texte), null, null, process.env.CONTACT_EMAIL || undefined);
+        await supabaseAdmin.from("activity_events").insert({ user_id: target.id, type: "admin_email_sent", meta: { subject: sujet.slice(0, 140), template: typeof template === "string" ? template.slice(0, 40) : null, chars: texte.length } });
+        return res.status(200).json({ ok: true });
+      } catch (e) {
+        return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+      }
+    }
+
+    // « Offrir N jours » (testeurs, relance d'un essai raté) : l'essai repart de maintenant avec N jours au total. Même mécanisme que « Réinitialiser l'essai »
+    // (`trialStartOverride`, repris par src/Billing.jsx, getFoundingState et le cron des rappels) : le départ est décalé dans le futur de (N - 7) jours.
+    if (action === "grant_days") {
+      const n = Math.round(Number(req.body?.days));
+      if (!email || !(n >= 1 && n <= 180)) return res.status(400).json({ error: "Requête invalide (1 à 180 jours)." });
+      try {
+        const target = await findUserByEmail(supabaseAdmin, email);
+        if (!target) return res.status(404).json({ error: "Compte introuvable." });
+        const start = new Date(Date.now() + (n - TRIAL_DAYS) * MS_DAY).toISOString();
+        const { error: upsertErr } = await supabaseAdmin.from("kv_store").upsert({ user_id: target.id, key: "trialStartOverride", value: start, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
+        if (upsertErr) throw upsertErr;
+        await supabaseAdmin.from("activity_events").insert({ user_id: target.id, type: "admin_trial_granted", meta: { days: n } });
+        return res.status(200).json({ ok: true, days: n });
       } catch (e) {
         return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
       }
@@ -347,7 +514,10 @@ export default async function handler(req, res) {
       scans: scanRows.length,
     };
 
-    return res.status(200).json({ periodDays: days, kpis, dailySeries, bySource, users: usersOut, activityFeed });
+    // Nouveau tableau de bord (2026-11-19) : si son calcul échoue, l'ancien écran continue de marcher et l'erreur est lisible dans `v2Error`.
+    let v2 = null, v2Error = null;
+    try { v2 = await loadV2({ supabaseAdmin, days, authUsers, subs: subRes.data || [] }); } catch (e) { v2Error = e.message || String(e); }
+    return res.status(200).json({ periodDays: days, kpis, dailySeries, bySource, users: usersOut, activityFeed, v2, v2Error });
   } catch (e) {
     return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
   }

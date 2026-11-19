@@ -323,7 +323,7 @@ export default async function handler(req, res) {
         .from("kv_store")
         .select("key,value")
         .eq("user_id", user.id)
-        .in("key", ["settings", "lastScanAt", "notifState", "recipes", "ingredients", "lang"]);
+        .in("key", ["settings", "lastScanAt", "notifState", "recipes", "ingredients", "lang", "trialStartOverride"]);
       if (rowsError) throw rowsError;
       const kv = {};
       for (const row of rows || []) {
@@ -363,7 +363,13 @@ export default async function handler(req, res) {
       // cette relance à J-2 est le seul moment où la date limite a encore un sens pour le compte.
       // Fenêtre volontairement large (le cron ne passe qu'une fois par jour, un créneau étroit
       // raterait des comptes selon l'heure d'inscription) mais bornée par trialEndingEmailSentAt.
-      const daysSinceSignup = daysBetween(new Date(user.created_at), now);
+      // [2026-11-19] « Offrir N jours » / « Réinitialiser l'essai » (tableau de bord admin) décalent le départ de l'essai dans `trialStartOverride` (valeur ISO
+      // brute, lue par src/Billing.jsx comme la plus récente des deux dates) : sans ça, un testeur qui a reçu 30 jours aurait reçu « ton essai se termine
+      // dans 2 jours » au bout de 5 jours. Jamais la plus ancienne des deux dates.
+      const overrideRow = (rows || []).find((r) => r.key === "trialStartOverride");
+      const overrideStart = overrideRow && typeof overrideRow.value === "string" ? new Date(overrideRow.value.replace(/^"|"$/g, "")) : null;
+      const trialStart = overrideStart && !isNaN(overrideStart.getTime()) && overrideStart > new Date(user.created_at) ? overrideStart : new Date(user.created_at);
+      const daysSinceSignup = daysBetween(trialStart, now);
       if (
         !notifState.trialEndingEmailSentAt &&
         !notifState.trialEndedEmailSentAt &&
