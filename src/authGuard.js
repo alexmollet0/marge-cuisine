@@ -20,7 +20,11 @@
 export function createSignInGuard({ staleAfterMs = 5 * 60 * 1000, isBusy = () => false, now = () => Date.now() } = {}) {
   let lastUserId = null;
   let hiddenAt = null;
+  let lastAway = 0; // durée (minutes) de l'absence qui a précédé le dernier SIGNED_IN évalué, pour le journal « Connexion »
   return {
+    lastAwayMinutes() {
+      return lastAway;
+    },
     // La page vient de passer en arrière-plan (on garde la 1re heure si plusieurs passages d'affilée sans événement de connexion).
     markHidden() {
       if (hiddenAt === null) hiddenAt = now();
@@ -34,6 +38,7 @@ export function createSignInGuard({ staleAfterMs = 5 * 60 * 1000, isBusy = () =>
       }
       if (event !== "SIGNED_IN") return false;
       const awayMs = hiddenAt === null ? 0 : now() - hiddenAt;
+      lastAway = Math.round(awayMs / 60000);
       hiddenAt = null;
       const uid = session?.user?.id || null;
       if (!uid) return true; // pas d'identifiant : on ne peut pas comparer, on garde le comportement d'avant

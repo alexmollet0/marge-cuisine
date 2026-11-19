@@ -18,7 +18,7 @@ import {
 } from "./catalog.js";
 export { ALLERGEN_LABELS };
 import { SEED_INGREDIENTS, SEED_RECIPE_NOTES, SEED_RECIPE_ALLERGENS, isPristineSeedRecipe, buildSeedRecipes } from "./seedData.js";
-import { DEFAULT_SETTINGS, useDebouncedSave, activeSupplier, effectiveUnitPrice, priceVariation, logActivity } from "./pricing.js";
+import { DEFAULT_SETTINGS, useDebouncedSave, activeSupplier, effectiveUnitPrice, priceVariation, logActivity, logActivityOnce } from "./pricing.js";
 import {
   TIER_COLORS, PRICING, BRAND_SOLID, BRAND_SOLID_PAPER, BRAND_GRADIENT, BRAND_SHADOW,
   TOP_BADGE_COLORS, MENU_CATEGORIES, MENU_CATEGORY_LABELS, defaultMenuCategories, categoryLabel,
@@ -1354,6 +1354,7 @@ export default function App() {
   };
 
   const commitSupplierPrice = (ingId, supId, newPrice) => {
+    if (newPrice > 0) logActivityOnce("price_updated", { source: "manual" }, "price", 60 * 1000); // suivi d'usage du garde-manger (2026-11-19), aucun contenu
     setIngredients((ings) => ings.map((i) => {
       if (i.id !== ingId || !(newPrice > 0)) return i;
       const sup = i.suppliers.find((s) => s.id === supId);
@@ -1490,7 +1491,7 @@ export default function App() {
     });
   };
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => { logActivity("print_used", { kind: "ticket" }); window.print(); };
   // [BUG confirmé et corrigé, 2026-08-31] "Imprimer la fiche recette" affichait parfois quand même
   // le prix/la marge — signalé par l'utilisateur. Cause : la version précédente passait par un état
   // React (`hidePricesPrint`) + un `setTimeout(50ms)` en espérant que le re-rendu ait eu le temps de
@@ -1499,6 +1500,7 @@ export default function App() {
   // aucune attente nécessaire, le navigateur recalcule les styles avant même d'ouvrir l'aperçu
   // d'impression. Voir la règle CSS `body.hide-prices-print .price-field`.
   const handlePrintRecipeSheet = () => {
+    logActivity("print_used", { kind: "fiche" });
     document.body.classList.add("hide-prices-print");
     window.print();
     document.body.classList.remove("hide-prices-print");
@@ -4867,7 +4869,7 @@ export default function App() {
               <span>{t("allergenSheetVerifyHint")}</span>
             </div>
             <button
-              onClick={() => window.print()}
+              onClick={() => { logActivity("print_used", { kind: "allergenes" }); window.print(); }}
               className="w-full mt-3 text-xs font-display uppercase tracking-wide py-2.5 rounded-full font-semibold flex items-center justify-center gap-1.5"
               style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
             >
@@ -5243,7 +5245,7 @@ export default function App() {
                   </button>
                 </div>
                 <button
-                  onClick={() => setAllergenSheetOpen(true)}
+                  onClick={() => { setAllergenSheetOpen(true); logActivityOnce("allergen_sheet_opened", {}, "a", 5 * 60 * 1000); }}
                   className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-white/60 hover:text-white px-3 py-1.5 rounded-full border border-white/15 hover:border-white/30 transition-colors"
                 >
                   <ShieldCheck size={12} />
@@ -5288,7 +5290,7 @@ export default function App() {
                   return (
                     <button
                       key={r.id}
-                      onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossModalOpen(false); }}
+                      onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossModalOpen(false); logActivityOnce("recipe_opened", {}, r.id, 10 * 60 * 1000); }}
                       className="relative aspect-square rounded-2xl p-2 flex flex-col items-center justify-center gap-1.5 text-center font-body transition hover:brightness-110 hover:-translate-y-0.5 hover:shadow-lg border border-white/10 active:scale-95"
                       style={{ background: "#201B15" }}
                     >
@@ -5337,7 +5339,7 @@ export default function App() {
                       style={{ background: "#201B15", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04), 0 6px 18px rgba(0,0,0,0.22)" }}
                     >
                       <button
-                        onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossModalOpen(false); }}
+                        onClick={() => { setActiveId(r.id); setRecipeSubView("detail"); setLossModalOpen(false); logActivityOnce("recipe_opened", {}, r.id, 10 * 60 * 1000); }}
                         className="flex-1 min-w-0 flex items-center justify-between gap-3 text-left active:scale-95 transition-transform"
                       >
                         <div className="min-w-0">

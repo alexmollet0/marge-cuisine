@@ -4,6 +4,9 @@ import App from "./App.jsx";
 import AuthGate from "./Auth.jsx";
 import SubscriptionGate from "./Billing.jsx";
 import PublicMenu from "./PublicMenu.jsx";
+import ErrorBoundary from "./ErrorBoundary.jsx";
+import { installErrorCapture, deviceInfo } from "./telemetry.js";
+import { logActivity } from "./pricing.js";
 import "./index.css";
 
 // Carte digitale publique (2026-08) : seule route de l'app en dehors de "/" — accessible sans
@@ -67,7 +70,10 @@ window.addEventListener("beforeinstallprompt", (e) => {
 window.addEventListener("appinstalled", () => {
   window.__chefupInstallPrompt = null;
   window.dispatchEvent(new Event("chefup:install-available"));
+  logActivity("pwa_installed", deviceInfo()); // tableau de bord admin : combien de comptes installent l'app (2026-11-19)
 });
+// Erreurs JavaScript non rattrapées → journal d'activité du compte (tableau de bord admin, écran « Santé »), 2026-11-19.
+installErrorCapture();
 // Signal le plus direct d'une restauration depuis le bfcache : à ne jamais laisser passer sans
 // vérifier, c'est exactement le scénario qui a caché le correctif du scanner sur un téléphone.
 window.addEventListener("pageshow", (event) => {
@@ -80,9 +86,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <PublicMenu menuId={menuMatch[1]} />
     ) : (
       <AuthGate>
-        <SubscriptionGate>
-          <App />
-        </SubscriptionGate>
+        {/* Filet anti-écran-blanc (2026-11-19) : un plantage d'affichage montre « Recharger » au lieu d'un écran noir, et est journalisé. */}
+        <ErrorBoundary>
+          <SubscriptionGate>
+            <App />
+          </SubscriptionGate>
+        </ErrorBoundary>
       </AuthGate>
     )}
   </React.StrictMode>

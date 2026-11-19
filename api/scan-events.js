@@ -21,6 +21,7 @@
 // GET (protégé par `ADMIN_SECRET`, `?secret=...&days=30&raw=1`) : résumé chiffré de la fiabilité
 // du scanner sur l'ensemble des comptes (inchangé, lit toujours scan_events).
 import { requireUser, getSupabaseAdmin, uploadScanImage } from "./_lib.js";
+import { sanitizeMeta } from "./_meta.js";
 
 // Résultat du scan + photo d'origine (2026-08-31), demandé explicitement par l'utilisateur pour
 // pouvoir vérifier depuis le tableau de bord admin qu'un scan a bien fonctionné, sans devoir
@@ -59,7 +60,12 @@ const SIMPLE_ACTIVITY_TYPES = new Set([
   // "résultat de scan" plus bas et créaient chacun un FAUX scan "0 ligne · fournisseur non lu"
   // (2 à 3 par vrai scan). C'est ce qui gonflait le taux de scans vides à ~39%.
   "scan_button_clicked", "scan_file_selected", "scan_analyze_clicked",
+  // [2026-11-19] Suivi d'usage et de santé pour le tableau de bord refait de A à Z : actions clés (jamais de contenu), installation de l'app,
+  // erreurs JavaScript et plantages d'affichage (src/telemetry.js, src/ErrorBoundary.jsx). Leur `meta` est nettoyé (api/_meta.js).
+  "recipe_opened", "price_updated", "print_used", "allergen_sheet_opened", "pwa_installed", "client_error", "client_crash",
 ]);
+// Types dont `meta` est nettoyé : 16 clés simples au plus, jamais d'objet imbriqué (les anciens types gardent leur traitement d'avant).
+const META_NETTOYEE = new Set(["login", "recipe_opened", "price_updated", "print_used", "allergen_sheet_opened", "pwa_installed", "client_error", "client_crash"]);
 
 export default async function handler(req, res) {
   const supabaseAdmin = getSupabaseAdmin();
@@ -72,7 +78,7 @@ export default async function handler(req, res) {
 
     if (SIMPLE_ACTIVITY_TYPES.has(b.type)) {
       try {
-        const meta = b.meta && typeof b.meta === "object" ? { ...b.meta } : {};
+        const meta = META_NETTOYEE.has(b.type) ? sanitizeMeta(b.meta) : (b.meta && typeof b.meta === "object" ? { ...b.meta } : {});
         // Un scan échoué garde aussi sa photo/PDF d'origine quand disponible (pas toujours le cas —
         // un fichier illisible côté navigateur n'a par exemple jamais pu être décodé du tout).
         // [2026-09-06] `imageUploadFailed` : l'upload est volontairement best-effort (ne doit

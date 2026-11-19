@@ -27,6 +27,7 @@ const bob = { user: { id: "bob" } };
   verifier("retour après 4 min : ignoré", g.isRealSignIn("SIGNED_IN", alice), false);
   t += 10 * MIN; g.markHidden(); t += 6 * MIN;
   verifier("retour après 6 min : compte (données fraîches)", g.isRealSignIn("SIGNED_IN", alice), true);
+  verifier("durée de l'absence mémorisée pour le journal (6 min)", g.lastAwayMinutes(), 6);
   t += 10 * MIN; g.markHidden(); t += 6 * MIN; occupe = true;
   verifier("retour après 6 min PENDANT un scan : ignoré (la photo passe avant)", g.isRealSignIn("SIGNED_IN", alice), false);
   occupe = false;

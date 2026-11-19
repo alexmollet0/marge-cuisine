@@ -95,3 +95,14 @@ export function logActivity(type, meta) {
     } catch (e) {}
   })();
 }
+
+// Même chose, mais au plus une fois toutes les `ms` pour un même (type, clé) dans cette page : pour les actions fréquentes (recette ouverte, prix
+// modifié…) et les erreurs en rafale (2026-11-19, voir src/telemetry.js et le tableau de bord admin). Jamais de contenu : seulement des repères.
+const _dernierEnvoi = new Map();
+export function logActivityOnce(type, meta, cle, ms = 60 * 1000) {
+  const k = type + ":" + (cle == null ? "" : cle);
+  const now = Date.now();
+  if ((_dernierEnvoi.get(k) || 0) > now - ms) return;
+  _dernierEnvoi.set(k, now);
+  logActivity(type, meta);
+}

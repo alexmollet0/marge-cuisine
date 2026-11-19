@@ -5,6 +5,7 @@ import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
 import Landing from "./Landing.jsx";
 import { trackAdEvent } from "./adPixel.js";
 import { createSignInGuard } from "./authGuard.js";
+import { deviceInfo, appVersion } from "./telemetry.js";
 
 // text-base (16px) plutôt que text-sm : en dessous de 16px, iOS/Android zooment
 // automatiquement l'écran au focus d'un champ, et ne rezooment pas toujours
@@ -19,12 +20,12 @@ const AUTH_LANG_KEY = "chefup:authLang";
 // remontée à l'écran de connexion). Fires aussi bien sur une vraie saisie identifiants que sur
 // une session restaurée au chargement de l'onglet — les deux comptent comme un signal de
 // présence utile pour suivre l'activité d'un compte, voir le commentaire sur loginKey plus bas.
-function logLoginActivity(sess) {
+function logLoginActivity(sess, meta) {
   if (!sess?.access_token) return;
   fetch("/api/scan-events", {
     method: "POST",
     headers: { "content-type": "application/json", Authorization: `Bearer ${sess.access_token}` },
-    body: JSON.stringify({ type: "login" }),
+    body: JSON.stringify({ type: "login", meta: meta || {} }),
   }).catch(() => {});
 }
 
@@ -201,7 +202,7 @@ export default function AuthGate({ children }) {
       if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
       if (guard.isRealSignIn(event, sess)) {
         setLoginKey((k) => k + 1);
-        logLoginActivity(sess);
+        logLoginActivity(sess, { ...deviceInfo(), absence_min: guard.lastAwayMinutes(), version: appVersion() });
         maybeScheduleWelcomeEmail(sess);
         maybeTrackGoogleRegistration(sess);
       }
