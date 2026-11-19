@@ -40,7 +40,7 @@
 <div class="wrap">
   <a class="back" href="/">← Retour à Chefup</a>
   <h1>Politique de confidentialité</h1>
-  <p class="updated">Dernière mise à jour : août 2026</p>
+  <p class="updated">Dernière mise à jour : novembre 2026</p>
 
   <p>Chefup respecte ta vie privée et celle de tes données professionnelles. Cette page explique quelles données sont collectées, pourquoi, et comment tu peux les contrôler.</p>
 
@@ -55,14 +55,15 @@
     <tr><th>Donnée</th><th>Pourquoi</th></tr>
     <tr><td>Email, mot de passe</td><td>Créer et sécuriser ton compte (authentification)</td></tr>
     <tr><td>Recettes, ingrédients, prix, fournisseurs</td><td>Le cœur du service : calculer tes marges</td></tr>
-    <tr><td>Photos/PDF de factures scannées</td><td>Extraire automatiquement les lignes de facture par IA</td></tr>
+    <tr><td>Photos/PDF de factures scannées</td><td>Extraire automatiquement les lignes de facture par IA. L'original est conservé 30 jours au maximum, puis supprimé automatiquement (voir « Durée de conservation »)</td></tr>
+    <tr><td>Journal d'activité : connexions, pages ouvertes, actions clés (recette créée avec son nom, facture scannée, carte digitale publiée…) et, pour une facture scannée, le nom, l'unité et le prix de chaque ligne lue</td><td>Te dépanner en cas de problème et améliorer Chefup. Consultable uniquement par Chefup, jamais partagé ni utilisé pour de la publicité</td></tr>
     <tr><td>Informations de paiement</td><td>Gérer ton abonnement — traitées uniquement par Stripe, jamais stockées par Chefup</td></tr>
   </table>
 
   <h2>Qui a accès à tes données (sous-traitants)</h2>
   <p>Chefup ne vend ni ne partage tes données à des fins publicitaires. Certains prestataires techniques y accèdent uniquement pour faire fonctionner le service :</p>
   <ul>
-    <li><strong>Supabase</strong> — hébergement de la base de données (comptes, recettes, garde-manger), hébergé dans l'Union Européenne.</li>
+    <li><strong>Supabase</strong> — hébergement de la base de données et des fichiers (comptes, recettes, garde-manger, photos de factures, journal d'activité), hébergé dans l'Union Européenne.</li>
     <li><strong>Stripe</strong> — traitement des paiements et de l'abonnement. Chefup ne voit et ne stocke jamais ton numéro de carte bancaire.</li>
     <li><strong>Anthropic (Claude)</strong> — lecture automatique des factures et fiches recettes scannées par intelligence artificielle. Les images envoyées servent uniquement à extraire les informations, elles ne sont pas utilisées pour entraîner des modèles publics.</li>
     <li><strong>Resend</strong> — envoi des emails transactionnels (confirmation de compte, réinitialisation de mot de passe, rappels).</li>
@@ -72,11 +73,13 @@
 
   <h2>Durée de conservation</h2>
   <p>Tes données sont conservées tant que ton compte est actif. Si tu supprimes ton compte ou le laisses inactif de manière prolongée, tu peux nous demander leur suppression à tout moment (voir "Tes droits" ci-dessous).</p>
+  <p><strong>Photos et PDF de factures scannées :</strong> conservés 30 jours au maximum, puis supprimés automatiquement. Pendant ces 30 jours, seul le responsable de Chefup peut les consulter, uniquement pour vérifier qu'un scan s'est bien passé ou pour te dépanner, via un lien temporaire de quelques minutes (jamais public). Ces originaux ne servent à rien d'autre.</p>
+  <p><strong>Journal d'activité :</strong> conservé tant que ton compte existe, et supprimé avec lui. Si ton compte est supprimé, les éventuelles photos de factures restantes disparaissent au plus tard 30 jours après leur envoi.</p>
 
   <h2>Cookies</h2>
   <p>Chefup utilise des cookies techniques nécessaires à la connexion (session, authentification). Ils ne peuvent pas être désactivés, sans eux le service ne fonctionne pas.</p>
   <p><strong>Mesure de nos campagnes publicitaires.</strong> Si tu arrives sur le site depuis une de nos publicités, un bandeau te propose d'activer un traceur publicitaire TikTok, qui nous permet de savoir si cette publicité amène réellement des inscriptions. <strong>Ce traceur n'est chargé qu'après ton accord explicite</strong> : tant que tu n'as rien accepté, ou si tu refuses, aucun script TikTok n'est chargé et aucune donnée ne lui est transmise. Refuser ne change strictement rien au fonctionnement du site. Tu n'es jamais sollicité si tu arrives sur le site autrement que par une publicité.</p>
-  <p>Notre propre mesure d'audience (nombre de visites et de clics sur la page d'accueil) reste, elle, entièrement anonyme : aucune adresse IP, aucun identifiant de navigateur, aucun email — uniquement un type d'événement et une date.</p>
+  <p>Notre propre mesure d'audience de la page d'accueil, avant toute connexion (nombre de visites et de clics), reste, elle, entièrement anonyme : aucune adresse IP, aucun identifiant de navigateur, aucun email — uniquement un type d'événement et une date.</p>
 
   <h2>Tes droits</h2>
   <p>Conformément au RGPD, tu disposes d'un droit d'accès, de rectification, d'effacement et d'opposition sur tes données personnelles. Pour exercer ces droits, écris à <a href="mailto:hello@getchefup.com">hello@getchefup.com</a> — ou utilise le formulaire "Nous contacter" dans l'application (Paramètres → Mon compte). Tu peux aussi supprimer directement tes données depuis Paramètres → Réinitialiser les données.</p>
