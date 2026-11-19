@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "./supabaseClient.js";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR } from "./App.jsx";
 import Landing from "./Landing.jsx";
 import { trackAdEvent } from "./adPixel.js";
+import { createSignInGuard } from "./authGuard.js";
 
 // text-base (16px) plutôt que text-sm : en dessous de 16px, iOS/Android zooment
 // automatiquement l'écran au focus d'un champ, et ne rezooment pas toujours
@@ -183,19 +184,32 @@ export default function AuthGate({ children }) {
     } catch (e) {}
   }
 
+  // [CORRIGÉ 2026-11-19, voir src/authGuard.js] Supabase ré-émet SIGNED_IN à CHAQUE retour de l'app au premier plan (onglet, téléphone
+  // déverrouillé, retour d'une autre appli). Avant : chaque retour comptait comme une connexion ET remontait toute l'app (état local perdu :
+  // scan en cours, photo en attente, texte tapé). Maintenant : seule la 1re connexion d'un utilisateur dans la page compte, puis un retour après
+  // 5 min d'absence ou plus (données fraîches), jamais pendant qu'un scan est ouvert.
+  const signInGuardRef = useRef(null);
+  if (!signInGuardRef.current) signInGuardRef.current = createSignInGuard({ isBusy: () => !!window.__chefupScanBusy });
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const guard = signInGuardRef.current;
+    const onVisibility = () => { if (document.visibilityState === "hidden") guard.markHidden(); };
+    document.addEventListener("visibilitychange", onVisibility);
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess);
       if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
-      if (event === "SIGNED_IN") {
+      if (guard.isRealSignIn(event, sess)) {
         setLoginKey((k) => k + 1);
         logLoginActivity(sess);
         maybeScheduleWelcomeEmail(sess);
         maybeTrackGoogleRegistration(sess);
       }
     });
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   function switchMode(next) {
