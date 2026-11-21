@@ -7,8 +7,9 @@
 // ⚠️ Ce projet est au plafond du plan Hobby Vercel (12 fonctions serverless par déploiement,
 // _lib.js exclu) avec ce fichier. Avant d'ajouter un nouvel endpoint : fusionner avec un fichier
 // existant proche, voir la note dans CLAUDE.md ("Fichiers clés").
+import crypto from "node:crypto";
 import { requireUser, getSupabaseAdmin, sendEmail, wrapEmailHtml, isInternalEmail, landingEventsSummary, SCAN_UPLOADS_BUCKET, getStripe } from "./_lib.js";
-import { buildDashboard, buildAccountDetail } from "./_dashboard.js";
+import { buildDashboard, buildAccountDetail, statsOnly, buildHourly } from "./_dashboard.js";
 
 // Suppression de compte (2026-08-29), demandée par l'utilisateur pour nettoyer les comptes de test
 // (chefuptest01/02/03..., comptes créés par Claude pour tester le flux OTP/Google) sans jamais
@@ -167,6 +168,39 @@ export function personalEmailHtml(text) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1f1b16;max-width:540px">${paras}<p style="margin:22px 0 0;color:#8a8175;font-size:12px">Chefup · <a href="https://getchefup.com" style="color:#8a8175">getchefup.com</a> · tu peux répondre directement à ce message.</p></div>`;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+// Lecture seule des CHIFFRES pour l'assistant (2026-11-21, demande d'Alex : « il faudrait que tu aies accès à mes stats du tableau de bord pour suivre les stats en
+// temps réel »). GET /api/admin-dashboard?stats=1&days=14&hours=48 avec l'en-tête `Authorization: Bearer <STATS_TOKEN>`.
+// - Jeton dédié (STATS_TOKEN, variable Vercel posée par Alex), distinct de ADMIN_SECRET : il ne donne accès qu'à des totaux (voir statsOnly dans api/_dashboard.js,
+//   aucun email ni compte), jamais aux comptes, aux scans, ni aux actions d'administration.
+// - Tant que STATS_TOKEN n'existe pas (ou fait moins de 24 caractères), la route répond « introuvable » : le code déployé ne change rien pour personne.
+// - Le jeton se compare à temps constant (empreintes SHA-256 de même longueur) et ne passe jamais dans l'adresse (les journaux Vercel la gardent), seulement en en-tête.
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+export function checkStatsToken(req, env = process.env) {
+  const expected = String(env.STATS_TOKEN || "");
+  if (expected.length < 24) return null; // fonction éteinte
+  const provided = String((req.headers && req.headers.authorization) || "").replace(/^Bearer\s+/i, "");
+  const a = crypto.createHash("sha256").update(provided).digest();
+  const b = crypto.createHash("sha256").update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+export async function loadStats({ supabaseAdmin, days, hours, authUsers, subs }) {
+  const now = Date.now();
+  const v2 = await loadV2({ supabaseAdmin, days, authUsers, subs });
+  const sinceIso = new Date(now - hours * 60 * 60 * 1000).toISOString();
+  // Événements bruts des dernières heures seulement (quelques centaines au plus) : pagination quand même, Supabase plafonne chaque requête à 1000 lignes
+  let hourlyError = null;
+  const landingRows = await fetchAll(() => supabaseAdmin.from("landing_events").select("event_type, source, created_at").gte("created_at", sinceIso).order("created_at", { ascending: false }), 20000).catch((e) => { hourlyError = (e && e.message) || String(e); return []; });
+  const signupDates = authUsers.filter((u) => !isInternalEmail(u.email)).map((u) => u.created_at).filter(Boolean);
+  const out = statsOnly(v2);
+  out.hourly = buildHourly({ now, hours, landingRows, signupDates });
+  out.hourlyRows = landingRows.length;
+  if (hourlyError) out.hourlyError = hourlyError; // sans cela, une panne de lecture se lirait « 0 visite »
+  out.note = "Jours en UTC (1 h du matin en France l'hiver, 2 h l'été). Visites = événements « view » de la page d'accueil, hors visites de ceux qui ont ouvert le site avec ?notrack=1. Aucun email ni compte dans cette réponse.";
+  return out;
+}
+
 async function findUserByEmail(supabaseAdmin, email) {
   const { data, error } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
   if (error) throw error;
@@ -174,6 +208,29 @@ async function findUserByEmail(supabaseAdmin, email) {
 }
 
 export default async function handler(req, res) {
+  // Lecture des totaux par l'assistant (jeton dédié, voir checkStatsToken) : traité AVANT la vérification de session, jamais mêlé aux actions d'administration
+  if (req.method === "GET" && req.query && req.query.stats === "1") {
+    const allowed = checkStatsToken(req);
+    if (allowed === null) return res.status(404).json({ error: "Introuvable." });
+    if (!allowed) return res.status(401).json({ error: "Non autorisé." });
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      const days = Math.max(1, Math.min(60, parseInt(req.query.days, 10) || 14));
+      const hours = Math.max(6, Math.min(72, parseInt(req.query.hours, 10) || 48));
+      const [subRes, usersRes] = await Promise.all([
+        supabaseAdmin.from("subscriptions").select("user_id, status"),
+        supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
+      ]);
+      if (subRes.error) throw subRes.error;
+      if (usersRes.error) throw usersRes.error;
+      const stats = await loadStats({ supabaseAdmin, days, hours, authUsers: usersRes.data?.users || [], subs: subRes.data || [] });
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(200).json(stats);
+    } catch (e) {
+      return res.status(500).json({ error: e.message || "Erreur serveur inattendue." });
+    }
+  }
+
   const user = await requireUser(req);
   if (!user) return res.status(401).json({ error: "Non authentifié." });
   if (user.email !== ADMIN_EMAIL) return res.status(403).json({ error: "Accès réservé." });

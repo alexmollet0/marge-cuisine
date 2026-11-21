@@ -444,3 +444,66 @@ export function buildAccountDetail(events, now) {
   });
   return { generatedAt: new Date(now).toISOString(), total: sorted.length, sessions: sessions.reverse() };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+// Lecture seule pour l'assistant (2026-11-21, demande d'Alex : « il faudrait que tu aies accès à mes stats du tableau de bord pour suivre les stats en temps réel »)
+//
+// `statsOnly` ne garde du tableau de bord que des TOTAUX : visites, clics, inscriptions, parcours, sources, fonctionnalités, santé du scanner, revenus. Jamais un
+// email, jamais la liste des comptes, jamais la liste des actions à mener (qui contient des emails), jamais le détail d'un scan. C'est ce qui rend acceptable de
+// donner un jeton de lecture à l'assistant : si ce jeton fuitait, on ne verrait que des chiffres.
+// `buildHourly` donne le même genre de chiffres heure par heure (UTC) sur les dernières 24 à 72 heures : c'est ce qui permet de voir l'effet d'une publication
+// TikTok dans les heures qui suivent, au lieu d'attendre le total du jour.
+// ---------------------------------------------------------------------------------------------------------------------------------------------
+const EMAIL_RE = /[^\s@<>"']+@[^\s@<>"']+\.[A-Za-z]{2,}/g;
+
+export function statsOnly(v2) {
+  if (!v2 || typeof v2 !== "object") return null;
+  const scans = v2.health && v2.health.scans ? v2.health.scans : null;
+  return {
+    v: "stats-1",
+    generatedAt: v2.generatedAt,
+    periodDays: v2.periodDays,
+    kpis: v2.kpis,
+    totals: v2.totals,
+    steps: v2.steps,
+    medianHoursToFirstScan: v2.medianHoursToFirstScan,
+    insights: (v2.insights || []).map((i) => ({ level: i.level, text: String(i.text || "").replace(EMAIL_RE, "[email]") })),
+    series: v2.series,
+    sources: v2.sources,
+    features: v2.features,
+    retention: v2.retention,
+    revenue: v2.revenue,
+    activeAccountsInPeriod: v2.activeAccountsInPeriod,
+    health: {
+      scans: scans ? { ok: scans.ok, failed: scans.failed, successPct: scans.successPct, failuresByCode: scans.failuresByCode } : null,
+      errors: ((v2.health && v2.health.errors) || []).map((e) => ({ kind: e.kind, message: String(e.message || "").replace(EMAIL_RE, "[email]").slice(0, 200), count: e.count, accounts: e.accounts, lastAt: e.lastAt })),
+    },
+  };
+}
+
+// Visites et inscriptions heure par heure (UTC), de la plus ancienne à l'heure en cours. `landingRows` : [{ event_type, source, created_at }] ; `signupDates` : les
+// dates de création des comptes CLIENTS (internes déjà écartés par l'appelant).
+export function buildHourly({ now, hours = 48, landingRows = [], signupDates = [] }) {
+  const H = 60 * 60 * 1000;
+  const n = Math.max(1, Math.min(168, Math.round(hours) || 48));
+  const end = Math.floor(now / H) * H;
+  const start = end - (n - 1) * H;
+  const slots = [];
+  for (let t = start; t <= end; t += H) slots.push({ hour: new Date(t).toISOString().slice(0, 13) + ":00Z", views: 0, engaged: 0, startClicks: 0, loginClicks: 0, calcUsed: 0, signups: 0 });
+  const slotOf = (iso) => {
+    const t = ts(iso);
+    if (!(t >= start && t < end + H)) return null;
+    return slots[Math.floor((t - start) / H)];
+  };
+  const KEY = { view: "views", engaged: "engaged", start_click: "startClicks", login_click: "loginClicks", calc_used: "calcUsed" };
+  const viewsBySource = {};
+  for (const r of landingRows) {
+    const s = slotOf(r.created_at);
+    const k = KEY[r.event_type];
+    if (!s || !k) continue;
+    s[k]++;
+    if (r.event_type === "view") { const src = r.source || "direct"; viewsBySource[src] = (viewsBySource[src] || 0) + 1; }
+  }
+  for (const d of signupDates) { const s = slotOf(d); if (s) s.signups++; }
+  return { hours: n, slots, viewsBySource };
+}
