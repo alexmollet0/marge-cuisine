@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Percent, Eye, Camera, Check, TrendingUp } from "lucide-react";
+import { Percent, Eye, Camera, Check, TrendingUp, ArrowDown } from "lucide-react";
 import { Logo, BRAND_SOLID, BRAND_GRADIENT, BRAND_SHADOW, TR, PRICING, TIER_COLORS } from "./App.jsx";
 import { PROMO_CODE, PROMO_PERCENT, PROMO_END } from "./brand.js";
 import { usePromoCountdown } from "./pricing.js";
@@ -107,199 +107,130 @@ const STEPS = [
   { icon: Eye, titleKey: "landingStep3Title", descKey: "landingStep3Desc" },
 ];
 
-// [CHANGEMENT MAJEUR, 2026-09-16] Remplace MarginCalculator (calculateur manuel jouable sans
-// compte, livré le 2026-08-27) — mesuré sur une semaine de vraie campagne payante : 203 visiteurs
-// engagés (3s+), 0 (ZÉRO) utilisation du calculateur alors qu'il était la toute première chose vue
-// après le titre. Retour direct de l'utilisateur, qui n'a jamais aimé ce bloc : "il faudrait une
-// vidéo super intuitive" à la place — quelque chose qui montre la valeur SANS demander au visiteur
-// de taper quoi que ce soit. Reprend la même trame que la démo "wow" du tuto d'inscription
-// (src/adminAndOnboarding.jsx, TutorialWowScan) — scan → résultat détaillé → un prix qui augmente →
-// impact direct sur une recette — mais en boucle AUTOMATIQUE (aucun tap requis, un visiteur froid
-// ne clique presque jamais) et avec un CTA "Commencer gratuitement" TOUJOURS visible en dessous
-// (jamais caché derrière la fin d'un cycle) pour ne perdre aucune conversion possible pendant que
-// l'animation tourne. Dupliqué ici plutôt qu'importé depuis adminAndOnboarding.jsx : ce fichier est
-// chargé AVANT toute authentification, il ne doit dépendre d'aucun module réservé à l'app connectée.
-const LANDING_WOW_ITEMS = [
-  { name: "Bœuf haché", price: "11,90€/kg" },
-  { name: "Oignons", price: "1,80€/kg" },
-  { name: "Crème fraîche", price: "3,20€/L" },
-  { name: "Carottes", price: "1,50€/kg" },
-  { name: "Tomates", price: "2,40€/kg" },
+// [REFONTE 2026-11-21 — Alex : « il faut vraiment que quand ils arrivent ils voient directement la valeur et ce qu'on propose, qu'on
+// comprenne instantanément une fois arrivé sur le site »] Historique : le 2026-09-16, la démo en 5 phases (scan → lignes lues → hausse de
+// prix → impact sur une recette) avait remplacé le calculateur manuel (0 utilisation sur 203 visiteurs engagés en une semaine de campagne,
+// voir docs/HISTORIQUE-FONCTIONNALITES.md). Mais elle mettait ~11 s à montrer l'effet sur la marge, et pendant la 1re seconde elle ne
+// montrait qu'un papier blanc vide : or un visiteur froid (TikTok, téléphone) décide de rester ou non en 3 secondes.
+// Remplacée par UNE carte « avant / après » lisible dès la 1re image : la facture (la ligne de bœuf), puis ce que la hausse change sur la marge
+// d'un plat. Même exemple qu'avant (bœuf haché +13 %, bourguignon 78 % → 71 %), étiqueté « Exemple » : jamais présenté comme réel. L'« avant »
+// s'affiche tout de suite, le basculement a lieu après ~0,9 s, puis boucle douce (aucune interaction requise : un visiteur froid ne clique presque
+// jamais). Même signal d'intérêt qu'avant (`onEngage`, événement « calc_used ») une fois le 1er cycle terminé. Dupliquée ici plutôt qu'importée de
+// adminAndOnboarding.jsx : ce fichier est chargé AVANT toute authentification, il ne doit dépendre d'aucun module réservé à l'app connectée.
+const PROOF_LINES = [
+  { name: "Bœuf haché", before: "11,90€/kg", after: "13,50€/kg", flag: true },
+  { name: "Oignons", before: "1,80€/kg" },
+  { name: "Crème fraîche", before: "3,20€/L" },
+  { name: "Carottes", before: "1,50€/kg" },
 ];
-const LANDING_WOW_LINE_TOPS = [36, 56, 76, 96, 116, 136, 156];
 
-function LandingWowInvoice({ scanning }) {
-  return (
-    <div className="relative w-32 h-44 rounded-xl overflow-hidden shrink-0 mx-auto shadow-xl" style={{ background: "rgba(255,255,255,0.96)" }}>
-      <style>{`@keyframes chefupLandingScan { 0% { top: 10%; opacity: .95; } 90% { top: 85%; opacity: .95; } 100% { top: 85%; opacity: 0; } }`}</style>
-      <div className="absolute inset-x-4 top-4 h-2 rounded-full bg-black/25 w-2/3" />
-      <div className="absolute inset-x-4 top-7 h-1.5 rounded-full bg-black/10 w-1/2" />
-      {LANDING_WOW_LINE_TOPS.map((top, i) => (
-        <div key={top} className="absolute inset-x-4 h-1 rounded-full bg-black/10" style={{ top: top * 0.8, width: i % 2 === 0 ? "72%" : "50%" }} />
-      ))}
-      <div className="absolute inset-x-4 bottom-5 h-1.5 rounded-full bg-black/20 w-1/2" />
-      {scanning && (
-        <div
-          className="absolute inset-x-0 h-1"
-          style={{ background: BRAND_SOLID, boxShadow: `0 0 10px ${BRAND_SOLID}`, animation: "chefupLandingScan 1.5s ease-in-out infinite" }}
-        />
-      )}
-    </div>
-  );
-}
-
-function LandingWowDemo({ t, onEngage, onStart, showCta = true }) {
-  // idle -> scanning -> result -> priceUp -> recipeImpact -> (pause) -> idle (boucle infinie,
-  // aucune interaction requise — un visiteur froid ne clique presque jamais, voir commentaire ci-
-  // dessus). Signale UNE fois qu'un visiteur a vu la démo tourner au moins un cycle complet (même
-  // logique de signal d'intérêt que l'ancien calculateur, `onEngage`).
-  const [phase, setPhase] = useState("idle");
-  const [reveal, setReveal] = useState(0);
-  const [marginValue, setMarginValue] = useState(78);
-  const [priceFlipped, setPriceFlipped] = useState(false);
+function LandingProofCard({ t, onEngage }) {
+  const [after, setAfter] = useState(false);
   const engaged = React.useRef(false);
 
   useEffect(() => {
-    let timers = [];
-    if (phase === "idle") timers.push(setTimeout(() => { setReveal(0); setPhase("scanning"); }, 1200));
-    else if (phase === "scanning") {
-      if (reveal >= LANDING_WOW_ITEMS.length) timers.push(setTimeout(() => setPhase("result"), 500));
-      else timers.push(setTimeout(() => setReveal((r) => r + 1), 550));
-    } else if (phase === "result") timers.push(setTimeout(() => setPhase("priceUp"), 2800));
-    else if (phase === "priceUp") {
-      timers.push(setTimeout(() => setPriceFlipped(true), 900));
-      timers.push(setTimeout(() => setPhase("recipeImpact"), 3600));
-    } else if (phase === "recipeImpact") {
-      timers.push(setTimeout(() => setMarginValue(71), 300));
-      timers.push(
-        setTimeout(() => {
-          if (!engaged.current) { engaged.current = true; onEngage(); }
-          setMarginValue(78);
-          setPriceFlipped(false);
-          setPhase("idle");
-        }, 3400)
-      );
+    // Mouvement réduit demandé par l'appareil : on montre directement l'état « après », sans boucle.
+    let reduced = false;
+    try {
+      reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    } catch (e) {
+      reduced = false;
     }
-    return () => timers.forEach(clearTimeout);
+    if (reduced) {
+      setAfter(true);
+      return undefined;
+    }
+    let timer;
+    function toAfter() {
+      setAfter(true);
+      timer = setTimeout(toBefore, 5200);
+    }
+    function toBefore() {
+      if (!engaged.current) { engaged.current = true; onEngage(); }
+      setAfter(false);
+      timer = setTimeout(toAfter, 1400);
+    }
+    timer = setTimeout(toAfter, 900);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, reveal]);
+  }, []);
+
+  const margin = after ? 71 : 78;
+  const ringColor = margin >= 75 ? TIER_COLORS.high : TIER_COLORS.mid;
 
   return (
-    <div className="max-w-sm mx-auto rounded-2xl p-5 border border-white/10 mb-8" style={{ background: "#201B15" }}>
-      <div className="flex flex-col items-center justify-center text-center gap-3 min-h-[280px]">
-        {(phase === "idle" || phase === "scanning") && (
-          <>
-            <LandingWowInvoice scanning={phase === "scanning"} />
-            {phase === "idle" ? (
-              <span className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: BRAND_SOLID }}>
-                {t("landingWowScanning")}
-              </span>
-            ) : (
-              <div className="flex flex-col gap-1.5 w-full max-w-[220px]">
-                {LANDING_WOW_ITEMS.map((it, i) => (
-                  <div
-                    key={it.name}
-                    className="flex items-center gap-2 text-xs transition-all duration-500"
-                    style={{ opacity: reveal > i ? 1 : 0, transform: reveal > i ? "translateY(0)" : "translateY(4px)" }}
-                  >
-                    <Check size={12} style={{ color: "#10B981" }} className="shrink-0" />
-                    <span className="text-white/80 flex-1 text-left">{it.name}</span>
-                    <span className="text-white/40 font-mono">{it.price}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        {(phase === "result" || phase === "priceUp") && (
-          <>
-            <h3 className="font-display uppercase text-white text-sm tracking-wide max-w-xs">
-              {phase === "result" ? t("landingWowResultBanner") : t("landingWowLater")}
-            </h3>
-            {phase === "result" && <p className="text-white/45 text-[11px]">{t("landingWowSupplier")}</p>}
-            <div className="w-full rounded-xl border border-white/10 overflow-hidden" style={{ background: "#16130F" }}>
-              {LANDING_WOW_ITEMS.map((it, i) => {
-                const isBoeuf = i === 0;
-                const highlighting = phase === "priceUp" && isBoeuf;
-                const flagged = highlighting && priceFlipped;
-                return (
-                  <div
-                    key={it.name}
-                    className="flex items-center gap-2 px-3 py-2 text-xs transition-all duration-300"
-                    style={{
-                      borderBottom: i < LANDING_WOW_ITEMS.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
-                      background: highlighting ? "rgba(239,68,68,0.08)" : "transparent",
-                      boxShadow: highlighting && !flagged ? "inset 0 0 0 1.5px rgba(239,68,68,0.5)" : "none",
-                    }}
-                  >
-                    <Check size={11} style={{ color: "#10B981" }} className="shrink-0" />
-                    <span className="text-white/85 flex-1 text-left">{it.name}</span>
-                    <span className="font-mono font-semibold transition-colors duration-500" style={{ color: flagged ? "#EF4444" : "rgba(255,255,255,0.6)" }}>
-                      {flagged ? "13,50€/kg" : it.price}
-                    </span>
-                    {flagged && <TrendingUp size={13} style={{ color: "#EF4444" }} className="shrink-0" />}
-                  </div>
-                );
-              })}
-            </div>
-            {phase === "result" && (
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "#10B981" }}>
-                <Check size={12} /> {t("landingWowResultConfirm")}
-              </div>
-            )}
-            {phase === "priceUp" && priceFlipped && (
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: "#EF4444" }}>
-                <TrendingUp size={12} /> +13%
-              </div>
-            )}
-          </>
-        )}
-
-        {phase === "recipeImpact" && (
-          <>
-            <h3 className="font-display uppercase text-white text-sm tracking-wide max-w-xs">{t("landingWowRecipeIntro")}</h3>
-            <div className="w-full rounded-xl border border-white/10 p-3.5 flex items-center gap-3" style={{ background: "#16130F" }}>
-              <div className="relative w-14 h-14 shrink-0">
-                <svg width="56" height="56" viewBox="0 0 56 56">
-                  <circle cx="28" cy="28" r="23" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" />
-                  <circle
-                    cx="28" cy="28" r="23" fill="none"
-                    stroke={marginValue >= 75 ? TIER_COLORS.high : TIER_COLORS.mid}
-                    strokeWidth="5" strokeLinecap="round"
-                    strokeDasharray="144.5"
-                    strokeDashoffset={144.5 * (1 - marginValue / 100)}
-                    transform="rotate(-90 28 28)"
-                    style={{ transition: "stroke-dashoffset 0.9s ease, stroke 0.9s ease" }}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-white text-xs font-display font-black">{marginValue}%</span>
-                </div>
-              </div>
-              <div className="text-left">
-                <div className="text-white text-sm font-semibold">Bœuf bourguignon</div>
-                <div className="text-white/40 text-[11px] mt-0.5">{t("marginLabel")}</div>
-              </div>
-            </div>
-            <p className="text-white/55 text-[11px] leading-relaxed max-w-xs">{t("landingWowRecipeOutro")}</p>
-          </>
-        )}
+    <div
+      className="w-full max-w-sm mx-auto rounded-2xl border border-white/10 overflow-hidden text-left"
+      style={{ background: "#201B15", boxShadow: "0 18px 50px rgba(0,0,0,0.45)" }}
+    >
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide font-semibold" style={{ color: BRAND_SOLID }}>
+          <Camera size={12} /> {t("landingProofInvoice")}
+        </span>
+        <span className="text-[10px] uppercase tracking-wide text-white/35">{t("landingProofExample")}</span>
       </div>
 
-      {/* CTA TOUJOURS visible, jamais gagné en attendant la fin d'un cycle — l'ancien calculateur
-          n'avait qu'un seul chemin de conversion (après avoir tapé des chiffres) ; ici le visiteur
-          peut s'inscrire à tout moment pendant que la démo tourne, sans attendre. */}
-      {showCta && (
-        <button
-          type="button"
-          onClick={onStart}
-          className="w-full mt-4 py-3 rounded-full font-display uppercase text-[11px] tracking-wide font-semibold"
-          style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
-        >
-          {t("landingCtaStart")}
-        </button>
-      )}
+      <div className="mx-3 rounded-xl border border-white/10 overflow-hidden" style={{ background: "#16130F" }}>
+        {PROOF_LINES.map((l, i) => {
+          const flagged = !!l.flag && after;
+          return (
+            <div
+              key={l.name}
+              className="flex items-center gap-2 px-3 py-2 text-xs transition-all duration-500"
+              style={{
+                borderBottom: i < PROOF_LINES.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                background: flagged ? "rgba(239,68,68,0.10)" : "transparent",
+              }}
+            >
+              <Check size={11} style={{ color: "#10B981" }} className="shrink-0" />
+              <span className="text-white/85 flex-1">{l.name}</span>
+              <span className="font-mono font-semibold transition-colors duration-500" style={{ color: flagged ? "#EF4444" : "rgba(255,255,255,0.6)" }}>
+                {flagged ? l.after : l.before}
+              </span>
+              <span
+                className="inline-flex items-center justify-end gap-0.5 w-12 shrink-0 text-[11px] font-semibold transition-opacity duration-500"
+                style={{ color: "#EF4444", opacity: flagged ? 1 : 0 }}
+              >
+                {l.flag && <><TrendingUp size={12} />+13%</>}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-center py-1.5" style={{ color: BRAND_SOLID }}>
+        <ArrowDown size={16} />
+      </div>
+
+      <div className="mx-3 mb-3 rounded-xl border border-white/10 p-3 flex items-center gap-3" style={{ background: "#16130F" }}>
+        <div className="relative w-14 h-14 shrink-0">
+          <svg width="56" height="56" viewBox="0 0 56 56">
+            <circle cx="28" cy="28" r="23" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" />
+            <circle
+              cx="28" cy="28" r="23" fill="none"
+              stroke={ringColor}
+              strokeWidth="5" strokeLinecap="round"
+              strokeDasharray="144.5"
+              strokeDashoffset={144.5 * (1 - margin / 100)}
+              transform="rotate(-90 28 28)"
+              style={{ transition: "stroke-dashoffset 0.9s ease, stroke 0.9s ease" }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-white text-xs font-display font-black">{margin}%</span>
+          </div>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-white text-sm font-semibold">Bœuf bourguignon</div>
+          <div className="text-white/45 text-[11px] mt-0.5">{t("landingProofMargin")}</div>
+        </div>
+        <div className="text-right shrink-0 transition-opacity duration-500" style={{ opacity: after ? 1 : 0 }}>
+          <div className="text-[11px] font-semibold" style={{ color: TIER_COLORS.mid }}>78% → 71%</div>
+          <div className="text-[10px] text-white/40">−7 pts</div>
+        </div>
+      </div>
+
+      <p className="px-4 pb-3 text-white/55 text-[11px] leading-snug text-center">{t("landingWowRecipeOutro")}</p>
     </div>
   );
 }
@@ -440,24 +371,42 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
             sont dans la carte de prix) et la citation du fondateur. Le bloc « carte digitale » et la
             grille affirmaient aussi « le prix se met à jour tout seul » : faux pour les recettes depuis
             le 2026-08-30 (voir CLAUDE.md), il n'y a donc plus rien à corriger côté marketing. */}
-        <div className="text-center max-w-xl mx-auto mt-6 mb-6">
-          <h1 className="font-display text-white text-2xl sm:text-3xl tracking-wide leading-snug mb-3">
-            {t("landingHeroTitle")}{" "}
-            <span style={{ color: BRAND_SOLID }}>{t("landingHeroPlus")}</span>
-          </h1>
-          <p className="text-white/60 text-sm sm:text-base leading-relaxed">{t("landingHeroSubtitle")}</p>
-        </div>
+        {/* [REFONTE 2026-11-21 — « qu'on comprenne instantanément »] Haut de page : QUI (puce), QUOI (titre + sous-titre), OFFRE (bouton +
+            condition d'essai) et PREUVE (la carte « facture → marge », lisible dès la 1re image, voir LandingProofCard). Sur téléphone la carte
+            est juste sous le bouton (dans le 1er écran) ; sur écran large elle passe à côté du texte pour tout voir sans défiler. */}
+        <div className="grid sm:grid-cols-2 gap-8 sm:gap-10 items-center mt-6 mb-10">
+          <div className="text-center sm:text-left">
+            <span
+              className="inline-block rounded-full px-3 py-1 mb-4 font-display uppercase text-[10px] tracking-widest"
+              style={{ background: `${BRAND_SOLID}22`, color: BRAND_SOLID }}
+            >
+              {t("landingAudience")}
+            </span>
+            <h1 className="font-display text-white text-2xl sm:text-3xl tracking-wide leading-snug mb-3">
+              {t("landingHeroTitle")}{" "}
+              <span style={{ color: BRAND_SOLID }}>{t("landingHeroPlus")}</span>
+            </h1>
+            <p className="text-white/60 text-sm sm:text-base leading-relaxed mb-6">{t("landingHeroSubtitle")}</p>
+            <button
+              type="button"
+              onClick={handleStart}
+              className="w-full sm:w-auto px-10 py-3 rounded-full font-display uppercase text-xs tracking-wide font-semibold"
+              style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
+            >
+              {t("landingCtaStart")}
+            </button>
+            <p className="text-emerald-400/90 text-xs font-semibold mt-3">{t("landingPricingTrial")}</p>
+          </div>
 
-        <div className="max-w-sm mx-auto text-center mb-8">
-          <button
-            type="button"
-            onClick={handleStart}
-            className="w-full sm:w-auto px-10 py-3 rounded-full font-display uppercase text-xs tracking-wide font-semibold"
-            style={{ background: BRAND_GRADIENT, color: "#fff", boxShadow: BRAND_SHADOW }}
-          >
-            {t("landingCtaStart")}
-          </button>
-          <p className="text-emerald-400/90 text-xs font-semibold mt-3">{t("landingPricingTrial")}</p>
+          <LandingProofCard
+            t={t}
+            onEngage={() => {
+              logLandingEvent("calc_used");
+              // Signal d'intérêt intermédiaire, envoyé au pixel : la démo a tourné au moins un cycle
+              // complet sous les yeux du visiteur (voir l'historique dans docs/HISTORIQUE-FONCTIONNALITES.md).
+              trackAdEvent("ViewContent", { content_name: "margin_calculator" });
+            }}
+          />
         </div>
 
         {/* Diagnostic « Ce qui t'échappe chaque mois » : seulement sur getchefup.com/test (2026-11-19). */}
@@ -471,18 +420,6 @@ export default function Landing({ lang, LangSwitcher, onStart, onLogin }) {
             />
           </div>
         )}
-
-        <LandingWowDemo
-          t={t}
-          showCta={false}
-          onEngage={() => {
-            logLandingEvent("calc_used");
-            // Signal d'intérêt intermédiaire, envoyé au pixel : la démo a tourné au moins un cycle
-            // complet sous les yeux du visiteur (voir l'historique dans docs/HISTORIQUE-FONCTIONNALITES.md).
-            trackAdEvent("ViewContent", { content_name: "margin_calculator" });
-          }}
-          onStart={handleStart}
-        />
 
         <div className="mb-12">
           <h2 className="text-center font-display text-white/90 uppercase text-xs tracking-widest mb-6">

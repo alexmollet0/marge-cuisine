@@ -418,9 +418,9 @@ export default function AuthGate({ children }) {
 
   const LangSwitcher = (
     <div className="flex items-center justify-center gap-1 mb-4">
-      <button type="button" onClick={() => changeAuthLang("fr")} className={`text-lg leading-none ${authLang === "fr" ? "" : "opacity-40 grayscale"}`} title="Français">🇫🇷</button>
-      <button type="button" onClick={() => changeAuthLang("es")} className={`text-lg leading-none ${authLang === "es" ? "" : "opacity-40 grayscale"}`} title="Español">🇪🇸</button>
-      <button type="button" onClick={() => changeAuthLang("en")} className={`text-lg leading-none ${authLang === "en" ? "" : "opacity-40 grayscale"}`} title="English">🇬🇧</button>
+      <button type="button" onClick={() => changeAuthLang("fr")} className={`text-lg leading-none text-white/70 ${authLang === "fr" ? "" : "opacity-40 grayscale"}`} title="Français">🇫🇷</button>
+      <button type="button" onClick={() => changeAuthLang("es")} className={`text-lg leading-none text-white/70 ${authLang === "es" ? "" : "opacity-40 grayscale"}`} title="Español">🇪🇸</button>
+      <button type="button" onClick={() => changeAuthLang("en")} className={`text-lg leading-none text-white/70 ${authLang === "en" ? "" : "opacity-40 grayscale"}`} title="English">🇬🇧</button>
     </div>
   );
 
